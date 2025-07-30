@@ -1,0 +1,38 @@
+/* app/components/onboarding/FileUploadBubble.module.css */
+.fileBubbleWrapper { /* Similar to InputBubbleWrapper */
+  display: flex;
+  max-width: 90%;
+  width: 100%;
+  gap: 0.5rem; /* Added for consistency if an avatar were to be used */
+}
+.alignUser {
+  align-self: flex-end;
+}
+.fileBubbleContent { /* Similar to InputBubbleContent */
+  flex-grow: 1;
+  background-color: #2b2b2b;
+  padding: 0.75rem 1rem;
+  border-radius: 1.25rem;
+  border-bottom-right-radius: 0.25rem;
+}
+.label { /* From InputBubble.module.css */
+  display: block;
+  color: #a0a0a0;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+.fileInput {
+  display: none;
+} /* Hide the default input */
+.fileInputLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.fileInputLabel:hover {
+  text-decoration: underline;
+}

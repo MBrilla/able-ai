@@ -1,0 +1,132 @@
+/* app/components/onboarding/WorkerCardBubble.module.css */
+.workerCardBubbleWrapper {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 90%;
+  width: 100%; /* Or a fixed width if cards should be uniform, e.g., 320px */
+}
+
+/* Standard alignment classes, can be reused from other bubbles if centralized */
+.alignUser {
+  align-self: flex-end;
+}
+.alignBot {
+  align-self: flex-start;
+}
+/* Default to bot alignment if not specified or for system messages */
+.workerCardBubbleWrapper:not(.alignUser) {
+  align-self: flex-start;
+}
+
+
+.workerCardBubbleContent {
+  flex-grow: 1;
+  background-color: #2b2b2b; /* Bubble background */
+  padding: 1rem; /* Slightly more padding for card content */
+  border-radius: 1.25rem;
+  /* Tailed bubble effect - assuming bot presents this card */
+  border-bottom-left-radius: 0.25rem;
+  /* If user can present it, you might need conditional tailing */
+  /* border-bottom-right-radius: 0.25rem; */
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem; /* Space between sections in the card */
+  color: #e0e0e0; /* Default text color for card content */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow for card depth */
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.avatar {
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid var(--primary-color-light, #555); /* Optional border */
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.workerName {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.workerSkill {
+  font-size: 0.85rem;
+  color: #b0b0b0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+}
+.workerSkill svg {
+  flex-shrink: 0;
+}
+
+.cardDetails {
+  display: flex;
+  flex-direction: column; /* Stack details vertically */
+  gap: 0.5rem; /* Space between detail items */
+  font-size: 0.9rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #3a3a3a; /* Separator line */
+}
+
+.detailItem {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #c2c2c2;
+}
+.detailItem svg {
+  flex-shrink: 0;
+  color: var(--primary-color-light, #888); /* Icon color for details */
+}
+
+.starIcon {
+  color: #facc15; /* Yellow for star rating */
+}
+
+.ratePrefix, .rateSuffix {
+    font-size: 0.8em;
+    color: #a0a0a0;
+}
+.rateAmount {
+    font-weight: 500;
+    color: #e0e0e0;
+}
+
+
+.profileLinkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--primary-color);
+  color: white;
+  padding: 0.6rem 1rem;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+  margin-top: 0.5rem; /* Space above the button */
+  transition: background-color 0.2s ease;
+}
+
+.profileLinkButton:hover {
+  background-color: var(--primary-color-dark); /* Assuming a darker shade variable */
+}
+.profileLinkButton svg {
+  flex-shrink: 0;
+}

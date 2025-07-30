@@ -1,0 +1,76 @@
+/* app/user/[userId]/worker/profile/skills/[skillId]/portfolio/[portfolioItemId]/EditablePortfolioItemPage.module.css */
+
+.pageContainer {
+  max-width: 600px; /* Adjust as needed */
+  margin: 0 auto;
+  padding: 20px;
+  color: var(--text-primary);
+  background-color: var(--background);
+}
+
+.pageLoadingContainer,
+.pageWrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  color: var(--text-neutral);
+}
+
+.errorMessage {
+  font-size: 1.1rem;
+  text-align: center;
+  color: var(--error-color);
+}
+
+.pageTitle {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-top: 0;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+/* Form field styling (reused from EditableSkillPage or general form styles) */
+.formField {
+    margin-bottom: 20px;
+}
+
+.formLabel {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+/* Basic select field style */
+.selectField {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--surface-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.selectField:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.hintText {
+    font-size: 0.85rem;
+    color: var(--text-neutral);
+    margin-top: 5px;
+    margin-bottom: 0;
+}
+
+/* Save Button Container */
+.saveButtonContainer {
+  margin-top: 30px;
+  text-align: center;
+} 

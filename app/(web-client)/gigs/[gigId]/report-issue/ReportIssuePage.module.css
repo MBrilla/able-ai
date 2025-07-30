@@ -1,0 +1,197 @@
+/* ReportIssuePage.module.css */
+.pageContainer {
+  background-color: #121212;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.screenHeader {
+  background-color: #1F1F1F;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.backButton {
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+.screenTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+.formCard {
+  background-color: #2B2B2B;
+  margin: 1rem;
+  padding: 1.5rem;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.fieldLabel {
+  font-size: 0.9rem;
+  color: #e0e0e0;
+}
+.selectContainer {
+  position: relative;
+}
+.selectInput {
+  background-color: #3A3A3A;
+  color: #e0e0e0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #4A4A4A;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  width: 100%;
+  appearance: none;
+  cursor: pointer;
+}
+.selectContainer::after {
+  content: '▼';
+  font-size: 0.7rem;
+  color: #c2c2c2;
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.textareaInput {
+  background-color: #3A3A3A;
+  color: #e0e0e0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #4A4A4A;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  resize: vertical;
+  min-height: 100px;
+}
+.textareaInput::placeholder {
+  color: #737373;
+}
+.fileUploadButton {
+  background-color: #3A3A3A;
+  border: 1px solid #4A4A4A;
+  border-radius: 9999px;
+  padding: 0;
+  position: relative;
+}
+.fileInputHidden {
+  display: none;
+}
+.fileUploadLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+  color: #c2c2c2;
+  font-size: 0.95rem;
+}
+.fileUploadIcon {
+  color: #ffffff;
+}
+.submitButton {
+  background-color: #4A4A4A;
+  color: #ffffff;
+  padding: 0.85rem 1.5rem;
+  border: none;
+  border-radius: 9999px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.submitButton:hover:not(:disabled) {
+  background-color: #5a5a5a;
+}
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.errorMessage {
+  color: #FF6B6B;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.chatWidgetCard {
+  background-color: #2B2B2B;
+  margin: 0 1rem 1rem 1rem;
+  padding: 1rem;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex-grow: 1;
+  min-height: 300px;
+}
+.chatHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.botAvatar {
+  border-radius: 50%;
+}
+.chatTitle {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+.messageDisplayArea {
+  flex-grow: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-right: 0.5rem;
+}
+.messageBubble {
+  padding: 0.6rem 0.9rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  max-width: 80%;
+  word-wrap: break-word;
+}
+.botMessage {
+  background-color: #555555;
+  color: #ffffff;
+  align-self: flex-start;
+  border-bottom-left-radius: 2px;
+}
+.userMessage {
+  background-color: #007AFF;
+  color: #ffffff;
+  align-self: flex-end;
+  border-bottom-right-radius: 2px;
+}
+.chatInputContainer {
+}
+.chatInput {
+  background-color: #3A3A3A;
+  color: #e0e0e0;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid #4A4A4A;
+  border-radius: 9999px;
+  font-size: 0.95rem;
+  width: 100%;
+}
+.chatInput::placeholder {
+  color: #737373;
+} 

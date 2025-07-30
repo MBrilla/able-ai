@@ -1,0 +1,157 @@
+/* CancelOrAmendGigDetailsPage.module.css */
+
+.viewContainer {
+  background-color: #1E1E1E; /* Dark grey main content area background */
+  color: #F0F0F0; /* Off-white primary text */
+  padding: 0 16px 24px 16px; /* Horizontal padding, bottom padding for button */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  margin: 0 -16px 16px -16px; /* Extend to screen edges, add bottom margin */
+  border-bottom: 1px solid rgba(235, 232, 229, 0.5);
+  height: 60px;
+  background-color: #2b2b2b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.headerTitle {
+  font-size: 1.25rem; /* Approx 20px */
+  color: #FFFFFF;
+  text-align: center;
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.card {
+  background-color: #2C2C2E; /* Slightly lighter dark grey for cards */
+  border-radius: 16px; /* Consistent rounded corners */
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+/* Instruction Block */
+.instructionBlock {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: #2b2b2b;
+  border-radius: 1.5rem;
+}
+
+.instructionIconContainer {
+  /* Styles for the friendly face icon, if needed directly on container */
+  flex-shrink: 0;
+}
+
+.instructionIcon {
+  color: #4A90E2; /* Blue for the icon - primary elements */
+  /* Assuming the SVG itself has white parts or they are controlled by fill/stroke */
+  width: 50px;
+  height: 50px;
+}
+
+.instructionText {
+  color: #FFFFFF;
+  font-size: 1rem;
+  line-height: 1.2;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.botCard {
+  background-color: #2b2b2b;
+  border-radius: 1.5rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+}
+
+/* Text Input Block */
+.textInputBlockLabel {
+  font-size: 0.95rem; /* Approx 15px */
+  margin-bottom: 8px;
+  display: block;
+}
+
+.textareaInput {
+  width: 100%;
+  border: none;
+  background: none;
+  outline: none;
+  padding: 0.5rem;
+  color: #F0F0F0;
+  font-size: 0.9rem; /* Approx 14px */
+  min-height: 80px;
+  resize: vertical;
+}
+
+.textareaInput::placeholder {
+  color: #8E8E93; /* Medium grey placeholder */
+}
+
+
+/* Action Button */
+.submitButton {
+  color: #0f0f0f;
+  font-size: 0.87rem; /* Approx 16px */
+  font-weight: bold;
+  border: none;
+  border-radius: 1.5rem; /* Pill-shaped */
+  padding: 14px 20px;
+  width: 100%;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.2s ease-in-out;
+  font-weight: 700;
+  line-height: 1;
+  outline: none;
+}
+
+.workerBtn {
+  background-color: var(--primary-color);
+}
+
+.buyerBtn {
+  background-color: var(--secondary-color);
+}
+
+.buyerBtn:hover {
+  background-color: #6ed5df;
+}
+
+.workerBtn:hover {
+  background-color: #3071bb; /* Lighter blue on hover */
+}
+
+.cancelBtn {
+  background-color: var(--error-color);
+}
+
+.cancelBtnText {
+  display: flex;
+  flex-direction: column;
+}
+
+.cancelBtn:hover {
+  background-color: rgba(239, 68, 68, 0.5);
+}
+
+.loadingCancelSubmit {
+  display: flex;
+  justify-content: center;
+}
+
+.loadingCancelSubmit span {
+  color: black;
+}
+
+.actionBtnContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

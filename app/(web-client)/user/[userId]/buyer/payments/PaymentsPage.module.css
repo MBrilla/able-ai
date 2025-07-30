@@ -1,0 +1,299 @@
+/* app/user/[userId]/buyer/payments/PaymentsPage.module.css */
+.container {
+  min-height: 100vh;
+  background-color: #161616;
+  color: #e0e0e0;
+  /* padding: 1.5rem; */
+  font-family: var(--font-family);
+}
+
+.pageWrapper {
+  width: 100%;
+  max-width: 900px; /* Wider for table-like data */
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  height: 53px;
+  background-color: #2b2b2b;
+  padding: 0.5rem;
+}
+
+.headerLeftContainer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.totalsNote {
+  color: #ffffff;
+  font-size: 14px;
+  font-family: "Open Sans";
+  font-style: italic;
+  line-height: 18px;
+  padding-left: 1.5rem;
+}
+
+.pageTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.filterButton { /* For the main "Filter" button */
+  background-color: #ffffff;
+  color: #0f0f0f;
+  border: none;
+  outline: none;
+  padding: 0.6rem 1rem;
+  border-radius: 1.5rem; /* 8px */
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.filterButton:hover {
+  background-color: var(--secondary-color);
+  color: #ffffff;
+}
+
+.filterSection { /* For the radio button filters */
+  background-color: #1f1f1f;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #2b2b2b;
+}
+.filterSectionTitle {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #a0a0a0;
+    margin-bottom: 0.75rem;
+}
+.filterOptions {
+  display: flex;
+  flex-wrap: wrap; /* Allow wrapping on small screens */
+  gap: 1rem; /* Space between radio groups */
+  margin-bottom: 0.5rem;
+}
+.filterOptionLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #c2c2c2;
+  cursor: pointer;
+}
+.filterOptionLabel input[type="radio"] {
+  accent-color: var(--secondary-color);
+  cursor: pointer;
+}
+.filterNote {
+  font-size: 0.75rem; /* Smaller */
+  color: #737373; /* Darker grey */
+  margin-top: 0.5rem;
+}
+
+.paymentList {
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  gap: 1rem; /* Space between payment items */
+  margin-bottom: 4rem;
+}
+
+
+@media (min-width: 600px) { /* Side-by-side on larger screens */
+    .paymentRight {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+}
+
+.amount {
+  font-size: 1.25rem; /* Larger amount */
+  font-weight: 600;
+  color: var(--secondary-color); /* Secondary color for amount */
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem; /* Space between action buttons */
+  flex-wrap: wrap; /* Allow buttons to wrap */
+}
+
+.actionButton {
+  background-color: #ffffff;
+  color: #161616;
+  width: 100px;
+  height: 32px;
+  padding: 0px 8px;
+  border: 0;
+  border-radius: 1.5rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.actionButton:hover {
+  background-color: var(--secondary-color);
+  color: #ffffff;
+}
+
+.barChartContainer {
+  background-color: #1f1f1f;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  margin-top: 2rem;
+  border: 1px solid #2b2b2b;
+  height: 250px; /* Give it some height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #737373;
+}
+
+.footer {
+  padding-top: 1rem;
+  display: flex;
+  justify-content: center;
+  background-color: #2b2b2b;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+
+.emptyState, .loadingContainer {
+  text-align: center;
+  color: #737373;
+  padding: 3rem 1rem;
+  font-size: 1rem;
+}
+.loadingContainer { min-height: 50vh; display: flex; align-items: center; justify-content: center;}
+
+/* Basic Modal Styles (you might use Radix UI Dialog for better modals) */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.modalContent {
+  background-color: #1f1f1f;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid #2b2b2b;
+  width: 90%;
+  max-width: 400px;
+  color: #e0e0e0;
+}
+.modalHeader {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+.modalActions {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+/* Chart Tooltip Styles */
+.chartTooltip {
+  background-color: #1f1f1f;
+  border: 1px solid #3a3a3a;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.tooltipLabel {
+  color: #a0a0a0;
+  font-size: 0.875rem;
+  margin: 0 0 0.25rem 0;
+}
+
+.tooltipValue {
+  color: var(--secondary-color);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+} 
+
+.paymentItem {
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  box-sizing: border-box;
+  border: 1px solid #2b2b2b;
+  transition: border-color 0.2s ease;
+  display: flex;
+  justify-content: space-between;
+}
+.paymentItem:hover {
+    border-color: #3a3a3a;
+}
+
+.paymentGigIcon {
+    color: '#ffffff';
+    width: 30px;
+    height: 32px;
+}
+
+.paymentCard{
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.paymentDetails {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.paymentHeader {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.generateInvoice {
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-family: var(--font-family);
+  font-weight: 500;
+  line-height: 19px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 5px;
+}
+
+.paymentRight {
+  display: flex;
+  flex-direction: column; /* Stack amount and actions on mobile */
+  gap: 0.75rem;
+  align-items: flex-start; /* Align to start on mobile */
+}

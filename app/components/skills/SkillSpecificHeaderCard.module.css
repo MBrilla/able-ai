@@ -1,0 +1,74 @@
+/* app/components/skills/SkillSpecificHeaderCard.module.css */
+.headerCardContainer {
+  background-color: var(--surface-dark);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.headerContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.profileVisual {
+  width: 120px;
+  height: 120px;
+  border-radius: var(--border-radius-large);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--surface-neutral);
+}
+
+.profileImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profileVisualPlaceholder {
+  color: var(--text-neutral);
+}
+
+.headerText {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.favoriteButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--accent-color);
+  margin-left: auto; /* Push star to the right if needed */
+}
+
+.favoriteButton svg {
+  stroke: currentColor;
+}
+
+.favoriteButton:hover {
+  opacity: 0.8;
+}
+
+.hashtagsContainer {
+  margin-top: 15px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+} 

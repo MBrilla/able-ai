@@ -1,0 +1,29 @@
+/* app/components/shared/ReviewCardItem.module.css */
+.reviewCard {
+  background-color: var(--surface-dark);
+  border-radius: 1.5rem;
+  border: 1px solid #2b2b2b;
+  padding: 1rem;
+  margin-bottom: 1rem; /* Space between reviews */
+  color: #ffffff;
+  font-size: 0.8rem;
+}
+
+.header {
+  display: flex;
+}
+
+.reviewerName {
+  font-weight: 600;
+  margin-right: 0.2rem;
+}
+
+.date {
+  color: var(--text-neutral);
+}
+
+.comment {
+  color: var(--text-neutral);
+  line-height: 1.4;
+  margin: 0;
+} 

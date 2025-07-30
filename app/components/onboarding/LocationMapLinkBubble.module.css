@@ -1,0 +1,122 @@
+/* app/components/onboarding/LocationMapLinkBubble.module.css */
+.locationBubbleWrapper {
+  display: flex;
+  margin-bottom: 12px;
+  max-width: 85%;
+  position: relative; /* For alignment pseudo-elements */
+}
+
+.alignUser {
+  margin-left: auto; /* Aligns to the right */
+  flex-direction: row-reverse; /* Keeps content order logical */
+}
+
+.locationBubbleContent {
+  background-color: #f0f2f5; /* Light grey, typical for user messages */
+  color: #333;
+  padding: 10px 15px;
+  border-radius: 18px;
+  border-top-right-radius: 4px; /* Characteristic chat bubble shape */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #555;
+  margin: 0;
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 12px;
+  color: #888;
+}
+
+.locationInput {
+  width: 100%;
+  padding: 10px 12px 10px 40px; /* Left padding for icon */
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.locationInput:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.errorMessage {
+  color: #d93025; /* Google's red for errors */
+  font-size: 0.85rem;
+  margin: 4px 0 0 0;
+  padding-left: 5px;
+}
+
+.mapLink {
+  display: inline-flex; /* Changed from flex to inline-flex for better wrapping if needed */
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0; /* Match other interactive elements */
+  color: var(--primary-color);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-family: var(--font-family);
+  border-radius: 0.25rem; /* Slight rounding for focus visibility */
+}
+
+.mapLink:hover,
+.mapLink:focus {
+  text-decoration: underline;
+  outline: none; /* Or a custom focus style */
+}
+.mapLink.disabledLink {
+  color: #737373;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+.mapLink.disabledLink:hover {
+    text-decoration: none;
+}
+
+
+.externalIcon {
+  margin-left: 0.25rem;
+  opacity: 0.7;
+}
+
+.locationTextDisplay {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  color: #c2c2c2; /* Match input field text color */
+  font-size: 0.9rem;
+  font-family: var(--font-family);
+}
+
+.locationPlaceholder {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  color: #737373; /* Placeholder text color */
+  font-size: 0.9rem;
+  font-style: italic;
+  font-family: var(--font-family);
+}
+
+/* Styles for a potential future InputBubble integrated here would be inherited
+   or you might need specific overrides if InputBubble is nested directly. */

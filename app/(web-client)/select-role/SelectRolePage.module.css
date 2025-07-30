@@ -1,0 +1,85 @@
+/* app/select-role/SelectRolePage.module.css */
+.container {
+  min-height: 100vh;
+  background-color: #161616; /* Dark background */
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem 1rem;
+  font-family: var(--font-family);
+}
+
+.card {
+  max-width: 450px; /* Slightly wider card for these buttons */
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.greeting {
+  margin-bottom: 2.5rem; /* More space after greeting */
+}
+
+.intro {
+  font-size: 1.2rem; /* Slightly larger */
+  color: white;
+  font-weight: 600;
+  margin-bottom: 2rem;
+}
+
+.question {
+  font-size: 1.1rem; 
+  color: #e0e0e0; 
+  font-weight: 500;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 1.25rem; /* Space between buttons */
+  width: 100%;
+  margin-bottom: 2.5rem; /* More space before the note */
+}
+
+/* For larger screens, make buttons side-by-side */
+@media (min-width: 480px) {
+  .card {
+    background-color: #1f1f1f; /* Slightly lighter card */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    border-radius: 1.25rem; /* 20px */
+  }
+  /* Adjust breakpoint as needed */
+  .actions {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+}
+
+.note {
+  font-style: italic;
+  color: #bfbfbf;
+  font-size: 0.875rem;
+  margin-top: 5rem; /* Space after actions */
+  max-width: 90%;
+  line-height: 1.5;
+}
+
+.errorMessage {
+  color: var(--error-color);
+  background-color: rgba(239, 68, 68, 0.1);
+  padding: 0.75rem;
+  border-radius: var(--border-radius);
+  font-size: 0.875rem;
+  text-align: center;
+  border: 1px solid var(--error-color);
+  margin-bottom: 1.5rem; /* Space it out */
+  width: 100%;
+}
+
+.loadingText {
+  color: white;
+  font-size: 1.2rem;
+}

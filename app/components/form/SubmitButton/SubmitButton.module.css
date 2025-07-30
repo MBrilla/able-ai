@@ -1,0 +1,160 @@
+/* Base styles (mobile-first: icon button) */
+.button {
+  width: 48px;
+  height: 48px;
+  background-color: #ffffff; /* Mobile: white background */
+  color: #0f0f0f; /* Mobile: dark icon/text */
+  border-radius: 24px; /* Mobile: for a circle (half of width/height) */
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out, background-color 0.2s ease;
+  padding: 0; /* Remove padding for icon-only button */
+  font-family: var(--font-family); /* Ensure font consistency if text appears */
+  outline: none; /* From mobile specific styles */
+  box-sizing: border-box;
+}
+
+.buttonTextDesktop {
+  display: none; /* Hidden on mobile */
+}
+
+.buttonIconMobile {
+  display: flex; /* Visible on mobile */
+  align-items: center;
+  justify-content: center;
+  color: #0f0f0f; /* Explicitly set icon color for mobile */
+}
+
+.buttonIconMobile svg {
+  /* Ensure icon takes the color */
+  stroke: #0f0f0f;
+}
+
+.loadingTextDesktop {
+  display: none; /* Hidden on mobile */
+  font-size: 0.9rem; /* Consistent loading text size */
+  font-weight: 600;
+}
+.loadingTextMobile {
+  font-size: 0.9rem; /* Consistent loading text size */
+  font-weight: 600;
+  color: #ffffff; /* Dark text for contrast on light buttons */
+}
+/* Loader for mobile */
+.loaderMobile {
+  width: 30px;
+  aspect-ratio: 2;
+  --_g: no-repeat radial-gradient(circle closest-side,var(--primary-color) 90%,#0000);
+  background: 
+    var(--_g) 0%   50%,
+    var(--_g) 50%  50%,
+    var(--_g) 100% 50%;
+  background-size: calc(100%/3) 50%;
+  animation: l3 1s infinite linear;
+}
+@keyframes l3 {
+    20%{background-position:0%   0%, 50%  50%,100%  50%}
+    40%{background-position:0% 100%, 50%   0%,100%  50%}
+    60%{background-position:0%  50%, 50% 100%,100%   0%}
+    80%{background-position:0%  50%, 50%  50%,100% 100%}
+}
+
+/* Loader for desktop */
+
+.loaderDesktop {
+  display: none; /* Hidden on mobile */
+}
+
+/* Hover/Focus for Mobile Icon Button */
+.button:hover:not(:disabled) {
+  transform: scale(1.05);
+  background-color: #f0f0f0; /* Light grey hover for white button */
+}
+
+.button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3); /* Keep focus consistent */
+}
+
+.button:disabled {
+  background-color: #555555; /* Darker grey for mobile disabled */
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+.button:disabled .buttonIconMobile svg {
+  /* Ensure disabled icon is also styled */
+  stroke: #9ca3af;
+}
+
+/* Desktop styles (e.g., for screens wider than 768px) */
+@media (min-width: 768px) {
+  .button {
+    width: 100%; /* Desktop: Full width */
+    height: auto; /* Desktop: Auto height based on padding */
+    padding: 0.85rem 1rem; /* Desktop: Padding for text */
+    background-color: var(
+      --primary-color
+    ); /* Desktop: Primary color background */
+    color: white; /* Desktop: White text */
+    border-radius: 9999px; /* Desktop: Pill shape */
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .buttonTextDesktop {
+    display: inline; /* Show text on desktop */
+  }
+
+  .buttonIconMobile {
+    display: none; /* Hide mobile-only icon on desktop */
+  }
+
+  /* Hover/Focus for Desktop Text Button */
+  .button:hover:not(:disabled) {
+    background-color: #4338ca; /* Darker primary for desktop */
+    transform: scale(1.02); /* Keep a slight scale */
+  }
+
+  .button:disabled {
+    background-color: #374151; /* Desktop disabled style (from previous) */
+    color: #9ca3af;
+  }
+
+  .loaderMobile {
+    display: none; /* Hide mobile loader on desktop */
+  }
+
+  .loaderDesktop {
+    display: block; /* Show desktop loader */
+    width: fit-content;
+    clip-path: inset(0 100% 0 0);
+    animation: l5 2s steps(11) infinite;
+    color: var(--primary-color)
+  }
+  .loaderDesktop:before {
+    content:"Processing..."
+  }
+  @keyframes l5 {to{clip-path: inset(0 -1ch 0 0)}}
+  }
+
+/* Styles for loading state - should apply to both mobile and desktop */
+/* Ensure loading text is centered and visible when active */
+.button:disabled .loadingText,
+.button.loading .loadingText {
+  /* If you add a .loading class */
+  /* Common styling for loading text if needed */
+  font-size: 0.9rem; /* Consistent loading text size */
+}
+
+/* If loading, hide the specific desktop/mobile content */
+.button:disabled .buttonTextDesktop,
+.button.loading .buttonTextDesktop {
+  display: none;
+}
+.button:disabled .buttonIconMobile,
+.button.loading .buttonIconMobile {
+  display: none;
+}

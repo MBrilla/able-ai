@@ -1,0 +1,84 @@
+/* WorkerCalendarPage.module.css */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #0a0a0a; /* Match global dark background */
+  color: #e0e0e0; /* Default text color */
+}
+
+.header {
+  background-color: #1a1a1a; /* Slightly lighter than background */
+  padding: 1rem;
+  border-bottom: 1px solid #2b2b2b;
+}
+
+.headerTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem; /* Space between top and bottom header parts */
+}
+
+.menuButton {
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.headerBottom {
+  display: flex;
+  align-items: center;
+}
+
+.filterPills {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filterPill {
+  background-color: #3a3a3a;
+  color: #a0a0a0;
+  border: 1px solid #4a4a4a;
+  padding: 0.4rem 0.8rem;
+  border-radius: 1rem; /* Fully rounded */
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.filterPill.activePill {
+  background-color: var(--primary-color); /* Worker's blue */
+  color: white;
+  border-color: var(--primary-darker-color);
+}
+
+.mainContent {
+  flex: 1;
+  padding: 1rem;
+}
+
+.footer {
+  background-color: #2a2a2a; /* Slightly different shade from page for nav */
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid #3a3a3a;
+  width: 100%;
+}
+
+.homeButton {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  cursor: pointer;
+  font-size: 1.5rem; /* Adjust size */
+}
+
+.homeButton:hover {
+  color: #ffffff;
+}

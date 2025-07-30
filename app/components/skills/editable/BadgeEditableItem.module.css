@@ -1,0 +1,34 @@
+/* app/components/skills/editable/BadgeEditableItem.module.css */
+.itemContainer {
+  display: flex;
+  align-items: center;
+  background-color: var(--surface-dark);
+  border-radius: var(--border-radius-small);
+  padding: 8px 15px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-color);
+  gap: 10px;
+}
+
+.icon {
+  color: var(--text-neutral);
+}
+
+.badgeName {
+  flex-grow: 1;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.removeButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-neutral);
+  padding: 0;
+  margin-left: auto; /* Push to the right */
+}
+
+.removeButton:hover {
+  color: var(--error-color);
+} 

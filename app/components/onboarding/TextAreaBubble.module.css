@@ -1,0 +1,40 @@
+/* app/components/onboarding/TextAreaBubble.module.css */
+.textAreaBubbleWrapper {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 90%;
+  width: 100%;
+}
+
+.alignUser {
+  align-self: center;
+}
+
+.textAreaBubbleContent {
+  flex-grow: 1;
+  border-radius: 1.25rem;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.label {
+  display: block;
+  color: #a0a0a0;
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+}
+
+.textAreaField {
+  width: 100%;
+  border: none;
+  background-color: transparent;
+  color: #c2c2c2;
+  font-size: 0.9rem;
+  font-family: var(--font-family);
+  line-height: 1.4;
+  outline: none;
+  resize: vertical; /* Allow vertical resize */
+}
+
+.textAreaField::placeholder {
+  color: #737373;
+}

@@ -1,0 +1,73 @@
+.container {
+  display: flex;
+  flex-direction: column; /* So footer can be at bottom */
+  height: 100vh; /* Full viewport height */
+  background-color: #161616;
+  color: #e0e0e0;
+  font-family: var(--font-family);
+  /* ChatBotLayout will handle its own padding and scrolling within the space it's given */
+}
+
+/* Styles for the header *above* the ChatBotLayout component */
+.chatScreenHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem; /* Match potential ChatBotLayout internal padding */
+  /* background-color: #1f1f1f; Optional: if header needs a distinct bg */
+  /* border-bottom: 1px solid #2b2b2b; */
+}
+.chatScreenHeader h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+.botAvatarHeader {
+  border-radius: 50%;
+}
+
+
+/* Container for the RehireWorkerCard within the chat flow */
+.rehireCardContainer {
+    padding: 0.5rem 0; /* Spacing around the card in the chat flow */
+    /* align-self: center; /* If ChatBotLayout items are not full width */
+    width: 100%;
+    max-width: 450px; /* Match card's typical max width */
+    margin: 0 auto; /* Center card if ChatBotLayout is wider */
+}
+
+
+.footerNav {
+  padding: 0.75rem;
+  background-color: #1f1f1f; /* Footer background */
+  border-top: 1px solid #2b2b2b;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0; /* Prevent footer from shrinking */
+}
+.homeButtonNav {
+  background: none;
+  border: none;
+  color: #a0a0a0;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+}
+.homeButtonNav:hover {
+  color: var(--primary-color);
+}
+
+/* General loading/error/empty states */
+.loadingContainer, .errorMessage, .emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  color: #a0a0a0;
+  font-size: 1rem;
+  flex-grow: 1; /* If used directly in .container */
+}
+.errorMessage { color: var(--error-color); background-color: rgba(239,68,68,0.1); border: 1px solid var(--error-color); border-radius: var(--border-radius); } 

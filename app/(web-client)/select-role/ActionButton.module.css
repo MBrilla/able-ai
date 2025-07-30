@@ -1,0 +1,31 @@
+/* app/components/role-selection/ActionButton.module.css */
+.button {
+  flex: 1;
+  padding: 0.9rem 1.25rem; /* Generous padding */
+  min-width: 149px; /* Minimum width for better tap targets */
+  font-size: 0.9rem; /* Clear font size */
+  font-family: var(--font-family);
+  border: none;
+  border-radius: 1.5rem; /* 24px, more rounded */
+  cursor: pointer;
+  color: #0f0f0f; /* Dark text for contrast on light buttons */
+  font-weight: 600; /* Bold text */
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  text-align: center;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}

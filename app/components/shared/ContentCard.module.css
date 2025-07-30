@@ -1,0 +1,26 @@
+/* app/components/shared/ContentCard.module.css */
+.card {
+  background-color: #1f1f1f;
+  border-radius: 16px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #2b2b2b;
+  color: #e0e0e0;
+}
+
+.cardTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.titleIcon {
+  color: var(--primary-color);
+}
+
+.cardContent {
+} 

@@ -1,0 +1,234 @@
+/* app/components/shared/AiSuggestionBanner.module.css */
+/* CSS Variables are now defined in app/globals.css */
+
+.suggestionBanner {
+  display: flex;
+  flex-direction: column; /* Stack top row and bottom controls */
+}
+
+.suggestionBanner.error {
+  background-color: var(--ai-suggestion-banner-error-background);
+  border-left: 3px solid var(--error-color);
+}
+
+.suggestionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.suggestionTextContainer {
+  background-color: var(--ai-suggestion-banner-background);
+  color: var(--text-primary-light);
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  flex-grow: 1; /* Allow text to take available space */
+  min-width: 0; /* Prevents flex item from overflowing */
+}
+
+/* .suggestionContent class removed as it was deemed redundant */
+
+.suggestionIconContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.suggestionIcon {
+  color: var(--primary-color);
+}
+
+.suggestionTitle {
+  font-weight: 600;
+  font-size: 0.9rem; /* Slightly smaller title */
+  margin: 0 0 0.25rem 0; /* Add some bottom margin if title is kept */
+  color: var(--text-white);
+  line-height: 1.3;
+}
+
+.suggestionDescription {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0; /* Removed margin-right */
+  color: var(--text-primary-light);
+}
+
+.suggestionText {
+  font-size: 0.8rem; /* Slightly smaller text */
+  line-height: 1.4;
+  margin: 0;
+  opacity: 0.85; /* Consider if this should be a variable or if text color should be slightly different */
+}
+
+/* Comments regarding .controls and .actionButtons removed */
+
+/* Base styles for .navButton (carousel) and .closeButton (banner close) */
+.navButton,
+.closeButton {
+  background: none;
+  border: none;
+  color: var(--ai-suggestion-banner-text-secondary);
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.navButton:hover,
+.closeButton:hover {
+  color: var(--text-white);
+  background-color: var(--ai-suggestion-banner-button-hover-background);
+}
+
+/* Specific .chatButton styles */
+.chatButton {
+  background-color: var(--background);
+  color: var(--foreground);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease;
+  flex-shrink: 0; /* Prevent shrinking */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2); /* Consider variables for shadow if used elsewhere */
+  transform: translateY(-25%);
+  padding: .25rem;
+}
+
+.chatButton:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3); /* Consider variables for shadow if used elsewhere */
+}
+
+
+.counter {
+  font-size: 0.75rem;
+  color: var(--ai-suggestion-banner-text-secondary);
+  min-width: 2.25rem; /* Adjusted min-width */
+  text-align: center;
+}
+
+/* Styles for the text-based refresh button, if distinct from refreshButtonIcon */
+.refreshButton {
+  background: none;
+  border: 1px solid currentColor; /* Uses current text color for border */
+  color: var(--ai-suggestion-banner-text-secondary); /* Explicitly set color */
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.refreshButton:hover {
+  color: var(--text-white);
+  background-color: var(--ai-suggestion-banner-button-hover-background);
+}
+
+.suggestionBanner:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Consider variables for shadow */
+}
+
+.topRowContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 0.5rem; /* Gap between text and chat button */
+}
+
+.bottomControlsContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem; /* Spacing between dismiss, refresh, and carousel */
+  width: 100%; /* Take full width to align controls */
+  justify-content: space-between;
+}
+
+.inlineCarouselControls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem; /* Tighter spacing for prev/counter/next */
+}
+
+/* Specific styling for .navButton when inside .inlineCarouselControls */
+.inlineCarouselControls .navButton {
+  background-color: var(--ai-suggestion-banner-nav-button-background);
+  /* Other properties like padding, border-radius, display, align, justify, transition are inherited or set here if different */
+}
+
+.inlineCarouselControls .navButton:hover {
+  background-color: var(--ai-suggestion-banner-nav-button-hover-background);
+  /* color is inherited from .navButton:hover */
+}
+
+/* Skeleton Loader Styles */
+.skeletonBanner {
+  background-color: var(--ai-suggestion-banner-background);
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeletonLine {
+  background-color: var(--ai-suggestion-banner-skeleton-base);
+  border-radius: 4px;
+  height: 1em;
+  animation: shimmer 1.5s infinite linear;
+  opacity: 0.7;
+  background-image: linear-gradient(
+    to right,
+    var(--ai-suggestion-banner-skeleton-base) 0%,
+    var(--ai-suggestion-banner-skeleton-highlight) 20%,
+    var(--ai-suggestion-banner-skeleton-base) 40%,
+    var(--ai-suggestion-banner-skeleton-base) 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 2000px 100%;
+}
+
+.skeletonLineShort {
+  width: 60%;
+}
+
+.skeletonLineLong {
+  width: 90%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* Icon buttons: .dismissButton and .refreshButtonIcon */
+.dismissButton,
+.refreshButtonIcon {
+  background-color: var(--ai-suggestion-banner-nav-button-background);
+  border-radius: 4px;
+  padding: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary-light);
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.dismissButton:hover,
+.refreshButtonIcon:hover {
+  background-color: var(--ai-suggestion-banner-nav-button-hover-background);
+  color: var(--text-white);
+}

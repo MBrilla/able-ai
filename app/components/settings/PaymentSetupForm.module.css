@@ -1,0 +1,41 @@
+.setupForm {
+	max-width: 500px;
+	margin: 20px auto;
+	padding: 20px;
+	display: flex;
+	flex-direction: column;
+}
+
+.paymentElementContainer {
+	margin-bottom: 20px;
+	padding: 10px;
+	border-radius: 4px;
+	max-height: 250px;
+	overflow-y: scroll;
+}
+
+.savePaymentMethodBtn {
+	padding: 10px 15px;
+	background-color: #007bff;
+	color: white;
+	border: none;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.savePaymentMethodBtn:hover {
+	background-color: rgba(0, 123, 255, 0.5);
+}
+
+.setupMessageError {
+	background-color: #ffe0e0;
+	border: 1px solid red;
+}
+
+.setupMessage {
+	margin-top: 15px;
+	padding: 10px;
+	border-radius: 4px;
+	background-color: #e0ffe0;
+	border: 1px solid green;
+}

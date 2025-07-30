@@ -1,0 +1,13 @@
+.container {
+  width: 100%;
+  height: auto;
+  min-height: 100vh;
+  max-width: 450px;
+  margin: 0 auto;
+  padding: 20px;
+  color: #ffffff;
+  background-color: var(--foreground);
+  font-family: var(--font-family);
+  position: relative;
+}
+

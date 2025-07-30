@@ -1,0 +1,13 @@
+.pageCloseButton {
+  position: absolute;
+  top: 1%;
+  left: 2%;
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  z-index: 10;
+}
+.pageCloseButton:hover {
+  opacity: 0.8;
+}

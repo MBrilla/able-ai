@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// service firebase.storage controls access to files in Cloud Storage
+service firebase.storage {
+  match /b/{bucket}/o { // This is a required global match
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // --- User Profile Images ---
+    // Path: users/{userId}/profileImage/{fileName}
+    // - Anyone can read profile images.
+    // - Only the authenticated owner can upload/update their profile image.
+    // - Deletion by owner.
+    // - Limit file size and type.
+    match /users/{userId}/profileImage/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId)
+                    && request.resource.size < 5 * 1024 * 1024 // Max 5MB
+                    && request.resource.contentType.matches('image/.*'); // Only images
+      allow delete: if isOwner(userId);
+    }
+
+    // --- Worker Intro Videos ---
+    // Path: workers/{userId}/introVideo/{fileName}
+    // - Anyone can read intro videos (if they are public).
+    // - Only the authenticated owner (who is a worker) can upload/update.
+    // - Limit file size and type.
+    match /workers/{userId}/introVideo/{fileName} {
+      allow read: if true; // Assuming intro videos are public for buyers to see
+      allow write: if isOwner(userId) // Add && request.auth.token.appRole == "GIG_WORKER" if using custom claims for role
+                    && request.resource.size < 50 * 1024 * 1024 // Max 50MB for a short video
+                    && request.resource.contentType.matches('video/.*'); // Only videos
+      allow delete: if isOwner(userId);
+    }
+
+    // --- KYC / RTW Documents (Highly Sensitive) ---
+    // Path: private_documents/{userId}/kyc/{documentId}/{fileName}
+    // Path: private_documents/{userId}/rtw/{documentId}/{fileName}
+    // - ONLY the authenticated owner can upload (create).
+    // - NO client-side read or update or delete. Access for review should be via backend (Admin SDK).
+    // - This assumes a backend process (e.g., Firebase Function or your Next.js backend with Admin SDK)
+    //   will grant temporary signed URLs for upload if needed, or handle uploads directly.
+    // - File types should be restricted (e.g., PDF, JPG, PNG).
+    match /private_documents/{userId}/{docType}/{documentId}/{fileName} {
+      allow read: if false; // No direct client reads
+      allow create: if isOwner(userId)
+                     && (docType == 'kyc' || docType == 'rtw')
+                     && request.resource.size < 10 * 1024 * 1024 // Max 10MB
+                     && request.resource.contentType.matches('image/.*|application/pdf');
+      allow update: if false; // No direct client updates
+      allow delete: if false; // No direct client deletes
+    }
+
+    // --- Gig Related Attachments (Optional, e.g., if buyers can attach briefs) ---
+    // Path: gigs/{gigId}/attachments/{fileName}
+    // - Gig participants can read.
+    // - Creator of gig (buyer) or assigned worker might upload.
+    // - This needs careful thought based on your exact features.
+    // match /gigs/{gigId}/attachments/{fileName} {
+    //   function isGigParticipant() {
+    //     // This would require reading Firestore data to check gig participants,
+    //     // which is possible but can be complex and has security implications
+    //     // if not done carefully. Often, backend grants access via signed URLs.
+    //     // For simplicity, let's assume for now only owner of gig can write initially.
+    //     // This rule is highly dependent on your Firestore structure for gigs.
+    //     let gigInfo = firestore.get(/databases/(default)/documents/gigs/$(gigId));
+    //     return isAuthenticated() && (request.auth.uid == gigInfo.data.buyerUid || request.auth.uid == gigInfo.data.workerUid);
+    //   }
+    //   allow read: if isGigParticipant();
+    //   allow write: if isAuthenticated() // And further checks, e.g., if request.auth.uid is buyerUid of the gig
+    //                 && request.resource.size < 10 * 1024 * 1024
+    //                 && request.resource.contentType.matches('image/.*|application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    // }
+
+
+    // --- Default Deny ---
+    // It's good practice to deny all other paths by default if not explicitly allowed.
+    // However, the structure of Storage rules means any path not matched by an allow rule is implicitly denied.
+    // Explicitly, you could add:
+    // match /{allPaths=**} {
+    //   allow read, write: if false;
+    // }
+    // But this is often not needed if your specific paths are well-defined.
+  }
+}

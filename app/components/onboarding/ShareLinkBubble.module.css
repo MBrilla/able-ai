@@ -1,0 +1,88 @@
+/* app/components/onboarding/ShareLinkBubble.module.css */
+.shareLinkBubbleWrapper {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 90%;
+  width: 100%;
+}
+
+.shareLinkBubbleContent {
+  display: flex;
+  gap: 0.4rem;
+  width: 100%
+}
+
+.label {
+  display: block;
+  color: #a0a0a0;
+  font-size: 0.8rem;
+  /* margin-bottom: 0.1rem; */ /* Gap handled by parent */
+}
+
+.linkContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.linkIcon {
+  color: var(--primary-color-light); /* A lighter shade or distinct color */
+}
+
+.shareLink {
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-family: var(--font-family);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Show ellipsis for long links */
+  flex-grow: 1; /* Allow link to take available space */
+}
+
+.shareLink:hover,
+.shareLink:focus {
+  text-decoration: underline;
+  outline: none;
+}
+.shareLink.disabledLink {
+  color: #737373;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+.shareLink.disabledLink:hover {
+    text-decoration: none;
+}
+
+.noLinkText {
+  color: #737373;
+  font-size: 0.9rem;
+  font-style: italic;
+  flex-grow: 1;
+}
+
+.copyButton {
+  background-color: transparent;
+  border: none;
+  color: #a0a0a0; /* Neutral color for copy icon */
+  cursor: pointer;
+  padding: 0.25rem; /* Small padding around icon */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  flex-shrink: 0;
+}
+
+.copyButton:hover:not(:disabled) {
+  color: var(--primary-color); /* Highlight on hover */
+}
+
+.copyButton:disabled {
+  color: #555;
+  cursor: not-allowed;
+}
+
+.copiedIcon {
+  color: #48bb78; /* Green for success/copied */
+}

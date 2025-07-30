@@ -1,0 +1,186 @@
+/* app/user/[userId]/worker/[workerId]/recommendation/RecommendationPage.module.css */
+.container {
+  min-height: 100vh;
+  background-color: #161616;
+  color: #e0e0e0;
+  padding: 1.5rem;
+  font-family: var(--font-family);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pageWrapper {
+  width: 100%;
+  max-width: 650px; /* Max width for the content area */
+}
+
+.title {
+  font-size: 1.75rem; /* Consistent with other page titles */
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 1.5rem; /* Space after title */
+  display: flex;
+  align-items: center;
+  justify-content: center; /* Center title */
+  text-align: center;
+}
+
+.starIcon {
+  color: #ffc107; /* Gold color for the star */
+  margin-right: 0.75rem; /* Space between icon and text */
+}
+
+.recommendationCard {
+  background-color: #1f1f1f; /* Dark card background */
+  border-radius: 0.75rem; /* 12px */
+  padding: 2rem; /* More padding inside card */
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #2b2b2b;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.prompt {
+  font-size: 0.95rem; /* Slightly adjusted size */
+  color: #c2c2c2; /* Lighter grey for prompt */
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem; /* Space between form groups */
+}
+
+.inputGroup {
+  /* Removed margin-bottom here, handled by .form gap */
+}
+
+.label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #a0a0a0;
+  margin-bottom: 0.5rem;
+}
+
+/* Using shared InputField component styles is preferred.
+   If direct styling needed for .input and .textarea for this specific page: */
+.input,
+.textarea {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 0.5rem; /* Standard border radius for inputs in cards */
+  border: 1px solid #2b2b2b;
+  background-color: #2b2b2b;
+  color: #c2c2c2;
+  font-size: 0.9rem;
+  font-family: var(--font-family);
+  outline: none;
+  box-sizing: border-box;
+}
+.input::placeholder,
+.textarea::placeholder {
+    color: #737373;
+}
+.input:focus,
+.textarea:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px; /* Taller textarea */
+  line-height: 1.5;
+}
+
+.nameEmailGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+@media (min-width: 600px) {
+    .nameEmailGroup {
+        flex-direction: row;
+        gap: 1rem;
+    }
+    .nameEmailGroup > div {
+        flex: 1;
+    }
+}
+
+
+.submitButton {
+  background-color: #00bcd4;
+  color: #0f0f0f;
+  border: none;
+  padding: 0.85rem 1.5rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  align-self: center;
+  margin-top: 1rem;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+.submitButton:hover:not(:disabled) {
+  background-color: #00a5b8;
+  transform: scale(1.02);
+}
+.submitButton:disabled {
+    background-color: #525252;
+    color: #888888;
+    cursor: not-allowed;
+}
+
+.botMessageContainer {
+  background-color: #1f1f1f;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  margin-top: 2rem;
+  width: 100%;
+  max-width: 650px;
+  border: 1px solid #2b2b2b;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.botAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.botText {
+  font-size: 0.875rem;
+  color: #a0a0a0;
+  line-height: 1.5;
+  flex-grow: 1;
+}
+
+.loadingMessage, .successMessage, .errorMessage {
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: var(--border-radius);
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+.loadingMessage { color: #a0a0a0; }
+.successMessage {
+  color: var(--success-color);
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid var(--success-color);
+}
+.errorMessage {
+  color: var(--error-color);
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--error-color);
+} 

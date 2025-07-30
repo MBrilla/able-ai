@@ -1,0 +1,9 @@
+.formCard {
+  background-color: #2B2B2B;
+  margin: 1rem;
+  padding: 1.5rem;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+} 

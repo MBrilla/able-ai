@@ -1,0 +1,29 @@
+/* app/components/onboarding/CalendarBubble.module.css */
+
+.calendarBubbleWrapper {
+  display: flex;
+  flex-direction: column; /* Label above placeholder */
+  gap: 0.5rem;
+  max-width: 90%;
+  width: 100%;
+  align-self: flex-end; /* Align user input bubbles to the right */
+}
+
+.label {
+  display: block;
+  color: #a0a0a0; /* Light grey for label */
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+}
+
+.calendarPlaceholder {
+  flex-grow: 1;
+  background-color: #2b2b2b; /* Dark background */
+  padding: 0.75rem 1rem;
+  border-radius: 1.25rem; /* Rounded corners */
+  border-bottom-right-radius: 0.25rem; /* Tailed bubble */
+  color: #c2c2c2; /* Light text color */
+  font-size: 0.9rem;
+  line-height: 1.4;
+  text-align: center; /* Center placeholder text */
+}

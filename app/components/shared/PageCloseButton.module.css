@@ -1,0 +1,14 @@
+.closeButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  color: var(--foreground-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closeButton:hover {
+  opacity: 0.8;
+} 

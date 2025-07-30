@@ -1,0 +1,50 @@
+/* app/components/shared/EditableList.module.css */
+.editableListContainer {
+  margin-bottom: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.addButton {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 5px 10px;
+  color: var(--text-neutral);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.9rem;
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.addButton:hover {
+  background-color: var(--surface-dark);
+  color: var(--text-primary);
+}
+
+.itemList {
+  /* Styling for the list of items */
+}
+
+.emptyMessage {
+    font-size: 0.9rem;
+    color: var(--text-neutral);
+    text-align: center;
+    padding: 20px;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--border-radius);
+} 

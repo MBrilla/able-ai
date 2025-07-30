@@ -1,0 +1,78 @@
+/* app/components/shared/AcceptedGigCard.module.css */
+
+.card {
+  padding: 16px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden; /* Hide overflow for rounded corners on absolute elements */
+  cursor: pointer; /* Indicate clickable for details */
+  border-radius: 1.5rem;
+  border: 1px solid #2b2b2b;
+  display: flex;
+  justify-content: space-between;
+}
+
+.role {
+  font-size: 1rem;
+  color: #fff;
+  margin-bottom: 8px;
+  font-weight: normal;
+}
+
+.gigDetails {
+    margin-bottom: 0; /* No margin below details in accepted card */
+}
+
+.gigDetails p {
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    font-size: 0.8rem;
+    color: #ccc; /* Inherit color from card */
+}
+
+.detailIcon {
+  margin-right: 4px;
+  color: #777;
+}
+
+/* Mobile simplification styles */
+@media (max-width: 600px) { /* Adjust breakpoint as needed */
+    .card {
+        padding: 12px; /* Reduce padding on smaller screens */
+    }
+
+    .gigDetails {
+        display: flex; /* Use flexbox for single line */
+        flex-wrap: wrap; /* Allow wrapping if needed */
+        align-items: center;
+    }
+
+    .gigDetails p {
+        margin-bottom: 0; /* Remove margin between details */
+        margin-right: 1rem; /* Add spacing between items */
+    }
+
+    .gigDetails .gigLocation,
+    .gigDetails .gigTime,
+    .gigDetails .gigPay /* Hide unnecessary details */ {
+        display: none; /* Hide these elements on mobile */
+    }
+
+    .role {
+        margin-bottom: 0.5rem; /* Adjust margin below role */
+        font-size: 1rem; /* Adjust font size */
+    }
+
+    /* Ensure date is visible and part of the flex line */
+    .gigDetails .gigDate {
+        display: flex; /* Keep flex display */
+        align-items: center; /* Vertically align icon and text */
+    }
+
+    /* Adjust icon size for smaller view */
+    .detailIcon {
+        width: 10px;
+        height: 10px;
+    }
+} 

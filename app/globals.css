@@ -1,0 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+:root {
+  --background: #ffffff;
+  --foreground: #161616;
+  --background-dark: #1A1A1A; /* Very dark gray, almost black */
+  --header-background: #242424; /* Slightly lighter dark gray for header */
+  --text-primary-light: #E0E0E0; /* Light gray for text */
+  --text-white: #FFFFFF;
+  --text-dark: #121212; /* For text on light/accent backgrounds */
+  --input-background: #2F2F2F; /* Dark gray for inputs */
+  --placeholder-text: #888888; /* Lighter gray for placeholders */
+  --button-secondary-bg: #4A4A4A; /* Medium-gray for secondary buttons */
+  --primary-accent-color: #79F0F7; /* Bright cyan */
+  --border-color-light: #444444; /* Light gray for borders/separators */
+  --step-indicator-bg: #FFFFFF;
+  --step-indicator-border: #000000;
+  --step-indicator-text: #000000;
+  
+  --primary-color: #41a1e8;
+  --primary-darker-color: #2563eb; /* Added darker primary color */
+  --secondary-color: #7eeef9;
+  --secondary-darker-color: #5bc0e8;
+  --background-color: #ffffff;
+  --text-color: #1f2937;
+  --error-color: #ef4444;
+  --success-color: #10b981;
+  --border-color: #e5e7eb;
+  --border-radius: 0.375rem; /* 6px */
+  --font-family: 'Roboto',
+    "Helvetica Neue", Arial, sans-serif; /* Added Source Sans Pro */
+
+  /* Added Buyer Accent Colors */
+  --buyer-accent-color: #22d3ee; /* Cyan/Aqua */
+  --buyer-accent-darker-color: #06b6d4;
+
+  /* AI Suggestion Banner Specific Colors */
+  --ai-suggestion-banner-background: #2a2a2a;
+  --ai-suggestion-banner-text-secondary: #a0a0a0;
+  --ai-suggestion-banner-error-background: #3a1e1e;
+  --ai-suggestion-banner-button-hover-background: rgba(255, 255, 255, 0.1);
+  --ai-suggestion-banner-nav-button-background: rgba(70, 70, 70, 0.8);
+  --ai-suggestion-banner-nav-button-hover-background: rgba(90, 90, 90, 0.9);
+  --ai-suggestion-banner-skeleton-base: #3f3f3f;
+  --ai-suggestion-banner-skeleton-highlight: #4f4f4f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  /* font-family: var(--font-family); */
+  color: var(--text-color);
+  background-color: var(--background-color); /* Changed to use variable */
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  cursor: pointer;
+  /* font-family: var(--font-family); Ensure buttons inherit font */
+}
+
+.container {
+  /* max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem; */
+  border-radius: 24px; /* 24px for rounded corners */
+}
+
+.main-content {
+  flex: 1;
+  /* min-height: 70vh; Ensure this doesn't conflict with page-specific min-height */
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Basic reset for box-sizing */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+@media screen and (min-width: 780px) {
+  .container {
+    border-radius: 0; /* Remove border radius on larger screens */
+  }
+  
+}

@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "ableai-mvp",
+    "dev": "ableai-mvp"
+  },
+  "targets": {},
+  "etags": {}
+}

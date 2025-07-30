@@ -1,0 +1,187 @@
+/* app/components/shared/AppCalendar.module.css */
+/* Define these CSS variables in your global stylesheet or :root */
+/*
+:root {
+// ... existing code ...
+*/
+
+.calendarWrapper {
+  background-color: #161616; /* Very dark background for the calendar area (closer to black) */
+  padding: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid #2b2b2b;
+  color: #e0e0e0; /* Default text color for calendar parts */
+  margin-bottom: 4rem;
+}
+
+/* --- react-big-calendar Overrides --- */
+
+.calendarWrapper :global(.rbc-calendar) {
+  font-family: var(--font-family);
+  border: none;
+  color: #e0e0e0; /* Ensure default text is light */
+}
+
+.calendarWrapper :global(.rbc-toolbar) {
+  margin-bottom: 1.5rem; /* Increased spacing */
+  border-bottom: 1px solid #3a3a3a; /* Fainter border */
+  padding-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.calendarWrapper :global(.rbc-btn-group button) {
+  color: #a0a0a0;
+  background: #3a3a3a;
+  border: 1px solid #4a4a4a;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+  font-weight: 500;
+}
+
+.calendarWrapper :global(.rbc-btn-group button:hover:not(.rbc-active)) {
+  color: #ffffff;
+  background-color: #4a4a4a;
+  border-color: #5a5a5a;
+}
+
+.calendarWrapper :global(.rbc-btn-group button.rbc-active) {
+  background-color: #ffffff;
+  color: #1f1f1f;
+  border-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.calendarWrapper :global(.rbc-toolbar button:not(.rbc-active):not(:first-child):not(:last-child)) {
+}
+
+.calendarWrapper :global(.rbc-toolbar-label) {
+  color: #ffffff;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.calendarWrapper :global(.rbc-header) {
+  padding: 0.75rem 0;
+  text-align: center;
+  border-bottom: 1px solid #3a3a3a;
+  color: #b0b0b0;
+  font-weight: 500;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.calendarWrapper :global(.rbc-month-view),
+.calendarWrapper :global(.rbc-time-view),
+.calendarWrapper :global(.rbc-agenda-view) {
+  border: none;
+}
+
+
+.calendarWrapper :global(.rbc-day-bg) {
+  border-left: 1px solid #2b2b2b;
+}
+.calendarWrapper :global(.rbc-day-bg:first-child) {
+  border-left: none;
+}
+
+.calendarWrapper :global(.rbc-month-row) {
+  border-bottom: 1px solid #2b2b2b;
+  min-height: 100px;
+}
+.calendarWrapper :global(.rbc-month-row:last-child) {
+  border-bottom: none;
+}
+
+.calendarWrapper :global(.rbc-off-range-bg) {
+  background-color: #1a1a1a;
+}
+
+.calendarWrapper :global(.rbc-today) {
+  background-color: #222225;
+}
+
+.calendarWrapper :global(.rbc-event) {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  font-weight: 500;
+  background-color: #161616;
+  /* overflow-y: scroll; */
+}
+.calendarWrapper :global(.rbc-event:focus), .calendarWrapper :global(.rbc-event.rbc-selected) {
+    outline: 2px solid var(--primary-color);
+}
+.calendarWrapper :global(.rbc-event-label) {
+    font-size: 0.75rem;
+}
+.calendarWrapper :global(.rbc-event-content) {
+  font-size: 14px;
+  font-family: var(--font-family);
+  line-height: 16px;
+}
+
+.calendarWrapper :global(.rbc-agenda-table) {
+  border: 1px solid #2b2b2b;
+}
+.calendarWrapper :global(.rbc-agenda-date-cell),
+.calendarWrapper :global(.rbc-agenda-time-cell),
+.calendarWrapper :global(.rbc-agenda-event-cell) {
+  padding: 0.75rem;
+  border-bottom: 1px solid #2b2b2b;
+}
+.calendarWrapper :global(.rbc-agenda-time-cell) {
+  color: #a0a0a0;
+}
+
+.calendarWrapper :global(.rbc-time-header-gutter),
+.calendarWrapper :global(.rbc-time-gutter) {
+  background-color: #161616;
+  border-right: 1px solid #2b2b2b;
+}
+.calendarWrapper :global(.rbc-time-gutter .rbc-timeslot-group .rbc-time-slot) {
+    color: #a0a0a0;
+    font-size: 0.75rem;
+}
+.calendarWrapper :global(.rbc-timeslot-group) {
+  border-bottom: 1px solid #3a3a3a;
+}
+.calendarWrapper :global(.rbc-time-slot) {
+  border-top: 1px solid #000000;
+  /* z-index: 100; */
+}
+
+/* Legend Styling */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #1f1f1f;
+  border-radius: 0.75rem;
+  border: 1px solid #2b2b2b;
+}
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #b0b0b0;
+}
+.legendColor {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Update legend colors to match eventPropGetter */
+.legendAccepted { background-color: var(--primary-color); } /* Worker Blue */
+/* You might add another class for Buyer Accepted Cyan, e.g., .legendBuyerAccepted */
+.legendOffer { background-color: #525252; } /* Offer Grey */
+.legendInProgress { background-color: #f59e0b; }
+.legendCompleted { background-color: var(--success-color); }
+.legendCancelled { background-color: var(--error-color); }
+.legendUnavailable { background-color: #4b5563; } 

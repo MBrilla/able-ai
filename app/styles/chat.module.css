@@ -1,0 +1,41 @@
+/* app/styles/chat.module.css */
+
+.darkBackground {
+    background-color: #121212; /* Or your specific dark gray */
+    color: #fff; /* White text */
+}
+
+.tealButton {
+    background-color: #00bcd4; /* Example teal color */
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+}
+
+.tealButton:hover {
+    background-color: #0097a7; /* Darker teal on hover */
+}
+
+.inputField {
+    background-color: #ffffff; /* Dark gray input */
+    color: #000000; /* Light gray text */
+    border: 2px solid #0d0d0d0d;
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    width: 100%;
+}
+
+.avatar {
+    border-radius: 50%;
+    /* other styling */
+}
+
+.avatarWithBorder {
+    border-radius: 50%;
+    border: 2px dotted lightblue;
+}
+
+/* ... more styles ... */ 

@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1747160338258,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1749068568289,
+      "tag": "0001_add_ai_support",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1751052274338,
+      "tag": "0002_mighty_toxin",
+      "breakpoints": true
+    }
+  ]
+}

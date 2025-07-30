@@ -1,0 +1,100 @@
+/* app/components/onboarding/WorkerCard.module.css */
+
+/* Styles for WorkerCard */
+.workerCard {
+  border-radius: 1.5rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column; /* Stack image and info vertically on small screens */
+  gap: 0.5rem;
+  color: #e0e0e0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  width: 100%; /* Make card take full width of its bubble container */
+  max-width: 400px; /* Max width for the card itself */
+  align-self: center; /* Center card if bubble is wider */
+  border: 1px solid #2b2b2b;
+}
+
+
+
+.workerImage {
+  border-radius: 8px; /* Slightly rounded corners for image */
+  object-fit: cover;
+  flex-shrink: 0; /* Prevent image from shrinking */
+  align-self: center; /* Center image if stacked vertically */
+}
+
+
+.workerInfo {
+  display: flex;
+  gap: 0.4rem; /* Space between text elements */
+  flex-grow: 1; /* Allow info to take remaining space */
+}
+
+.workerInfo h3 {
+  font-size: 1.15rem;
+  color: #ffffff;
+  margin: 0 0 0.2rem 0;
+  font-family: var(--font-family);
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.workerInfo p, .workerKeyword {
+  color: #ffffff;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  font-family: var(--font-family);
+}
+
+.workerKeyword {
+  width: 80%;
+}
+
+.workerExp {
+  display: block;
+}
+
+.workerSummarySection {
+  display: flex;
+  align-items: center;
+}
+
+.workerHistory {
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-family: var(--font-family);
+  font-weight: 500;
+  font-style: italic;
+  line-height: 19px;
+}
+
+
+.bookButton {
+  border-radius: 1.5rem;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 0.75rem; /* Space above button */
+  transition: background-color 0.2s ease;
+  width: auto;
+  min-width: 127px;
+  height: 28px;
+  padding: 0px 8px;
+  background-color: var(--secondary-color);
+  color: #0f0f0f;
+  font-size: 14px;
+  font-family: var(--font-family);
+  font-weight: 700;
+  line-height: 16px;
+  outline: none;
+}
+
+.bookButton:hover:not(:disabled) {
+  background-color: var(--primary-color-dark);
+}
+
+.bookButton:disabled {
+  background-color: #555;
+  cursor: not-allowed;
+}

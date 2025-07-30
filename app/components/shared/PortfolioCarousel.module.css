@@ -1,0 +1,63 @@
+/* app/components/shared/PortfolioCarousel.module.css */
+.carouselContainer {
+  margin-bottom: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  margin-right: 8px;
+}
+
+.paperclipIcon {
+  color: var(--text-neutral);
+}
+
+.carouselItems {
+  display: flex;
+  overflow-x: auto;
+  gap: 15px;
+  padding-bottom: 10px; /* Add some padding for scrollbar */
+}
+
+.carouselItem {
+  flex: 0 0 auto; /* Prevent shrinking */
+  width: 150px; /* Match image width */
+  border-radius: var(--border-radius-small);
+  overflow: hidden;
+  background-color: var(--surface-neutral);
+}
+
+.thumbnail {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Optional: Style scrollbar for better appearance */
+.carouselItems::-webkit-scrollbar {
+  height: 8px;
+}
+
+.carouselItems::-webkit-scrollbar-track {
+  background: var(--surface-dark);
+  border-radius: 10px;
+}
+
+.carouselItems::-webkit-scrollbar-thumb {
+  background: var(--surface-highlight);
+  border-radius: 10px;
+}
+
+.carouselItems::-webkit-scrollbar-thumb:hover {
+  background: var(--surface-accent);
+} 

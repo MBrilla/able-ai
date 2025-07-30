@@ -1,0 +1,32 @@
+.footerNav {
+  background-color: #1F1F1F; /* Dark gray footer background */
+  padding: 0.75rem 0;
+  display: flex;
+  justify-content: center; /* Center single item */
+  align-items: center;
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.1); /* Optional subtle shadow */
+}
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #7AF0F5; /* Cyan/light blue icon color */
+  text-decoration: none;
+  padding: 0 1rem; /* Padding for touch target */
+}
+.navItem.active {
+  /* Optional: Different style for active, though image shows only one so it's always "active" */
+  color: #ffffff; /* Example active color */
+}
+.navIcon {
+  /* Icon styles */
+}
+/*
+.navLabel {
+  font-size: 0.7rem;
+  margin-top: 0.15rem;
+}
+*/ 

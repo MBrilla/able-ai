@@ -1,0 +1,23 @@
+env:
+  # Set this with firebase apphosting:secrets:set
+  - variable: GEMINI_API_KEY
+    secret: gemini-api-key
+  - variable: AUTH_SECRET
+    secret: auth-secret
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: firebase-api-key
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    secret: firebase-auth-domain
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    secret: firebase-project-id
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    secret: firebase-storage-bucket
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    secret: firebase-messaging-sender-id
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    secret: firebase-app-id
+  - variable: FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY_JSON
+    secret: firebase-admin-service-account-key-json
+runConfig:
+  minInstances: 0
+  maxInstances: 2

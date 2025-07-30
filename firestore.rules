@@ -1,0 +1,361 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions (Corrected/Simplified - or remove if unused) ---
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      // Ensure request.auth is not null before accessing uid
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasAppRole(role) {
+      // Ensure token and appRole exist
+      return isAuthenticated() && request.auth.token != null && request.auth.token.appRole == role;
+    }
+
+    function isActualWorker() {
+      return isAuthenticated() && request.auth.token != null && request.auth.token.isActualGigWorker == true;
+    }
+
+    function isActualBuyer() {
+      return isAuthenticated() && request.auth.token != null && request.auth.token.isActualBuyer == true;
+    }
+
+    function isInWorkerContext() {
+        // Ensure request.auth is not null before using its uid
+        return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.currentActiveRole == "GIG_WORKER";
+    }
+    function isInBuyerContext() {
+        return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.currentActiveRole == "BUYER";
+    }
+
+    function isGigParticipant(gigDocData) { // Pass gigDoc.data directly
+      return gigDocData != null &&
+             isAuthenticated() &&
+             (request.auth.uid == gigDocData.buyerFirebaseUid || request.auth.uid == gigDocData.workerFirebaseUid);
+    }
+
+    // Corrected `fieldIsUnchangedIfExists` - This specific version means:
+    // IF the field is present in the incoming request.resource.data, THEN its value must be the same as in the existing resource.data.
+    // If the field is NOT present in request.resource.data, this part of the condition is true (field is not being changed by this update).
+    // This also implies that the field cannot be deleted if this function is used to protect an immutable field.
+    function fieldIsImmutable(fieldName) {
+        return (! (fieldName in request.resource.data)) || // Field is not in the incoming update (not being touched)
+               (request.resource.data[fieldName] == resource.data[fieldName]); // OR field is in incoming update and matches existing
+    }
+    // If a field truly cannot be deleted once set:
+    function fieldIsImmutableAndCannotBeDeleted(fieldName){
+        return (fieldName in resource.data) ? // If field exists in current document
+                 ( (fieldName in request.resource.data) && request.resource.data[fieldName] == resource.data[fieldName] ) // It must exist in new data and be unchanged
+                 : true; // If it didn't exist, this rule doesn't restrict its creation
+    }
+
+    // Helper to allow writes from the backend (assuming authenticated via service account)
+    // This is a common pattern, but ensure your backend authentication is secure.
+    // Alternatively, use specific service account claims if possible.
+    function isBackendService() {
+      return request.auth == null; // Simplistic check, relies on backend using service account
+      // More secure might involve custom auth tokens or IP whitelisting (not possible in rules)
+    }
+
+    // --- Users Collection (`users` -> assumed to be `publicUserProfiles`) ---
+    // Document ID is firebaseUid
+    match /users/{userId} {
+      allow read: if true;
+
+      allow create: if isOwner(userId)
+                      && request.resource.data.firebaseUid == userId
+                      && request.resource.data.keys().hasAll(['firebaseUid', 'displayName', 'profileImageUrl', 'currentActiveRole', 'canBeBuyer', 'canBeGigWorker', 'createdAt', 'fcmToken'])
+                      && request.resource.data.createdAt == request.time
+                      && request.resource.data.canBeBuyer == (request.auth.token.isActualBuyer || false)
+                      && request.resource.data.canBeGigWorker == (request.auth.token.isActualGigWorker || false);
+
+      allow update: if isOwner(userId)
+                      && fieldIsImmutableAndCannotBeDeleted('firebaseUid') // Use the corrected helper or inline
+                      && fieldIsImmutableAndCannotBeDeleted('createdAt')
+                      && fieldIsImmutableAndCannotBeDeleted('canBeBuyer')
+                      && fieldIsImmutableAndCannotBeDeleted('canBeGigWorker')
+                      && fieldIsImmutable('workerAverageRating') // These can be absent from update, but if present, must be same
+                      && fieldIsImmutable('workerTotalGigsCompleted')
+                      && fieldIsImmutable('workerResponseRatePercent')
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['displayName', 'profileImageUrl', 'currentActiveRole', 'workerPublicBio', 'workerAvailabilitySummary', 'workerQrCodeUrl', 'buyerPublicCompanyName', 'isOnline', 'lastSeen', 'fcmToken', 'workerPublicSkillsSummary']);
+
+      allow delete: if false;
+
+      match /notifications/{notificationId} {
+        allow read, delete, update: if isAuthenticated()
+          && (
+            (resource.data.userUid == request.auth.uid)
+            || (resource.data.topic != null)
+          );
+
+        allow create: if isBackendService();
+
+        allow update: if isAuthenticated()
+          && (
+            (resource.data.userUid == request.auth.uid)
+            || (resource.data.topic != null)
+          )
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status in ['read', 'unread', 'actioned', 'deleted'];
+      }
+
+      // --- AI Chat Collection for User-Specific AI Chats ---
+      match /aiChats/{chatId} {
+        // Rules for the chat session document (e.g., /users/{userId}/aiChats/{chatId})
+        allow read: if isOwner(userId) || hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN');
+        allow create: if isOwner(userId) // Only owner can create a chat session for themselves
+                        && request.resource.data.userId == userId // Ensure userId in doc matches path
+                        && request.resource.data.createdAt == request.time
+                        && request.resource.data.keys().hasAll(['userId', 'contextType', 'createdAt'])
+                        && request.resource.data.keys().hasOnly(['userId', 'contextType', 'createdAt', 'metadata']); // Allow optional metadata
+
+        allow update: if isOwner(userId) // Only owner can update the chat session metadata or status
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['metadata', 'status']); // Example: allow updating metadata or a 'status' field
+        allow delete: if false; // Prevent users from deleting chat sessions
+
+        // Rules for messages within the AI chat session
+        match /messages/{messageId} {
+          allow read: if get(/databases/$(database)/documents/users/$(userId)/aiChats/$(chatId)).data.userId == request.auth.uid // User can read messages in their chat
+                          || hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN'); // Admins can read any AI chat messages
+
+          allow create: if (get(/databases/$(database)/documents/users/$(userId)/aiChats/$(chatId)).data.userId == request.auth.uid // User can create their own messages
+                            && request.resource.data.senderId == request.auth.uid
+                            && request.resource.data.keys().hasAll(['senderId', 'text', 'timestamp', 'isChat'])) // Ensure required fields for user messages
+                          || (hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN') // Admins can create messages (e.g., joining conversation)
+                            && request.resource.data.keys().hasAll(['senderId', 'text', 'timestamp', 'isChat']))
+                          || (isBackendService() // Backend/AI service can create AI messages
+                            && request.resource.data.senderId == 'AI'
+                            && request.resource.data.keys().hasAll(['senderId', 'text', 'timestamp', 'isChat'])); // Ensure required fields for AI messages
+
+          // Allow user to mark messages sent by AI/Admin as read
+          allow update: if get(/databases/$(database)/documents/users/$(userId)/aiChats/$(chatId)).data.userId == request.auth.uid
+                          && request.auth.uid != resource.data.senderId // Ensure user is not marking their own message as read
+                          && request.resource.data.keys().hasOnly(['isReadByReceiver'])
+                          && request.resource.data.isReadByReceiver == true
+                          && resource.data.isReadByReceiver == false; // Only allow changing from false to true
+
+          allow delete: if false; // Prevent deletion of individual messages
+        }
+      }
+    }
+
+
+    match /gigs/{gigId} {
+      allow read: if true;
+
+      allow create: if isAuthenticated() && isActualBuyer() && isInBuyerContext()
+                      && request.resource.data.buyerFirebaseUid == request.auth.uid
+                      && request.resource.data.keys().hasAll([
+                           'title', 'publicDescription', 'roleNeeded', 'status',
+                           'publicLocation', 'startTime', 'endTime', 'publicRateDisplay',
+                           'buyerFirebaseUid', 'buyerDisplayName', 'buyerProfileImageUrl',
+                           'requiredSkillsKeywords', 'createdAt'
+                         ])
+                      && request.resource.data.status == 'PENDING_WORKER_ACCEPTANCE'
+                      && request.resource.data.createdAt == request.time
+                      && request.resource.data.workerFirebaseUid == null;
+
+      allow update: if isAuthenticated()
+                      && fieldIsImmutableAndCannotBeDeleted('buyerFirebaseUid') // Assuming gigId is doc ID
+                      && fieldIsImmutableAndCannotBeDeleted('createdAt')
+                      && (
+                          ( // Scenario 1: Buyer updates PENDING gig
+                            isActualBuyer() && isInBuyerContext() &&
+                            request.auth.uid == resource.data.buyerFirebaseUid &&
+                            resource.data.status == 'PENDING_WORKER_ACCEPTANCE' &&
+                            request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['title', 'publicDescription', 'roleNeeded', 'publicLocation', 'startTime', 'endTime', 'publicRateDisplay', 'requiredSkillsKeywords', 'status'])
+                          )
+                       || ( // Scenario 2: Worker accepts/declines PENDING gig
+                            isActualWorker() && isInWorkerContext() &&
+                            resource.data.status == 'PENDING_WORKER_ACCEPTANCE' &&
+                            request.resource.data.workerFirebaseUid == request.auth.uid &&
+                            (request.resource.data.status == 'ACCEPTED' || request.resource.data.status == 'DECLINED_BY_WORKER') &&
+                            (request.resource.data.status == 'DECLINED_BY_WORKER' || // No need to check names if declining
+                              (request.resource.data.workerDisplayName != null && request.resource.data.workerProfileImageUrl != null)
+                            ) &&
+                            request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['status', 'workerFirebaseUid', 'workerDisplayName', 'workerProfileImageUrl'])
+                          )
+                       || ( // Scenario 3: Assigned worker updates status
+                            isActualWorker() && isInWorkerContext() &&
+                            request.auth.uid == resource.data.workerFirebaseUid &&
+                            (resource.data.status == 'ACCEPTED' || resource.data.status == 'IN_PROGRESS') &&
+                            (request.resource.data.status == 'IN_PROGRESS' || request.resource.data.status == 'PENDING_COMPLETION') &&
+                            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+                          )
+                       || ( // Scenario 4: Buyer updates status
+                            isActualBuyer() && isInBuyerContext() &&
+                            request.auth.uid == resource.data.buyerFirebaseUid &&
+                            (resource.data.status == 'ACCEPTED' || resource.data.status == 'IN_PROGRESS' || resource.data.status == 'PENDING_COMPLETION') &&
+                            (request.resource.data.status == 'PENDING_COMPLETION' || request.resource.data.status == 'CANCELLED_BY_BUYER' || request.resource.data.status == 'COMPLETED') && // Buyer can mark completed
+                            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+                          )
+                       || ( // Scenario 5: Backend/Admin updates
+                            (hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN')) &&
+                            request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['status', 'moderationStatusInternalUse', 'workerFirebaseUid', 'workerDisplayName', 'workerProfileImageUrl' /* Admins might assign/change worker or fix details */])
+                          )
+                      );
+
+      allow delete: if isAuthenticated() && isActualBuyer() && isInBuyerContext()
+                      && request.auth.uid == resource.data.buyerFirebaseUid
+                      && resource.data.status == 'PENDING_WORKER_ACCEPTANCE';
+
+      // --- Gig Chat Collection (Updated Path) ---
+      // The previous rule `match /messages/{messageId}` should be removed or commented out if moving to /gigs/{gigId}/chats/{chatId}/messages
+      match /chats/{chatId} {
+         // Rules for the chat session document (e.g., /gigs/{gigId}/chats/{chatId})
+         // Decide if there's a parent chat document per gig or just subcollection for messages.
+         // Assuming no parent chat document per gig, and messages are directly under /gigs/{gigId}/chats/{chatId}
+
+         // Rules for messages within the Gig chat session (assuming chatId is the gigId here for simplicity initially)
+         // REVISED: The plan implies a potential chatId separate from gigId for chats within a gig.
+         // Let's assume a structure /gigs/{gigId}/chats/{chatId}/messages/{messageId}
+         // The parent `/gigs/{gigId}/chats/{chatId}` document isn't strictly necessary if chatId is always 'default' or similar constant.
+         // Let's stick to the plan: `/gigs/{gigId}/chats/{chatId}/messages/{messageId}`
+
+         // We need to get the parent gig document to check participation
+         function getAssociatedGig(currentGigId) {
+             return get(/databases/$(database)/documents/gigs/$(currentGigId));
+         }
+
+         match /messages/{messageId} {
+             // Read access for gig participants and admins
+             allow read: if isGigParticipant(getAssociatedGig(gigId).data) || hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN');
+
+             // Create access for gig participants (sender is current user)
+             allow create: if isGigParticipant(getAssociatedGig(gigId).data)
+                             && request.resource.data.senderFirebaseUid == request.auth.uid
+                             && request.resource.data.keys().hasAll(['senderFirebaseUid', 'text', 'timestamp'])
+                             && request.resource.data.timestamp == request.time
+                             && request.resource.data.isReadByReceiver == false // Default values
+                             && request.resource.data.moderationStatus == 'PENDING'; // Default values
+
+             // Update access (limited - e.g., mark as read)
+             allow update: if isGigParticipant(getAssociatedGig(gigId).data)
+                             && request.auth.uid != resource.data.senderFirebaseUid // Receiver marking as read
+                             && request.resource.data.keys().hasOnly(['isReadByReceiver'])
+                             && request.resource.data.isReadByReceiver == true
+                             && resource.data.isReadByReceiver == false; // Only allow changing from false to true
+
+             // Delete access (e.g., sender can delete if pending moderation)
+             allow delete: if isAuthenticated()
+                             && request.auth.uid == resource.data.senderFirebaseUid
+                             && resource.data.moderationStatus == 'PENDING';
+         }
+      }
+    }
+
+    match /gigOffers/{offerId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.buyerFirebaseUid || request.auth.uid == resource.data.workerFirebaseUid);
+
+      allow create: if isAuthenticated() && isActualBuyer() && isInBuyerContext()
+                      && request.resource.data.buyerFirebaseUid == request.auth.uid
+                      && request.resource.data.keys().hasAll(['gigTitleOrRef', 'buyerFirebaseUid', 'workerFirebaseUid', 'offeredRate', 'status', 'createdAt', 'expiresAt'])
+                      && request.resource.data.status == 'SENT'
+                      && request.resource.data.createdAt == request.time;
+
+      allow update: if isAuthenticated() && isActualWorker() && isInWorkerContext()
+                      && request.auth.uid == resource.data.workerFirebaseUid
+                      && resource.data.status == 'SENT'
+                      && (request.resource.data.status == 'ACCEPTED' || request.resource.data.status == 'DECLINED')
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+
+      allow delete: if isAuthenticated() && isActualBuyer() && isInBuyerContext()
+                      && request.auth.uid == resource.data.buyerFirebaseUid
+                      && resource.data.status == 'SENT';
+    }
+
+    match /public_reviews/{reviewId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /badge_definitions/{badgeDefId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    // Assuming you are using Firebase SDK for NextAuth.js adapter, default rules from adapter might be sufficient.
+    // If you manage these paths manually or need tighter control:
+    match /nextauth_users/{userId} {
+      allow read, write: if isOwner(userId); // Or broader if admin needs access
+    }
+    match /nextauth_sessions/{sessionId} {
+      allow read, write: if isAuthenticated() && get(/databases/$(database)/documents/nextauth_users/$(resource.data.userId)).data.firebaseUid == request.auth.uid; // Example, adapt to your session structure
+    }
+    match /nextauth_verification_tokens/{token} {
+      allow read, delete: if true; // Typically open for creation and one-time read/delete by system
+    }
+
+    // --- Admin Support Chat Collection ---
+    // Assumes /adminChats/{chatId} has a userId field linking to the user being supported
+    match /adminChats/{chatId} {
+        allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId // User can read their support chat
+                                            || hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN') // Admins can read any support chat
+                                            // Add check for assigned admin if adminUserId is stored here:
+                                            // || request.auth.uid == resource.data.adminUserId
+                                           );
+
+        allow create: if isAuthenticated() && (request.auth.uid == request.resource.data.userId // User can initiate support chat for themselves
+                                            || hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN') // Admins/Backend can initiate
+                                           )
+                         && request.resource.data.createdAt == request.time
+                         && request.resource.data.keys().hasAll(['userId', 'createdAt']); // Ensure required fields
+
+        allow update: if isAuthenticated() && (request.auth.uid == resource.data.userId // User might update metadata (e.g., close chat?)
+                                            || hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN') // Admins can update status, assigned admin, metadata
+                                           )
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'adminUserId', 'metadata']); // Example updateable fields
+
+        allow delete: if false; // Prevent deletion of admin support chat sessions
+
+        // Rules for messages within the Admin Support chat session
+        match /messages/{messageId} {
+             allow read: if get(/databases/$(database)/documents/adminChats/$(chatId)).data.userId == request.auth.uid // User can read messages in their support chat
+                            || hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN'); // Admins can read any support chat messages
+
+             allow create: if (get(/databases/$(database)/documents/adminChats/$(chatId)).data.userId == request.auth.uid // User can create their own messages
+                               && request.resource.data.senderId == request.auth.uid
+                               && request.resource.data.keys().hasAll(['senderId', 'text', 'timestamp', 'isChat']))
+                             || (hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN') // Admins can create messages
+                               && request.resource.data.keys().hasAll(['senderId', 'text', 'timestamp', 'isChat']))
+                             || (isBackendService() // Backend/System can create messages (e.g., auto-responses, admin actions logged as messages)
+                               && request.resource.data.keys().hasAll(['senderId', 'text', 'timestamp', 'isChat']));
+
+            // Allow user/admin participants to mark messages as read
+            allow update: if isAuthenticated() && (
+                                request.auth.uid == get(/databases/$(database)/documents/adminChats/$(chatId)).data.userId // User marking admin/system as read
+                                || hasAppRole('ADMIN') || hasAppRole('SUPER_ADMIN') // Admins marking user/system as read
+                               // Add check for assigned admin if needed:
+                               // || request.auth.uid == get(/databases/$(database)/documents/adminChats/$(chatId)).data.adminUserId
+                            )
+                            && request.auth.uid != resource.data.senderId // Ensure they are not marking their own message
+                            && request.resource.data.keys().hasOnly(['isReadByReceiver'])
+                            && request.resource.data.isReadByReceiver == true
+                            && resource.data.isReadByReceiver == false;
+
+             allow delete: if false; // Prevent deletion of individual messages
+        }
+    }
+
+    // --- Catch-all rule (restrict access by default) ---
+    // Ensure this rule is at the very end
+    // Remove or update the temporary open access rule:
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2025, 7, 31);
+    }
+    // Consider a stricter default, like denying all unless explicitly allowed above.
+    // match /{document=**} {
+    //   allow read, write: if false; // Deny by default
+    // }
+  }
+}

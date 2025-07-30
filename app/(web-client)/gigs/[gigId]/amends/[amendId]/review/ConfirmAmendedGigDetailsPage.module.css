@@ -1,0 +1,220 @@
+/* ConfirmAmendedGigDetailsPage.module.css */
+
+.viewContainer {
+  background-color: #1E1E1E; /* Dark grey main content area background */
+  color: #F0F0F0; /* Off-white primary text */
+  padding: 0 16px 24px 16px; /* Horizontal padding, bottom padding for buttons */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family);
+}
+
+.header {
+  background-color: #2b2b2b;
+  border-bottom: 1px solid rgb(229, 231, 235, 0.5);
+  padding: 18px 16px; /* Internal padding for header */
+  margin: 0 -1rem 0.75rem;
+}
+
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Space between icon and title */
+}
+
+.headerIcon {
+  color: #FFFFFF;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.headerTitle {
+  font-size: 1.2rem; /* Approx 19px */
+  font-weight: bold;
+  color: #FFFFFF;
+  margin: 0;
+  flex-grow: 1;
+}
+
+.headerSeparator {
+  border: 0;
+  height: 1px;
+  background-color: #FFFFFF;
+  margin-top: 16px;
+}
+
+.mainContent {
+  flex-grow: 1; /* Allows main content to take available space */
+}
+
+.card {
+  background-color: #2C2C2E; /* Slightly lighter dark grey for cards */
+  border-radius: 16px; /* Consistent rounded corners */
+  padding: 20px;
+}
+
+/* Notification Block */
+.notificationCard {
+  display: flex;
+  justify-content: space-between; /* Pushes chat icon to the right */
+  align-items: flex-start; /* Align items to the top */
+  gap: 16px;
+}
+
+.notificationMain {
+  display: flex;
+  align-items: flex-start; /* Align icon and text to the top */
+  gap: 16px;
+  flex-grow: 1;
+}
+
+.friendlyIcon {
+  color: #4A90E2; /* Blue for the icon - primary elements */
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  margin-top: 2px; /* Slight adjustment for visual alignment */
+}
+
+.notificationText {
+  font-size: 1rem; /* Approx 15px */
+  line-height: 1.2;
+  flex-grow: 1;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.chatButton {
+  margin: 0.5rem 0 1rem;
+  outline: none;
+  border: none;
+  background-color: transparent; /* No background for the button */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.chatIcon {
+  color: #FFFFFF;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* Updated Gig Details Block */
+.detailsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.detailsTitle {
+  font-size: 1.1rem; /* Approx 17-18px */
+  font-weight: bold;
+}
+
+.editIcon {
+  color: #FFFFFF;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.detailItem {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem; /* Approx 14px */
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.detailItem:last-child {
+  margin-bottom: 0;
+}
+
+.detailItemLabel {
+  color: #A0A0A0; /* Lighter grey for labels */
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.detailItemValue {
+  text-align: right;
+  font-weight: 500;
+}
+
+.highlightedValue {
+  font-weight: 700; /* Bolder for highlighted values */
+  /* color: #7AF0FF; /* Optional: Add subtle color tint to highlight */
+}
+
+.totalCostValue {
+  display: block; /* Makes the fee text wrap naturally if needed */
+  text-align: right;
+}
+
+.feesText {
+  font-size: 0.8rem; /* Smaller for less emphasis */
+  color: #8E8E93; /* Medium grey for less emphasis */
+  font-weight: normal;
+  margin-left: 4px; /* Space from the main cost value */
+  display: block; /* Ensures it appears on a new line or distinct */
+  margin-top: 2px;
+}
+
+/* Action Buttons Area */
+.actionsFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* Space between buttons */
+}
+
+.actionButton {
+  color: #0f0f0f;
+  border: none;
+  outline: none;
+  border-radius: 1.5rem; /* Pill-shaped */
+  padding: 14px 20px;
+  font-size: 0.87rem; /* Approx 16px */
+  font-weight: 700;
+  width: 100%;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.2s ease-in-out, opacity 0.2s ease-in-out;
+}
+
+.workerConfirmButton {
+  background-color: var(--primary-color); /* Bright cyan/light blue */
+}
+
+.workerConfirmButton:hover {
+  background-color: #4BCBE0; /* Slightly darker on hover */
+}
+
+.buyerConfirmButton {
+  background-color: var(--secondary-color); /* Bright cyan/light blue */
+}
+
+.buyerConfirmButton:hover {
+  background-color: #4BCBE0;
+}
+
+.suggestButton,
+.declineButton {
+  background-color: #808080; /* Muted medium grey */
+  color: #000000;
+}
+.suggestButton:hover,
+.declineButton:hover {
+  background-color: #707075;
+}
+
+.loaderContainer{
+  display: flex;
+  justify-content: center;
+}

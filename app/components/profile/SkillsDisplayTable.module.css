@@ -1,0 +1,65 @@
+/* app/components/profile/SkillsDisplayTable.module.css */
+.skillsCard {
+  background-color: var(--primary-color);
+  border-radius: 2.13rem;
+  padding: 0.5rem;
+  color: #000000;
+}
+
+/* .skillsTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+} */
+
+.skillsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.skillsTable th,
+.skillsTable td {
+  text-align: left;
+  padding-bottom: 0.6rem;
+  vertical-align: middle;
+}
+
+.skill {
+  padding: 4px 8px;
+  border-radius: 24px;
+  background-color: #161616;
+  color: #ffffff;
+  font-size: 16px;
+  line-height: 21px;
+  outline: none;
+  max-width: 145px;
+  text-wrap: wrap;
+  overflow-wrap: break-word;
+}
+
+.skillsTable th {
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: capitalize;
+}
+
+.skillNameHeader {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 21px;
+} 
+
+.addSkill {
+  width: 119px;
+  height: 32px;
+  padding: 0px 8px;
+  border: 1px solid #000000;
+  border-radius: 24px;
+  background-color: #ffffff;
+  color: #212121;
+  font-size: 18px;
+  font-family: var(--font-family);
+  line-height: 23px;
+  outline: none;
+}

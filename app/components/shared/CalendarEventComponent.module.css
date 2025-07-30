@@ -1,0 +1,31 @@
+ .eventContainer {
+    display: flex;
+    justify-content: space-between;
+ }
+
+ .actionButtons {
+    display:flex;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+ }
+ 
+ .actionButton {
+    width: 120px;
+    height: 36px;
+    padding: 0px 8px;
+    border: 0;
+    border-radius: 0.5rem;
+    background-color: var(--secondary-color);
+    font-weight: 500;
+    box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+    color: #000000;
+    font-size: 14px;
+    font-family: "Roboto";
+    line-height: 24px;
+    outline: none;
+ }
+
+ .workerBtn {
+    background-color: var(--primary-color)
+ }
+

@@ -1,0 +1,130 @@
+.card {
+  background-color: #1f1f1f; /* Darker card background */
+  border-radius: 0.75rem; /* 12px */
+  padding: 1.25rem;
+  padding-top: 2.5rem; /* Extra padding at top for edit button to overlap */
+  border: 1px solid #2b2b2b;
+  position: relative; /* For positioning the edit button */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.editButton {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background-color: #2b2b2b;
+  color: #a0a0a0;
+  border: 1px solid #3a3a3a;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.editButton:hover {
+  background-color: #3a3a3a;
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.profileHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.avatar, .avatarPlaceholder {
+  width: 70px; /* Larger avatar */
+  height: 70px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid #3a3a3a;
+}
+.avatarPlaceholder { background-color: #2b2b2b; display: flex; align-items:center; justify-content:center; color: #737373;}
+
+.nameRole { flex-grow: 1; }
+.name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 0.2rem 0;
+}
+.role {
+  font-size: 0.85rem;
+  color: #a0a0a0;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.keywords {
+  font-size: 0.85rem;
+  color: #c2c2c2;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #2b2b2b;
+}
+
+.pricingAndAction {
+  display: flex;
+  flex-direction: column; /* Stack on mobile */
+  gap: 1rem;
+  align-items: stretch; /* Make button full width on mobile */
+}
+@media (min-width: 450px) { /* Side by side on slightly wider screens */
+  .pricingAndAction {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end; /* Align items to bottom */
+  }
+}
+
+.pricingDetails { }
+.rate {
+  font-size: 0.9rem;
+  color: #a0a0a0;
+  margin: 0 0 0.25rem 0;
+}
+.totalCost {
+  font-size: 0.8rem;
+  color: #737373;
+  margin: 0;
+  line-height: 1.3;
+}
+.totalAmount {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff; /* Or primary color for emphasis */
+  display: block; /* Puts it on new line if needed */
+}
+
+
+.bookButton {
+  background-color: #4deaff; /* Cyan button */
+  color: #0f0f0f; /* Dark text */
+  padding: 0.75rem 1.25rem;
+  border-radius: 9999px; /* Pill shape */
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+  min-width: 150px; /* Ensure decent width */
+}
+.bookButton:hover:not(:disabled) {
+  background-color: #30c7d9; /* Darker cyan */
+  transform: scale(1.02);
+}
+.bookButton:disabled {
+  background-color: #525252;
+  color: #888888;
+  cursor: not-allowed;
+} 

@@ -1,0 +1,216 @@
+/* app/signin/SignInPage.module.css */
+.container {
+  min-height: 100vh;
+  background-color: #161616; /* Dark background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  font-family: var(--font-family);
+}
+
+.forgotPassword {
+  color: var(--primary-color);
+  font-size: 0.875rem;
+  text-decoration: none;
+  text-align: right;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.forgotPassword:hover {
+  text-decoration: underline;
+}
+
+.linkText {
+  color: var(--primary-color);
+}
+
+.card {
+  /* padding: 2rem 1.5rem; */
+  width: 100%;
+  max-width: 420px; /* Max width for the card */
+  display: flex;
+  flex-direction: column;
+  /* gap: 1.5rem; */
+  
+}
+
+.logoWrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.header {
+  margin-bottom: 0.5rem;
+}
+
+.header h1 {
+  /* Styles for "Welcome! Please register..." */
+  color: #ffffff;
+  font-size: 22px; /* Specific mobile style */
+  font-family: var(--font-family); /* Source Sans Pro from global */
+  font-weight: 700; /* Specific mobile style */
+  line-height: 28px; /* Specific mobile style */
+  margin-bottom: 0.5rem;
+  white-space: pre-line; /* To handle the line break in the text */
+}
+
+.header p {
+  /* Subtitle, if any - currently not used in page.tsx for the main welcome */
+  color: #a0a0a0;
+  font-size: 0.875rem; /* Keeping this distinct if a separate p tag is used */
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.inputGroup {
+  /* Wrapper for label + input */
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem; /* Adjusted to make space for specific label style */
+}
+
+.label {
+  /* Styles for "Phone Number", "Email Address", "Password" */
+  color: #ffffff; /* Specific mobile style */
+  font-size: 14px; /* Specific mobile style */
+  font-family: var(--font-family); /* Source Sans Pro from global */
+  line-height: 16px; /* Specific mobile style */
+  font-weight: 500; /* Slightly bolder for label */
+}
+
+.roleSelection {
+  margin-top: 0.5rem;
+  color: #a0a0a0; /* Keeping this color as it wasn't specified for change */
+}
+
+.roleSelection p {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+  color: #ffffff; /* Assuming role selection prompt should also be white */
+}
+
+.roleOptions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-start;
+}
+
+.roleOption {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 14px; /* Match label font size */
+  color: #c2c2c2; /* Match input text color */
+  cursor: pointer;
+}
+
+.roleOption input[type="radio"] {
+  accent-color: var(--primary-color);
+  cursor: pointer;
+  width: 1em;
+  height: 1em;
+}
+
+.errorMessage {
+  color: rgb(36, 18, 18); 
+  background-color: #ffd0d0;
+  padding: 0.75rem;
+  border-radius: var(--border-radius);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: center;
+  border: 1px solid var(--error-color);
+  margin-top: 0.5rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-around;
+}
+
+.errorCloseBtn {
+  color: var(--error-color);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.errorLink {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.errorLink:hover {
+  text-decoration: underline;
+}
+
+.toggleButton {
+  background: none;
+  border: none;
+  color: #ffffff; /* White text for the toggle button */
+  cursor: pointer;
+  font-size: 0.875rem;
+  /* padding: 0.5rem 0; */
+  /* margin-top: 1rem; */
+  text-align: center;
+  width: 100%;
+  font-weight: 700;
+  outline: none;
+}
+
+.forgotPassword {
+  color: var(--primary-color);
+  font-size: 0.875rem;
+  text-decoration: none;
+  text-align: right;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.forgotPassword:hover {
+  text-decoration: underline;
+}
+
+.linkText {
+  color: var(--primary-color);
+}
+
+.linkText:hover {
+  color: #2d7ab5;
+}
+
+.submitWrapper {
+  display: flex;
+  justify-content: flex-end; /* Aligns the button to the right if it's not full width */
+  /* margin-top: 1.5rem; Add some space above the button */
+}
+
+/* If the button is full-width on desktop, justify-content: flex-end might not be needed
+     but it won't harm. For mobile, the icon button is fixed width, so this positions it. */
+@media (min-width: 768px) {
+  .submitWrapper {
+    justify-content: center; /* Or flex-start, if button is full width anyway */
+  }
+}
+
+.togglePasswordVisibility {
+  position: absolute;
+  left: 88%;
+  top: 25%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #979797; /* White icon for visibility */
+  font-size: 1.25rem; /* Adjust size as needed */
+}
+
+.passwordContainer {
+  position: relative;
+}

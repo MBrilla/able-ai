@@ -1,0 +1,31 @@
+/* app/components/shared/SettingsButton.module.css */
+.settingsButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    /* Slightly smaller */
+    height: 40px;
+    /* border-radius: 50%; */
+    /* Circle */
+    background-color: transparent;
+    /* Darker background */
+    /* color: #a0a0a0; */
+    /* Grey icon */
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.settingsButton:hover {
+    background-color: #3a3a3a;
+    color: #ffffff;
+    /* White icon on hover */
+    border-color: var(--primary-color);
+}
+
+.settingsButton:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
+    /* Focus ring */
+}

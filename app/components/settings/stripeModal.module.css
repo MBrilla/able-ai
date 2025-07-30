@@ -1,0 +1,87 @@
+.stripeButton {
+  /* From user example */
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  /* Adjusted padding */
+  padding: 0.75rem 1.25rem;
+  /* 8px */
+  border-radius: 1.5rem;
+  cursor: pointer;
+  /* Adjusted font size */
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.stripeButton:hover:not(:disabled) {
+  /* Darker blue */
+  background-color: #177bc9;
+}
+
+.stripeButton:disabled {
+  opacity: 0.7;
+}
+
+/* Modal styles (Basic - you might use a library or more complex CSS) */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background-color: #1f1f1f;
+  padding: 2rem;
+  border-radius: 0.75rem;
+  border: 1px solid #2b2b2b;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+  width: 100%;
+  max-width: 450px;
+  color: #e0e0e0;
+}
+
+.modalTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 1rem 0;
+}
+
+.modalActions {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  color: 1px solid #2b2b2b;
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}

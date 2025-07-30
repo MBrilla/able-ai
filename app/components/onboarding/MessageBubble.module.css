@@ -1,0 +1,75 @@
+/* app/components/onboarding/MessageBubble.module.css */
+.messageWrapper {
+  display: flex;
+  gap: 0.5rem; /* Space between avatar and bubble */
+  max-width: 90%; /* Bubbles don't take full width */
+}
+
+.messageWrapperNew {
+  animation: slideIn 0.4s ease-out;
+  opacity: 0;
+  animation-fill-mode: forwards;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Stagger animation for multiple new messages */
+.messageWrapperNew:nth-child(1) { animation-delay: 0.1s; }
+.messageWrapperNew:nth-child(2) { animation-delay: 0.2s; }
+.messageWrapperNew:nth-child(3) { animation-delay: 0.3s; }
+.messageWrapperNew:nth-child(4) { animation-delay: 0.4s; }
+.messageWrapperNew:nth-child(5) { animation-delay: 0.5s; }
+
+.alignBot {
+  align-self: flex-start;
+}
+
+.alignUser {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.avatar {
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.bubble {
+  /* padding: 0.75rem 1rem; */
+  border-radius: 1.25rem; 
+  line-height: 1.5;
+  font-family: var(--font-family);
+  font-size: 0.95rem; 
+  white-space: pre-line; 
+}
+
+.bubbleBot {
+  /* border-bottom-right-radius: 0.25rem; "Tailed" bubble for user */
+  color: #ffffff;
+  font-size: 14px;
+  font-family: var(--font-family); 
+  font-weight: 40;
+  line-height: 23px;
+}
+
+.bubbleUser {
+    width: auto; 
+    height: auto; 
+    padding: 0.5rem;      
+    border-radius: 1.5rem;
+    background-color: #2b2b2b; 
+    color: #c2c2c2;
+    font-size: 14px;   
+    font-family: 'Source Sans Pro';
+    line-height: 18px;
+    outline: none;
+  }

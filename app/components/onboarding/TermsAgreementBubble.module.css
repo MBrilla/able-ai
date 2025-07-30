@@ -1,0 +1,112 @@
+/* app/components/onboarding/TermsAgreementBubble.module.css */
+.termsBubbleWrapper {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 90%;
+  width: 100%;
+}
+
+.alignUser { /* Or .alignBot if terms are presented by the bot */
+  align-self: flex-end;
+}
+
+.termsBubbleContent {
+  flex-grow: 1;
+  background-color: #2b2b2b;
+  padding: 0.75rem 1rem;
+  border-radius: 1.25rem;
+  border-bottom-right-radius: 0.25rem; /* Adjust if senderType varies */
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.label {
+  display: block;
+  color: #a0a0a0;
+  font-size: 0.9rem; /* Slightly larger for a title-like feel */
+  font-weight: 500;
+  /* margin-bottom: 0.25rem; */ /* Gap handled by parent */
+}
+
+.termsTextContainer {
+  max-height: 150px; /* Limit height and make scrollable */
+  overflow-y: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #c2c2c2;
+  background-color: #1e1e1e; /* Slightly different background for text area */
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.35rem;
+  white-space: pre-line; /* Respect newlines in termsContent */
+}
+
+/* Scrollbar styling for webkit browsers */
+.termsTextContainer::-webkit-scrollbar {
+  width: 6px;
+}
+.termsTextContainer::-webkit-scrollbar-track {
+  background: #2b2b2b;
+  border-radius: 3px;
+}
+.termsTextContainer::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 3px;
+}
+.termsTextContainer::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+.fullTermsLink {
+  color: var(--primary-color-light);
+  font-size: 0.85rem;
+  text-decoration: none;
+  display: inline-block; /* Allows margin */
+  margin-top: 0.25rem;
+}
+.fullTermsLink:hover {
+  text-decoration: underline;
+}
+
+.agreementControl {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem; /* Space between icon and label text */
+  cursor: pointer;
+  padding: 0.25rem 0; /* Padding for click area */
+  border-radius: 0.25rem; /* For focus outline */
+}
+.agreementControl:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+
+.hiddenCheckbox {
+  /* Visually hide the checkbox but keep it accessible */
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.checkboxIcon {
+  color: #a0a0a0; /* Default icon color */
+  flex-shrink: 0;
+}
+
+.checkedIcon {
+  color: var(--primary-color); /* Color when checked */
+}
+
+.checkboxLabel {
+  font-size: 0.9rem;
+  color: #c2c2c2;
+  cursor: pointer; /* Ensure label also has pointer cursor */
+  user-select: none; /* Prevent text selection on click */
+}

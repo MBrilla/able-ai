@@ -1,0 +1,195 @@
+/* app/user/[userId]/referral/ReferralPage.module.css */
+.container {
+  min-height: 100vh;
+  background-color: #161616; /* Consistent dark background */
+  color: #e0e0e0; /* Light text for dark background */
+  padding: 1.5rem;
+  font-family: var(--font-family);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pageWrapper {
+  width: 100%;
+  max-width: 600px; /* Max width for the content area */
+}
+
+.profileHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.5rem; /* Consistent spacing */
+  background-color: #1f1f1f; /* Card-like background for header */
+  padding: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid #2b2b2b;
+}
+
+.profileImage {
+  width: 48px; /* Slightly smaller, or use Avatar component */
+  height: 48px;
+  border-radius: 50%;
+  margin-right: 1rem; /* More space */
+  object-fit: cover;
+  border: 2px solid var(--primary-color); /* Accent for profile image */
+}
+
+.profileName {
+  font-size: 1.1rem; /* Slightly larger */
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.referralHeading {
+  font-size: 1.75rem; /* Larger heading */
+  font-weight: 600;
+  color: #ffffff;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+.referralSubheading {
+  font-size: 1rem;
+  color: #a0a0a0;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+
+.form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: #1f1f1f; /* Card background for form */
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid #2b2b2b;
+}
+
+.inputGroup {
+  margin-bottom: 1.25rem; /* Consistent spacing */
+}
+.inputGroup:last-of-type { /* For the file upload specifically */
+    margin-bottom: 1.5rem;
+}
+
+
+.label {
+  display: block;
+  font-size: 0.875rem; /* Consistent label size */
+  font-weight: 500;
+  color: #a0a0a0; /* Lighter label color */
+  margin-bottom: 0.5rem;
+}
+
+/* Using shared InputField component styles is preferred,
+   but if direct styling is needed for .input and .textarea: */
+.input,
+.textarea {
+  width: 100%;
+  padding: 0.85rem 1rem; /* Consistent padding */
+  border-radius: 9999px; /* Pill shape for inputs */
+  border: 1px solid #2b2b2b; /* Matches other inputs */
+  background-color: #2b2b2b; /* Matches other inputs */
+  color: #c2c2c2; /* Matches other inputs */
+  font-size: 0.9rem; /* Consistent font size */
+  font-family: var(--font-family);
+  outline: none;
+  box-sizing: border-box;
+}
+.input::placeholder,
+.textarea::placeholder {
+    color: #737373;
+}
+.input:focus,
+.textarea:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.textarea {
+  border-radius: 0.75rem; /* Less rounded for textarea */
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.5;
+}
+
+.fileUploadContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center; /* Center content */
+  padding: 1.5rem; /* More padding */
+  border: 2px dashed #3a3a3a; /* Darker dashed border */
+  border-radius: 0.75rem; /* Consistent border radius */
+  cursor: pointer;
+  text-align: center;
+  background-color: #2b2b2b; /* Slight background */
+  transition: border-color 0.2s ease;
+  min-height: 100px; /* Ensure decent tap area */
+}
+.fileUploadContainer:hover {
+  border-color: var(--primary-color);
+}
+
+.uploadIcon {
+  font-size: 1.75rem; /* Slightly smaller from 30px */
+  color: #737373; /* Icon color */
+  margin-bottom: 0.75rem;
+}
+
+.uploadText {
+    font-size: 0.9rem;
+    color: #a0a0a0;
+}
+.fileName {
+    font-size: 0.9rem;
+    color: var(--primary-color);
+    font-weight: 500;
+    margin-top: 0.25rem;
+}
+
+
+.submitButton {
+  background-color: var(--primary-color); /* Use primary color */
+  color: #ffffff;
+  border: none;
+  padding: 0.85rem 1.5rem;
+  border-radius: 9999px; /* Pill shape */
+  cursor: pointer;
+  font-size: 1rem; /* Slightly larger */
+  font-weight: 600; /* Bolder */
+  margin-top: 1rem; /* Reduced margin */
+  align-self: center;
+  min-width: 180px; /* Ensure decent width */
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+.submitButton:hover:not(:disabled) {
+  background-color: #4338ca; /* Darker primary */
+  transform: scale(1.02);
+}
+.submitButton:disabled {
+    background-color: #374151;
+    color: #9ca3af;
+    cursor: not-allowed;
+}
+
+.loadingMessage, .successMessage, .errorMessage {
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: var(--border-radius);
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+.loadingMessage {
+  color: #a0a0a0;
+}
+.successMessage {
+  color: var(--success-color);
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid var(--success-color);
+}
+.errorMessage {
+  color: var(--error-color);
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--error-color);
+} 

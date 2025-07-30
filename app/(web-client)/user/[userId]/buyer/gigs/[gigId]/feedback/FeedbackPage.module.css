@@ -1,0 +1,273 @@
+/* app/user/[userId]/buyer/gigs/[gigId]/feedback/FeedbackPage.module.css */
+
+.container {
+  background-color: var(--background-dark);
+  color: var(--text-primary-light);
+  min-height: 100vh;
+  padding: 0; /* Remove default padding if any, manage with pageWrapper */
+}
+
+.pageWrapper {
+  max-width: 600px; /* Or your preferred max-width for mobile-centric view */
+  margin: 0 auto;
+  padding: 0 1rem 2rem 1rem; /* Add bottom padding */
+}
+
+.header {
+  background-color: var(--header-background);
+  padding: 1rem 1.5rem; /* Matching image A's header padding */
+  display: flex;
+  align-items: center;
+  margin: 0 -1.5rem 1.5rem -1.5rem; /* Extend to screen edges if pageWrapper has padding */
+  position: sticky; /* Optional: if you want a sticky header */
+  top: 0;
+  z-index: 10;
+}
+
+.backButton {
+  background: none;
+  border: none;
+  color: var(--text-white);
+  cursor: pointer;
+  margin-right: 1rem;
+  padding: 0.5rem;
+}
+.backButton:hover {
+  opacity: 0.8;
+}
+
+.pageTitle {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: var(--text-white);
+  margin: 0;
+}
+
+.section {
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle { /* Used for Gig Summary title, less prominent now */
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: var(--text-white);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gigSummaryCard {
+  /* background-color: #2b2b2b; User's old style - removed to match Image A */
+  padding: 1rem 0; /* Padding top/bottom, no side padding needed if full width */
+  border-top: 1px solid var(--border-color-light); /* Separator like 'Payments' in Image A */
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.workerAvatar {
+  width: 48px; /* Slightly larger to match visual weight */
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.summaryTextContainer p {
+  margin: 0.2rem 0;
+  color: var(--text-primary-light);
+}
+.summaryTextContainer strong {
+  color: var(--text-white);
+  font-weight: bold;
+}
+
+.feedbackForm {
+  /* No special styling for the form tag itself now, structure is via stepper */
+}
+
+/* --- Stepper Styles --- */
+.stepperContainer {
+  position: relative;
+  padding-left: 40px; /* Space for step indicators and line */
+}
+
+/* The main vertical line for the stepper */
+.stepperContainer::before {
+  content: '';
+  position: absolute;
+  left: 17px; /* (Indicator width / 2) - (Line width / 2) */
+  top: 15px; /* Start below the first indicator's center */
+  bottom: 15px; /* End above the last indicator's center */
+  width: 2px;
+  background-color: var(--text-white);
+  z-index: 1;
+}
+
+.stepItem {
+  display: flex;
+  align-items: flex-start; /* Align items to the top for multi-line content */
+  margin-bottom: 2rem; /* Spacing between steps */
+  position: relative;
+  min-height: 36px; /* Ensure space for indicator */
+}
+
+.stepIndicator {
+  position: absolute;
+  left: -26px; /* Pulls it left into the padding of .stepperContainer */
+  top: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background-color: var(--step-indicator-bg);
+  border: 2px solid var(--step-indicator-border);
+  color: var(--step-indicator-text);
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2; /* Above the line */
+  font-size: 1rem;
+}
+
+.stepContent {
+  flex-grow: 1;
+  padding-left: 1rem; /* Space between indicator and content */
+}
+/* --- End Stepper Styles --- */
+
+
+.inputGroup {
+  margin-bottom: 1.5rem; /* Spacing between elements within a step */
+}
+.inputGroup:last-child {
+  margin-bottom: 0;
+}
+
+.label { /* General label style within step content */
+  display: block;
+  font-size: 1rem; /* Larger, bolder labels like Image A */
+  font-weight: bold;
+  color: var(--text-white);
+  margin-bottom: 0.75rem;
+}
+
+.ratingLabel { /* Specific for rating, similar to .label */
+  display: block;
+  font-size: 1rem;
+  font-weight: bold;
+  color: var(--text-white);
+  margin-bottom: 0.75rem;
+}
+.ratingLabel span { /* For the asterisk */
+    color: var(--primary-accent-color); /* Or your error color if preferred */
+}
+
+
+/* Generic input style for textarea, adapted from Image A */
+.input {
+  background-color: var(--input-background);
+  color: var(--text-white);
+  border: 1px solid var(--border-color-light);
+  border-radius: 20px; /* Highly rounded like Image A's feedback input */
+  padding: 0.9rem 1rem;
+  font-size: 0.9rem;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 80px; /* Default height for textareas */
+}
+textarea.input[id="publicComment"] { min-height: 100px; }
+textarea.input[id="privateNotes"] { min-height: 80px; }
+
+.input::placeholder {
+  color: var(--placeholder-text);
+}
+
+.tagSelectorContainer { /* If you add TagSelector back */
+  margin-top: 1rem;
+}
+
+/* Hire Again Section - Adapted to look like choice buttons */
+.hireAgainOptions {
+  display: flex;
+  gap: 0.75rem; /* Gap between choice buttons */
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  margin-top: 0.5rem;
+}
+
+/* Style for the labels acting as buttons */
+.hireAgainOptionLabel {
+  background-color: var(--button-secondary-bg); /* Medium-gray like Award buttons */
+  color: var(--text-white);
+  padding: 0.75rem 1.25rem;
+  border-radius: 20px; /* Rounded like Image A buttons */
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Hide the actual radio button */
+.hireAgainOptions input[type="radio"] {
+  display: none;
+}
+
+/* Style for the label when the corresponding radio button is checked */
+.hireAgainOptionLabelChecked {
+    background-color: var(--primary-accent-color); /* Cyan for selected */
+    color: var(--text-dark); /* Dark text on cyan */
+    font-weight: bold;
+}
+
+
+.submitButtonContainer {
+  margin-top: 2rem; /* Ensure it's well-spaced if it's the last item in a step */
+}
+
+.submitButton {
+  background-color: var(--primary-accent-color); /* Bright cyan */
+  color: var(--text-dark); /* Dark text */
+  border: none;
+  border-radius: 25px; /* Very rounded */
+  padding: 0.9rem 1.5rem;
+  font-size: 1rem;
+  font-weight: bold;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: opacity 0.2s;
+}
+.submitButton:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.submitButton:disabled {
+  background-color: var(--button-secondary-bg); /* Gray when disabled */
+  color: #999;
+  cursor: not-allowed;
+}
+.submitButton svg { /* Ensure icons in button match text color */
+  color: var(--text-dark);
+}
+.submitButton:disabled svg {
+  color: #999;
+}
+
+
+.loadingContainer, .errorMessage, .successMessage {
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+  text-align: center;
+}
+.loadingContainer { color: var(--text-primary-light); }
+.errorMessage { background-color: #521822; color: var(--text-white); }
+.successMessage { background-color: #15382F; color: var(--text-white); } 

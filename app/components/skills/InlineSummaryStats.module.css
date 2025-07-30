@@ -1,0 +1,6 @@
+/* app/components/skills/InlineSummaryStats.module.css */
+.statsContainer {
+  font-size: 0.9rem;
+  color: var(--text-neutral);
+  margin-bottom: 20px;
+} 

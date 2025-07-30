@@ -1,0 +1,69 @@
+/* app/components/skills/editable/PortfolioEditableItem.module.css */
+.itemContainer {
+  display: flex;
+  align-items: center;
+  background-color: var(--surface-dark);
+  border-radius: var(--border-radius-small);
+  padding: 8px 15px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-color);
+  gap: 15px;
+}
+
+.thumbnailWrapper {
+  flex-shrink: 0;
+  width: 60px; /* Match image width */
+  height: 40px; /* Match image height */
+  border-radius: var(--border-radius-small);
+  overflow: hidden;
+  background-color: var(--surface-neutral);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumbnail {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.videoPlaceholder {
+    color: var(--text-neutral);
+}
+
+.caption {
+    flex-grow: 1;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.editButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent-color);
+  padding: 0 10px;
+  font-size: 0.8rem;
+}
+
+.editButton:hover {
+  text-decoration: underline;
+}
+
+.removeButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-neutral);
+  padding: 0;
+  margin-left: auto; /* Push to the right */
+}
+
+.removeButton:hover {
+  color: var(--error-color);
+} 

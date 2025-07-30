@@ -1,0 +1,22 @@
+.fileUploadButton {
+  background-color: #3A3A3A;
+  border: 1px solid #4A4A4A;
+  border-radius: 9999px;
+  padding: 0;
+  position: relative;
+}
+.fileInputHidden {
+  display: none;
+}
+.fileUploadLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+  color: #c2c2c2;
+  font-size: 0.95rem;
+}
+.fileUploadIcon {
+  color: #ffffff;
+} 

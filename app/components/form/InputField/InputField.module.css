@@ -1,0 +1,26 @@
+.input {
+  width: 100%; /* Will be constrained by the card's max-width */
+  height: 48px; /* Specific mobile style */
+  padding: 0px 16px; /* 8px might be too tight, 16px (1rem) is common. Adjust if needed. Original was 0 0.5rem */
+  border: none; /* Specific mobile style: border: '0' */
+  box-sizing: border-box;
+  border-radius: 24px; /* Specific mobile style */
+  background-color: #2b2b2b; /* Specific mobile style */
+  color: #c2c2c2; /* Specific mobile style */
+  font-size: 14px; /* Specific mobile style */
+  font-family: var(--font-family); /* Source Sans Pro from global */
+  line-height: 19px; /* Specific mobile style */
+  outline: none; /* Specific mobile style */
+}
+
+.input::placeholder {
+  color: #737373; /* Adjusted for better contrast on #2b2b2b, matches previous */
+}
+
+.input:focus {
+  border: 1px solid var(--primary-color); /* Add border back on focus for visibility */
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+  /* The padding might need to be adjusted slightly if border makes it jump,
+       e.g., by reducing padding by 1px when border is active, or by
+       having a transparent border by default. For simplicity, current setup is fine. */
+}
