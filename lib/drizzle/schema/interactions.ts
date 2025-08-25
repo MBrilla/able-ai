@@ -149,6 +149,34 @@ export const ChatMessagesTable = pgTable("chat_messages", {
   // If edits are allowed, then add 'updatedAt'.
 });
 
+// --- RECOMMENDATIONS TABLE ---
+// Stores external recommendations for workers from people outside the platform
+export const RecommendationsTable = pgTable("recommendations", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  workerUserId: uuid("worker_user_id")
+    .notNull()
+    .references(() => UsersTable.id, { onDelete: "cascade" }), // If worker is deleted, recommendations are deleted
+  recommendationCode: varchar("recommendation_code", { length: 50 })
+    .unique()
+    .notNull(), // Unique code for public recommendation links
+  recommendationText: text("recommendation_text").notNull(),
+  relationship: text("relationship").notNull(), // How the recommender knows the worker
+  recommenderName: varchar("recommender_name", { length: 100 }).notNull(),
+  recommenderEmail: varchar("recommender_email", { length: 255 }).notNull(),
+  isVerified: boolean("is_verified").default(false).notNull(), // Whether the recommendation has been verified
+  moderationStatus: moderationStatusEnum("moderation_status")
+    .default("PENDING")
+    .notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+});
+
 // --- TODO: Define relations for these tables (especially ChatMessagesTable) in relations.ts or schema/index.ts ---
 // export const chatMessagesRelations = relations(ChatMessagesTable, ({ one }) => ({
 //   gig: one(GigsTable, { fields: [ChatMessagesTable.gigId], references: [GigsTable.id] }),

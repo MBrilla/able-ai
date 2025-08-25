@@ -64,6 +64,13 @@
       "when": 1755544263144,
       "tag": "0009_tranquil_tusk",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1756053796770,
+      "tag": "0010_lovely_strong_guy",
+      "breakpoints": true
     }
   ]
 }

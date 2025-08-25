@@ -436,13 +436,25 @@ function isUnrelatedResponse(userInput: string, currentPrompt: string): boolean 
     return false;
   });
   
-  // Check if response is too short (likely not answering the question)
-  const isTooShort = userInput.trim().length < 15;
+  // Check if response is too short (but be more lenient for job titles and simple answers)
+  const isTooShort = userInput.trim().length < 8; // Reduced from 15 to 8
   
   // Check if response doesn't contain relevant keywords from the prompt
   const promptKeywords = promptLower.match(/\b\w+\b/g) || [];
   const relevantKeywords = promptKeywords.filter(word => word.length > 3);
   const hasRelevantKeywords = relevantKeywords.some(keyword => userLower.includes(keyword));
+  
+  // Be more lenient for short responses that are likely valid answers
+  const isLikelyValidShortAnswer = userInput.trim().length >= 3 && (
+    // Job titles (common short answers)
+    /^(baker|chef|cook|driver|cleaner|waiter|waitress|bartender|server|host|hostess|cashier|clerk|assistant|helper|worker|staff|employee|professional|specialist|expert|consultant|freelancer|contractor|temp|temporary|part.?time|full.?time)$/i.test(userInput.trim()) ||
+    // Common short responses
+    /^(yes|no|ok|okay|sure|maybe|sometimes|always|never|often|rarely|usually|probably|definitely|absolutely|certainly|definitely|exactly|precisely|correct|right|wrong|true|false)$/i.test(userInput.trim()) ||
+    // Numbers and rates
+    /^[\d£$€¥]+(\.[\d]+)?$/.test(userInput.trim()) ||
+    // Single words that are likely valid
+    userInput.trim().split(' ').length === 1 && userInput.trim().length >= 3
+  );
   
   console.log('Unrelated response check:', {
     userInput: userLower,
@@ -450,10 +462,11 @@ function isUnrelatedResponse(userInput: string, currentPrompt: string): boolean 
     hasUnrelatedPhrase,
     isTooShort,
     hasRelevantKeywords,
-    result: hasUnrelatedPhrase || (isTooShort && !hasRelevantKeywords)
+    isLikelyValidShortAnswer,
+    result: hasUnrelatedPhrase || (isTooShort && !hasRelevantKeywords && !isLikelyValidShortAnswer)
   });
   
-  return hasUnrelatedPhrase || (isTooShort && !hasRelevantKeywords);
+  return hasUnrelatedPhrase || (isTooShort && !hasRelevantKeywords && !isLikelyValidShortAnswer);
 }
 
 // Helper: save support case to Firebase

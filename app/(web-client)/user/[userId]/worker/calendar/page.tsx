@@ -15,7 +15,7 @@ import { CalendarEvent } from "@/app/types/CalendarEventTypes";
 import { getCalendarEvents } from "@/actions/events/get-calendar-events";
 import { getWorkerAvailability } from "@/actions/availability/manage-availability";
 import { convertAvailabilitySlotsToEvents } from "@/app/utils/availabilityUtils";
-import { AvailabilitySlot } from "@/app/types/AvailabilityTypes";
+import { AvailabilitySlot, AvailabilityFormData } from "@/app/types/AvailabilityTypes";
 import NewAvailabilityModal from "@/app/components/availability/NewAvailabilityModal";
 import ClearAvailabilityAlert from "@/app/components/availability/ClearAvailabilityAlert";
 import WeeklyAvailabilityView from "@/app/components/availability/WeeklyAvailabilityView";
@@ -53,13 +53,6 @@ async function fetchWorkerData(
   filters?: string[],
 ): Promise<{ offers: GigOffer[]; 
   acceptedGigs: GigOffer[] }> {
-  console.log(
-    "Fetching worker data for workerId:",
-    userId,
-    "with filters:",
-    filters
-  );
-
   const result = await getWorkerOffers(userId);
   
   if (result.error) {
@@ -145,17 +138,7 @@ const WorkerCalendarPage = () => {
           console.error('Error fetching availability:', availabilityRes.error);
         }
 
-        // Debug: Log what we're getting
-        console.log('availabilityRes:', availabilityRes);
-        console.log('availabilityRes.availability:', availabilityRes.availability);
-        console.log('typeof availabilityRes.availability:', typeof availabilityRes.availability);
-        console.log('Array.isArray(availabilityRes.availability):', Array.isArray(availabilityRes.availability));
 
-        // Debug: Log what we're getting
-        console.log('availabilityRes:', availabilityRes);
-        console.log('availabilityRes.availability:', availabilityRes.availability);
-        console.log('typeof availabilityRes.availability:', typeof availabilityRes.availability);
-        console.log('Array.isArray(availabilityRes.availability):', Array.isArray(availabilityRes.availability));
 
         const calendarData: CalendarEvent[] = calendarRes.events;
         const parsed = calendarData.map((event: CalendarEvent) => ({ ...event, start: new Date(event.start), end: new Date(event.end) }));
@@ -194,10 +177,8 @@ const WorkerCalendarPage = () => {
   useEffect(() => {
     // Check if user is authorized to view this page
     if (!loadingAuth && user && authUserId === pageUserId) {
-      console.log("Debug - User authorized, fetching worker data...");
       fetchWorkerData(pageUserId)
         .then((data) => {
-          console.log("Debug - offer received:", data);
           setOffers(data.offers);
           setAcceptedGigs(data.acceptedGigs);
         })
@@ -279,81 +260,47 @@ const WorkerCalendarPage = () => {
   };
 
   // Handle availability management
-  const handleAvailabilitySave = async (data: any) => {
-    console.log('handleAvailabilitySave called with data:', data);
-    console.log('handleAvailabilitySave data type:', typeof data);
-    console.log('handleAvailabilitySave data keys:', Object.keys(data || {}));
-    console.log('isEditingSingleOccurrence:', isEditingSingleOccurrence);
-    
+  const handleAvailabilitySave = async (data: AvailabilityFormData) => {
     if (!user) {
-      console.log('No user found');
       return;
-    }
-
-    // Test server action first
-    try {
-      const { testAvailabilityAction } = await import('@/actions/availability/test-availability');
-      console.log('Testing server action...');
-      const testResult = await testAvailabilityAction(user.uid);
-      console.log('Test result:', testResult);
-    } catch (testError) {
-      console.error('Test action failed:', testError);
     }
 
     try {
       if (selectedAvailabilitySlot) {
         if (isEditingSingleOccurrence) {
           // Create a new single occurrence slot for this specific date
-          console.log('Creating new single occurrence slot');
           const { createAvailabilitySlot } = await import('@/actions/availability/manage-availability');
           const result = await createAvailabilitySlot(user.uid, data);
-          console.log('Create single occurrence result:', result);
           
           if (result.error) {
             console.error('Create single occurrence failed:', result.error);
+            // TODO: Replace with toast notification
             alert(`Failed to create single occurrence: ${result.error}`);
             return;
           }
-          
-          console.log('Successfully created single occurrence slot');
         } else {
           // Update existing slot (recurring pattern)
-          console.log('Updating existing slot:', selectedAvailabilitySlot.id);
           const { updateAvailabilitySlot } = await import('@/actions/availability/manage-availability');
           const result = await updateAvailabilitySlot(user.uid, selectedAvailabilitySlot.id, data);
-          console.log('Update result:', result);
           
           if (result.error) {
             console.error('Update failed:', result.error);
+            // TODO: Replace with toast notification
             alert(`Failed to update availability: ${result.error}`);
             return;
           }
-          
-          console.log('Successfully updated availability slot');
         }
       } else {
         // Create new slot
-        console.log('Creating new slot');
         const { createAvailabilitySlot } = await import('@/actions/availability/manage-availability');
-        console.log('createAvailabilitySlot function imported:', typeof createAvailabilitySlot);
-        console.log('About to call createAvailabilitySlot with:', { userId: user.uid, data });
-        console.log('createAvailabilitySlot function imported:', typeof createAvailabilitySlot);
-        console.log('About to call createAvailabilitySlot with:', { userId: user.uid, data });
         const result = await createAvailabilitySlot(user.uid, data);
-        console.log('Create result:', result);
-        console.log('Create result type:', typeof result);
-        console.log('Create result keys:', Object.keys(result || {}));
         
         if (result.error) {
           console.error('Create failed:', result.error);
-          console.error('Full result object:', result);
-          console.error('Error details:', result.details);
-          console.error('Error type:', result.errorType);
+          // TODO: Replace with toast notification
           alert(`Failed to create availability: ${result.error}`);
           return;
         }
-        
-        console.log('Successfully created availability slot');
       }
       
       // Close the modal
@@ -390,7 +337,7 @@ const WorkerCalendarPage = () => {
       fetchEvents();
     } catch (error) {
       console.error('Error saving availability:', error);
-      // You could add a toast notification here for user feedback
+      // TODO: Replace with toast notification for better UX
       alert(`Error saving availability: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -465,23 +412,17 @@ const WorkerCalendarPage = () => {
   };
 
   const handleDateSelect = (slotInfo: { start: Date; end: Date; slots: Date[] } | Date, selectedTime?: string) => {
-    console.log('handleDateSelect called with:', { slotInfo, selectedTime });
-    
     if (typeof slotInfo === 'object' && 'start' in slotInfo) {
       // Handle regular calendar date selection
-      console.log('Setting selected date from slotInfo.start:', slotInfo.start);
       setSelectedDate(slotInfo.start);
       setSelectedTime(selectedTime || null);
       setIsAvailabilityModalOpen(true);
     } else if (slotInfo instanceof Date) {
       // Handle availability view date selection
-      console.log('Setting selected date from Date:', slotInfo);
       setSelectedDate(slotInfo);
       setSelectedTime(selectedTime || null);
       setIsAvailabilityModalOpen(true);
     }
-    
-    console.log('Modal should now be open');
   };
 
   const handleClearAllAvailability = async () => {
@@ -699,90 +640,41 @@ const WorkerCalendarPage = () => {
          onConfirm={handleClearAllAvailability}
        />
 
-       {/* Edit Options Modal */}
-       {showEditOptionsModal && selectedAvailabilitySlot && selectedDate && (
-         <div style={{
-           position: 'fixed',
-           top: 0,
-           left: 0,
-           right: 0,
-           bottom: 0,
-           backgroundColor: 'rgba(0, 0, 0, 0.5)',
-           display: 'flex',
-           alignItems: 'center',
-           justifyContent: 'center',
-           zIndex: 1000
-         }} onClick={handleEditOptionsModalClose}>
-           <div style={{
-             backgroundColor: '#232323',
-             borderRadius: '12px',
-             padding: '20px',
-             maxWidth: '400px',
-             width: '90%',
-             color: '#fff'
-           }} onClick={(e) => e.stopPropagation()}>
-             <div style={{
-               display: 'flex',
-               justifyContent: 'space-between',
-               alignItems: 'center',
-               marginBottom: '20px'
-             }}>
-               <h3 style={{ margin: 0 }}>Edit Availability</h3>
-               <button 
-                 style={{
-                   background: 'none',
-                   border: 'none',
-                   color: '#fff',
-                   cursor: 'pointer',
-                   fontSize: '20px'
-                 }}
-                 onClick={handleEditOptionsModalClose}
-               >
-                 ×
-               </button>
-             </div>
-             <div>
-               <p style={{ marginBottom: '20px' }}>
-                 This is a recurring availability pattern. What would you like to edit?
-               </p>
-               <div style={{
-                 display: 'flex',
-                 flexDirection: 'column',
-                 gap: '10px'
-               }}>
-                 <button 
-                   style={{
-                     background: '#41a1e8',
-                     border: 'none',
-                     borderRadius: '8px',
-                     padding: '12px 16px',
-                     color: '#fff',
-                     cursor: 'pointer',
-                     fontWeight: '600'
-                   }}
-                   onClick={handleEditRecurringPattern}
-                 >
-                   Edit recurring pattern
-                 </button>
-                 <button 
-                   style={{
-                     background: '#7eeef9',
-                     border: 'none',
-                     borderRadius: '8px',
-                     padding: '12px 16px',
-                     color: '#000',
-                     cursor: 'pointer',
-                     fontWeight: '600'
-                   }}
-                   onClick={handleEditSingleOccurrence}
-                 >
-                   Edit just this occurrence
-                 </button>
-               </div>
-             </div>
-           </div>
-         </div>
-       )}
+               {/* Edit Options Modal */}
+        {showEditOptionsModal && selectedAvailabilitySlot && selectedDate && (
+          <div className={styles.editOptionsOverlay} onClick={handleEditOptionsModalClose}>
+            <div className={styles.editOptionsModal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.editOptionsHeader}>
+                <h3 className={styles.editOptionsTitle}>Edit Availability</h3>
+                <button 
+                  className={styles.editOptionsCloseButton}
+                  onClick={handleEditOptionsModalClose}
+                >
+                  ×
+                </button>
+              </div>
+              <div className={styles.editOptionsContent}>
+                <p className={styles.editOptionsDescription}>
+                  This is a recurring availability pattern. What would you like to edit?
+                </p>
+                <div className={styles.editOptionsButtons}>
+                  <button 
+                    className={styles.editPatternButton}
+                    onClick={handleEditRecurringPattern}
+                  >
+                    Edit recurring pattern
+                  </button>
+                  <button 
+                    className={styles.editSingleOccurrenceButton}
+                    onClick={handleEditSingleOccurrence}
+                  >
+                    Edit just this occurrence
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
      </div>
    );
  };

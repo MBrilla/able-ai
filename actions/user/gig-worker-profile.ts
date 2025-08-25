@@ -506,6 +506,87 @@ export const saveWorkerProfileFromOnboardingAction = async (
       });
     }
 
+    // Automatically add job title as a skill from the "about" field
+    if (profileData.about && profileData.about.trim()) {
+      // Extract the first line as the job title (e.g., "restauranteur")
+      const jobTitle = profileData.about.split('\n')[0].trim();
+      
+      if (jobTitle && jobTitle.length > 0) {
+        try {
+          // Parse experience from profileData.experience
+          let experienceMonths = 0;
+          let experienceYears = 0;
+          
+          if (profileData.experience && profileData.experience.trim()) {
+            const experienceText = profileData.experience.toLowerCase();
+            
+            // Extract years (e.g., "5 years", "2+ years", "10+ years experience", "5y", "5yr")
+            const yearMatches = experienceText.match(/(\d+)(?:\+)?\s*(?:years?|y|yr)/);
+            if (yearMatches) {
+              experienceYears = parseInt(yearMatches[1]);
+            }
+            
+            // Extract months (e.g., "6 months", "3 months experience", "6m", "6mo")
+            const monthMatches = experienceText.match(/(\d+)\s*(?:months?|m|mo)/);
+            if (monthMatches) {
+              experienceMonths = parseInt(monthMatches[1]);
+            }
+            
+            // Handle decimal years (e.g., "2.5 years", "1.5 years")
+            const decimalYearMatches = experienceText.match(/(\d+\.\d+)\s*(?:years?|y|yr)/);
+            if (decimalYearMatches) {
+              experienceYears = parseFloat(decimalYearMatches[1]);
+            }
+            
+            // If only months mentioned, convert to years (e.g., "18 months" = 1.5 years)
+            if (experienceMonths > 0 && experienceYears === 0) {
+              experienceYears = experienceMonths / 12;
+            }
+            
+            // If only years mentioned, set months to 0
+            if (experienceYears > 0 && experienceMonths === 0) {
+              experienceMonths = 0;
+            }
+            
+            // Handle "over X years" or "X+ years" - add 1 year for "+" or "over"
+            if (experienceText.includes('+') || experienceText.includes('over')) {
+              experienceYears += 1;
+            }
+          }
+          
+          // Get the worker profile ID for the skills table
+          const currentWorkerProfile = await db.query.GigWorkerProfilesTable.findFirst({
+            where: eq(GigWorkerProfilesTable.userId, user.id),
+          });
+
+          if (currentWorkerProfile) {
+            // Add the job title as a skill
+            const [newSkill] = await db
+              .insert(SkillsTable)
+              .values({
+                workerProfileId: currentWorkerProfile.id,
+                name: jobTitle,
+                experienceMonths: experienceMonths,
+                experienceYears: experienceYears,
+                agreedRate: String(profileData.hourlyRate || "0"),
+                skillVideoUrl: null,
+                adminTags: null,
+                ableGigs: null,
+                images: [],
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .returning();
+            
+            console.log(`Automatically added job title "${jobTitle}" as a skill for user ${user.id} with ${experienceYears} years and ${experienceMonths} months experience`);
+          }
+        } catch (error) {
+          console.warn(`Failed to automatically add job title as skill:`, error);
+          // Don't fail the entire profile save if skill creation fails
+        }
+      }
+    }
+
     // Update user table to mark as gig worker
     await db
       .update(UsersTable)
@@ -519,6 +600,212 @@ export const saveWorkerProfileFromOnboardingAction = async (
     return { success: true, data: "Worker profile saved successfully" };
   } catch (error) {
     console.error("Error saving worker profile:", error);
+    return { success: false, data: null, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+};
+
+export const addJobTitleAsSkillAction = async (
+  token: string,
+  jobTitle: string,
+  hourlyRate?: string,
+  experience?: string
+) => {
+  try {
+    if (!token) {
+      throw new Error("Token is required");
+    }
+
+    const { uid } = await isUserAuthenticated(token);
+    if (!uid) throw ERROR_CODES.UNAUTHORIZED;
+
+    const user = await db.query.UsersTable.findFirst({
+      where: eq(UsersTable.firebaseUid, uid),
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get the worker profile ID
+    const currentWorkerProfile = await db.query.GigWorkerProfilesTable.findFirst({
+      where: eq(GigWorkerProfilesTable.userId, user.id),
+    });
+
+    if (!currentWorkerProfile) {
+      throw new Error("Worker profile not found. Please complete your profile first.");
+    }
+
+    // Check if skill already exists
+    const existingSkill = await db.query.SkillsTable.findFirst({
+      where: and(
+        eq(SkillsTable.workerProfileId, currentWorkerProfile.id),
+        eq(SkillsTable.name, jobTitle)
+      ),
+    });
+
+    if (existingSkill) {
+      return { success: true, data: "Skill already exists", skill: existingSkill };
+    }
+
+    // Parse experience if provided
+    let experienceMonths = 0;
+    let experienceYears = 0;
+    
+    if (experience && experience.trim()) {
+      const experienceText = experience.toLowerCase();
+      
+      // Extract years (e.g., "5 years", "2+ years", "10+ years experience", "5y", "5yr")
+      const yearMatches = experienceText.match(/(\d+)(?:\+)?\s*(?:years?|y|yr)/);
+      if (yearMatches) {
+        experienceYears = parseInt(yearMatches[1]);
+      }
+      
+      // Extract months (e.g., "6 months", "3 months experience", "6m", "6mo")
+      const monthMatches = experienceText.match(/(\d+)\s*(?:months?|m|mo)/);
+      if (monthMatches) {
+        experienceMonths = parseInt(monthMatches[1]);
+      }
+      
+      // Handle decimal years (e.g., "2.5 years", "1.5 years")
+      const decimalYearMatches = experienceText.match(/(\d+\.\d+)\s*(?:years?|y|yr)/);
+      if (decimalYearMatches) {
+        experienceYears = parseFloat(decimalYearMatches[1]);
+      }
+      
+      // If only months mentioned, convert to years (e.g., "18 months" = 1.5 years)
+      if (experienceMonths > 0 && experienceYears === 0) {
+        experienceYears = experienceMonths / 12;
+      }
+      
+      // If only years mentioned, set months to 0
+      if (experienceYears > 0 && experienceMonths === 0) {
+        experienceMonths = 0;
+      }
+      
+      // Handle "over X years" or "X+ years" - add 1 year for "+" or "over"
+      if (experienceText.includes('+') || experienceText.includes('over')) {
+        experienceYears += 1;
+      }
+    }
+
+    // Add the job title as a skill
+    const [newSkill] = await db
+      .insert(SkillsTable)
+      .values({
+        workerProfileId: currentWorkerProfile.id,
+        name: jobTitle,
+        experienceMonths: experienceMonths,
+        experienceYears: experienceYears,
+        agreedRate: String(hourlyRate || "0"),
+        skillVideoUrl: null,
+        adminTags: null,
+        ableGigs: null,
+        images: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    console.log(`Added job title "${jobTitle}" as a skill for user ${user.id} with ${experienceYears} years and ${experienceMonths} months experience`);
+    return { success: true, data: "Skill added successfully", skill: newSkill };
+  } catch (error) {
+    console.error("Error adding job title as skill:", error);
+    return { success: false, data: null, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+};
+
+export const updateAboutTextAction = async (
+  token: string,
+  aboutText: string
+) => {
+  try {
+    if (!token) {
+      throw new Error("Token is required");
+    }
+
+    const { uid } = await isUserAuthenticated(token);
+    if (!uid) throw ERROR_CODES.UNAUTHORIZED;
+
+    const user = await db.query.UsersTable.findFirst({
+      where: eq(UsersTable.firebaseUid, uid),
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get the worker profile
+    const currentWorkerProfile = await db.query.GigWorkerProfilesTable.findFirst({
+      where: eq(GigWorkerProfilesTable.userId, user.id),
+    });
+
+    if (!currentWorkerProfile) {
+      throw new Error("Worker profile not found. Please complete your profile first.");
+    }
+
+    // Update the about text
+    await db
+      .update(GigWorkerProfilesTable)
+      .set({
+        fullBio: aboutText,
+        updatedAt: new Date(),
+      })
+      .where(eq(GigWorkerProfilesTable.userId, user.id));
+
+    // If the about text contains a job title, update the corresponding skill
+    if (aboutText && aboutText.trim()) {
+      const jobTitle = aboutText.split('\n')[0].trim();
+      
+      if (jobTitle && jobTitle.length > 0) {
+        try {
+          // Check if skill already exists
+          const existingSkill = await db.query.SkillsTable.findFirst({
+            where: and(
+              eq(SkillsTable.workerProfileId, currentWorkerProfile.id),
+              eq(SkillsTable.name, jobTitle)
+            ),
+          });
+
+          if (existingSkill) {
+            // Update existing skill with new about text
+            await db
+              .update(SkillsTable)
+              .set({
+                updatedAt: new Date(),
+              })
+              .where(eq(SkillsTable.id, existingSkill.id));
+          } else {
+            // Create new skill from the updated about text
+            const [newSkill] = await db
+              .insert(SkillsTable)
+              .values({
+                workerProfileId: currentWorkerProfile.id,
+                name: jobTitle,
+                experienceMonths: 0,
+                experienceYears: 0,
+                agreedRate: "0", // Default rate, can be updated later
+                skillVideoUrl: null,
+                adminTags: null,
+                ableGigs: null,
+                images: [],
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .returning();
+            
+            console.log(`Automatically added job title "${jobTitle}" as a skill after about text update for user ${user.id}`);
+          }
+        } catch (error) {
+          console.warn(`Failed to update skill after about text change:`, error);
+          // Don't fail the about text update if skill update fails
+        }
+      }
+    }
+
+    console.log(`Updated about text for user ${user.id}`);
+    return { success: true, data: "About text updated successfully" };
+  } catch (error) {
+    console.error("Error updating about text:", error);
     return { success: false, data: null, error: error instanceof Error ? error.message : "Unknown error" };
   }
 };

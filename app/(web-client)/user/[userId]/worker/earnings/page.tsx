@@ -156,9 +156,9 @@ export default function WorkerEarningsPage() {
             <div className={styles.modalOverlay} onClick={() => setShowFilterModal(false)}>
                 <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
                     <h3 className={styles.modalHeader}>Filter Earnings</h3>
-                    <div className={styles.filterOptions} style={{flexDirection: 'column'}}>
+                    <div className={`${styles.filterOptions} ${styles.filterOptionsColumn}`}>
                         {gigTypes.map(type => (
-                            <label key={type} className={styles.filterOptionLabel} style={{padding: '0.5rem 0'}}>
+                            <label key={type} className={`${styles.filterOptionLabel} ${styles.filterOptionLabelModal}`}>
                             <input
                                 type="radio"
                                 name="gigTypeModalEarningsFilter"

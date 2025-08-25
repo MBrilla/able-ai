@@ -19,6 +19,8 @@ import { StepInputConfig, FormInputType } from "@/app/types/form";
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { useFirebase } from '@/context/FirebaseContext';
 import { Schema } from '@firebase/ai';
+import MatchingWorkersDisplay from "@/app/components/gigs/MatchingWorkersDisplay";
+import { MatchingWorker } from "@/actions/gigs/find-matching-workers";
 
 interface OnboardingStep {
   id: number;
@@ -545,6 +547,8 @@ export default function OnboardBuyerPage() {
   const [clickedSanitizedButtons, setClickedSanitizedButtons] = useState<Set<string>>(new Set());
   // Add error state
   const [error, setError] = useState<string | null>(null);
+  // Add selected worker state for matchmaking
+  const [selectedWorker, setSelectedWorker] = useState<MatchingWorker | null>(null);
 
 
   // Helper to get next required field not in formData
@@ -562,6 +566,11 @@ export default function OnboardBuyerPage() {
     // This step is active if it's the last incomplete input step
     return step.id === lastIncompleteInputStep?.id;
   }
+
+  // Handle worker selection for matchmaking
+  const handleWorkerSelect = (worker: MatchingWorker) => {
+    setSelectedWorker(worker);
+  };
 
   // Remove staticOnboardingSteps and requiredFields logic for dynamic AI-driven flow
   // Only the first question is hardcoded
@@ -1423,15 +1432,20 @@ Make the conversation feel natural and build on what they've already told you.`;
         gigLocation: formData.gigLocation, // Send the original location object to preserve coordinates
         gigDate: String(formData.gigDate || "").slice(0, 10),
         gigTime: formData.gigTime ? String(formData.gigTime) : undefined,
+        selectedWorkerId: selectedWorker?.userId, // Include selected worker if any
       };
 
       const result = await createGig(payload);
 
       if (result.status === 200 && result.gigId) {
+        const successMessage = selectedWorker 
+          ? `Thanks! Your gig has been created and ${selectedWorker.user.fullName} has been notified. They will review and accept your offer.`
+          : "Thanks! Your gig has been created and will be visible to workers in your area.";
+        
         const successMessageStep: ChatStep = {
           id: Date.now() + 1,
           type: "bot",
-          content: "Thanks! Your gig has been created.",
+          content: successMessage,
         };
         setChatSteps((prev) => [...prev, successMessageStep]);
         // Navigate back to buyer dashboard per design
@@ -1798,6 +1812,31 @@ Make the conversation feel natural and build on what they've already told you.`;
                           );
                         })}
                       </ul>
+
+                      {/* Matching Workers Display */}
+                      {summaryData.gigLocation && summaryData.gigDate && (
+                        <div style={{ marginTop: '24px' }}>
+                          <div style={{ 
+                            background: '#f0fdf4', 
+                            border: '1px solid #bbf7d0', 
+                            borderRadius: '8px', 
+                            padding: '12px', 
+                            marginBottom: '16px',
+                            fontSize: '14px',
+                            color: '#065f46'
+                          }}>
+                            <strong>Location-based Matching:</strong> Your gig will only be visible to workers within 30km of the specified location. This ensures workers can reasonably travel to your gig.
+                          </div>
+                          <MatchingWorkersDisplay
+                            gigLocation={summaryData.gigLocation}
+                            gigDate={summaryData.gigDate}
+                            gigTime={summaryData.gigTime}
+                            onWorkerSelect={handleWorkerSelect}
+                            selectedWorkerId={selectedWorker?.id}
+                          />
+                        </div>
+                      )}
+
                       <button
                         style={{ 
                           marginTop: 16, 

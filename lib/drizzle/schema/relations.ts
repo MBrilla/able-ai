@@ -22,6 +22,7 @@ import {
   BadgeDefinitionsTable,
   UserBadgesLinkTable,
   ChatMessagesTable, // Added ChatMessagesTable
+  RecommendationsTable, // Added RecommendationsTable
 } from "./interactions";
 import { PaymentsTable, MockPaymentsTable } from "./payments";
 import {
@@ -73,6 +74,9 @@ export const usersRelations = relations(UsersTable, ({ one, many }) => ({
   }), // For user records that are team members
   sentChatMessages: many(ChatMessagesTable, {
     relationName: "UserAsSenderOfChatMessage",
+  }),
+  recommendationsReceived: many(RecommendationsTable, {
+    relationName: "UserAsWorkerReceivingRecommendation",
   }),
   mockPaymentsAsWorker: many(MockPaymentsTable, {
     relationName: "MockPaymentWorkerUser",
@@ -381,3 +385,13 @@ export const vectorEmbeddingsRelations = relations(
     })
   })
 );
+
+// --- RECOMMENDATIONS DOMAIN RELATIONS ---
+export const recommendationsRelations = relations(RecommendationsTable, ({ one }) => ({
+  worker: one(UsersTable, {
+    // Recommendation -> User (Worker being recommended)
+    fields: [RecommendationsTable.workerUserId],
+    references: [UsersTable.id],
+    relationName: "UserAsWorkerReceivingRecommendation",
+  }),
+}));

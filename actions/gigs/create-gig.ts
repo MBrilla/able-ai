@@ -4,6 +4,20 @@ import { db } from "@/lib/drizzle/db";
 import { and, eq } from "drizzle-orm";
 import { GigsTable, UsersTable, gigStatusEnum, moderationStatusEnum } from "@/lib/drizzle/schema";
 
+// Helper function to get worker user ID from Firebase UID
+async function getWorkerUserIdFromFirebaseUid(firebaseUid: string): Promise<string | null> {
+  try {
+    const worker = await db.query.UsersTable.findFirst({
+      where: eq(UsersTable.firebaseUid, firebaseUid),
+      columns: { id: true },
+    });
+    return worker?.id || null;
+  } catch (error) {
+    console.error('Error getting worker user ID:', error);
+    return null;
+  }
+}
+
 type CreateGigInput = {
   userId: string; // Firebase UID
   gigDescription: string;
@@ -12,6 +26,7 @@ type CreateGigInput = {
   gigLocation?: string | { lat?: number; lng?: number; formatted_address?: string; address?: string; [key: string]: any };
   gigDate: string; // YYYY-MM-DD
   gigTime?: string; // HH:mm (24h) or time range like "12:00-14:30"
+  selectedWorkerId?: string; // Optional: ID of pre-selected worker
 };
 
 type CreateGigResult = {
@@ -93,7 +108,7 @@ function buildDateTime(gigDate: string, gigTime?: string): { startTime: Date; en
 
 export async function createGig(input: CreateGigInput): Promise<CreateGigResult> {
   try {
-    const { userId, gigDescription, additionalInstructions, hourlyRate, gigLocation, gigDate, gigTime } = input;
+    const { userId, gigDescription, additionalInstructions, hourlyRate, gigLocation, gigDate, gigTime, selectedWorkerId } = input;
 
     if (!userId) return { status: 400, error: "Missing userId" };
     if (!gigDescription) return { status: 400, error: "Missing gigDescription" };
@@ -196,6 +211,7 @@ export async function createGig(input: CreateGigInput): Promise<CreateGigResult>
 
     const insertData = {
       buyerUserId: user.id,
+      workerUserId: selectedWorkerId ? await getWorkerUserIdFromFirebaseUid(selectedWorkerId) : null,
       titleInternal: gigDescription.slice(0, 255),
       fullDescription: additionalInstructions || null,
       exactLocation: processedLocation,
@@ -205,7 +221,7 @@ export async function createGig(input: CreateGigInput): Promise<CreateGigResult>
       agreedRate: rate.toString(), // Convert to string as expected by the schema
       estimatedHours: duration.toString(), // Convert to string as expected by the schema
       // Explicit status values to avoid NULL constraint violations
-      statusInternal: gigStatusEnum.enumValues[0],
+      statusInternal: gigStatusEnum.enumValues[0], // Use the first enum value which should be PENDING_WORKER_ACCEPTANCE
       moderationStatus: moderationStatusEnum.enumValues[0],
       // Leave totals/fees null for now; can be computed later
     };

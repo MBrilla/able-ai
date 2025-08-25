@@ -18,6 +18,7 @@ import {
 import {
   getPrivateWorkerProfileAction,
   updateVideoUrlProfileAction,
+  updateAboutTextAction,
 } from "@/actions/user/gig-worker-profile";
 import { firebaseApp } from "@/lib/firebase/clientApp";
 import {
@@ -32,6 +33,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import ProfileMedia from "./ProfileMedia";
+import RecommendationLinkGenerator from "@/app/components/shared/RecommendationLinkGenerator";
 
 const WorkerProfile = ({
   workerProfile,
@@ -50,6 +52,9 @@ const WorkerProfile = ({
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [workerLink, setWorkerLink] = useState<string | null>(null);
+  const [showEditAboutModal, setShowEditAboutModal] = useState(false);
+  const [editAboutText, setEditAboutText] = useState('');
+  const [isEditingAbout, setIsEditingAbout] = useState(false);
 
   const handleVideoUpload = useCallback(
     async (file: Blob) => {
@@ -193,6 +198,16 @@ const WorkerProfile = ({
           />
         }
 
+        {/* Recommendations Section - Only show for self-view */}
+        {isSelfView && user && (
+          <ContentCard title="Get Recommendations">
+            <RecommendationLinkGenerator 
+              workerUserId={user.uid}
+              workerName={user.displayName || "Worker"}
+            />
+          </ContentCard>
+        )}
+
         {/* Awards & Feedback Section (Benji Image Style) */}
         {workerProfile.awards && ( // Only show section if there are awards or feedback
           <div className={styles.awardsFeedbackGrid}>
@@ -258,14 +273,149 @@ const WorkerProfile = ({
 
         {/* Bio Text (if used) */}
         {workerProfile.fullBio && (
-          <ContentCard
-            title={`About ${user?.displayName?.split(" ")[0] || "this user"}`}
-          >
+          <div className={styles.aboutSection}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 className={styles.contentTitle}>
+                {`About ${user?.displayName?.split(" ")[0] || "this user"}`}
+              </h3>
+              {isSelfView && (
+                <button
+                  onClick={() => {
+                    setEditAboutText(workerProfile.fullBio || '');
+                    setShowEditAboutModal(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#0070f3',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 112, 243, 0.1)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  ✏️ Edit
+                </button>
+              )}
+            </div>
             <p className={styles.bioText}>{workerProfile.fullBio}</p>
-          </ContentCard>
+          </div>
         )}
       </div>{" "}
       {/* End Main Content Wrapper */}
+
+      {/* Edit About Modal */}
+      {showEditAboutModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '24px',
+            borderRadius: '12px',
+            width: '90%',
+            maxWidth: '500px',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            <h3 style={{ marginBottom: '16px', color: '#333' }}>Edit About Section</h3>
+            <textarea
+              value={editAboutText}
+              onChange={(e) => setEditAboutText(e.target.value)}
+              placeholder="Tell us about yourself..."
+              style={{
+                width: '100%',
+                minHeight: '120px',
+                padding: '12px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                resize: 'vertical'
+              }}
+            />
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end',
+              marginTop: '20px'
+            }}>
+              <button
+                onClick={() => {
+                  setShowEditAboutModal(false);
+                  setEditAboutText('');
+                }}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  background: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!editAboutText.trim()) return;
+                  
+                  setIsEditingAbout(true);
+                  try {
+                    // Call API to update about text
+                    const result = await updateAboutTextAction(user?.token || '', editAboutText);
+                    
+                    if (result.success) {
+                      setShowEditAboutModal(false);
+                      setEditAboutText('');
+                      // Refresh the profile to show updated text
+                      if (user?.token) {
+                        fetchUserProfile(user.token);
+                      }
+                    } else {
+                      console.error('Failed to update about text:', result.error);
+                      // You could show an error toast here
+                    }
+                  } catch (error) {
+                    console.error('Failed to update about text:', error);
+                    // You could show an error toast here
+                  } finally {
+                    setIsEditingAbout(false);
+                  }
+                }}
+                disabled={isEditingAbout || !editAboutText.trim()}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: isEditingAbout || !editAboutText.trim() ? '#ccc' : '#0070f3',
+                  color: 'white',
+                  cursor: isEditingAbout || !editAboutText.trim() ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isEditingAbout ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -199,6 +199,11 @@ export const JOB_CATEGORIES = {
 export function findClosestJobTitle(userInput: string): { jobTitle: JobTitle; confidence: number; matchedTerms: string[] } | null {
   const normalizedInput = userInput.toLowerCase().trim();
   
+  // Early return for empty input
+  if (!normalizedInput) {
+    return null;
+  }
+
   let bestMatch: JobTitle | null = null;
   let highestConfidence = 0;
   let matchedTerms: string[] = [];
@@ -207,39 +212,110 @@ export function findClosestJobTitle(userInput: string): { jobTitle: JobTitle; co
     let confidence = 0;
     const currentMatchedTerms: string[] = [];
 
-    // Check exact title match
-    if (normalizedInput.includes(jobTitle.title.toLowerCase())) {
-      confidence += 100;
+    // Helper function to calculate word similarity using Levenshtein-like logic
+    const calculateWordSimilarity = (input: string, target: string): number => {
+      if (input === target) return 1.0;
+      if (input.length < 3 || target.length < 3) return 0.0; // Avoid matching very short words
+      
+      // Check if input is contained within target (but not vice versa to avoid false positives)
+      if (target.includes(input) && input.length >= 3) {
+        // Partial match - calculate similarity based on length ratio
+        return Math.min(input.length / target.length, 0.8);
+      }
+      
+      // Check for exact word boundaries to avoid partial matches
+      const inputWords = input.split(/\s+/);
+      const targetWords = target.split(/\s+/);
+      
+      for (const inputWord of inputWords) {
+        if (inputWord.length < 3) continue;
+        for (const targetWord of targetWords) {
+          if (targetWord.length < 3) continue;
+          
+          // Exact word match
+          if (inputWord === targetWord) {
+            return 1.0;
+          }
+          
+          // Check if input word is a complete word within target
+          if (targetWord.includes(inputWord) && inputWord.length >= 3) {
+            return Math.min(inputWord.length / targetWord.length, 0.7);
+          }
+        }
+      }
+      
+      return 0.0;
+    };
+
+    // Check exact title match (highest weight)
+    const titleSimilarity = calculateWordSimilarity(normalizedInput, jobTitle.title.toLowerCase());
+    if (titleSimilarity > 0) {
+      confidence += titleSimilarity * 100;
       currentMatchedTerms.push(jobTitle.title);
     }
 
-    // Check synonyms
+    // Check synonyms (high weight, but less than title)
+    let bestSynonymMatch = 0;
     for (const synonym of jobTitle.synonyms) {
-      if (normalizedInput.includes(synonym.toLowerCase())) {
-        confidence += 80;
+      const synonymSimilarity = calculateWordSimilarity(normalizedInput, synonym.toLowerCase());
+      if (synonymSimilarity > bestSynonymMatch) {
+        bestSynonymMatch = synonymSimilarity;
+      }
+      if (synonymSimilarity > 0) {
         currentMatchedTerms.push(synonym);
       }
     }
-
-    // Check category relevance
-    if (normalizedInput.includes(jobTitle.category.toLowerCase().replace(' & ', ' '))) {
-      confidence += 30;
+    if (bestSynonymMatch > 0) {
+      confidence += bestSynonymMatch * 80;
     }
 
-    // Check required skills relevance
+    // Check category relevance (medium weight)
+    const categoryWords = jobTitle.category.toLowerCase().replace(' & ', ' ').split(/\s+/);
+    let categoryMatch = 0;
+    for (const word of categoryWords) {
+      if (word.length >= 3 && normalizedInput.includes(word)) {
+        categoryMatch += 0.3;
+      }
+    }
+    if (categoryMatch > 0) {
+      confidence += Math.min(categoryMatch, 1.0) * 30;
+    }
+
+    // Check required skills relevance (lower weight)
+    let skillsMatch = 0;
     for (const skill of jobTitle.requiredSkills) {
-      if (normalizedInput.includes(skill.toLowerCase())) {
-        confidence += 20;
+      const skillSimilarity = calculateWordSimilarity(normalizedInput, skill.toLowerCase());
+      if (skillSimilarity > 0) {
+        skillsMatch += skillSimilarity;
         currentMatchedTerms.push(skill);
       }
     }
+    if (skillsMatch > 0) {
+      confidence += Math.min(skillsMatch, 2.0) * 15; // Cap skills contribution
+    }
 
-    // Check description relevance
-    const descriptionWords = jobTitle.description.toLowerCase().split(' ');
+    // Check description relevance (lowest weight, but with word boundary checking)
+    const descriptionWords = jobTitle.description.toLowerCase().split(/\s+/);
+    let descriptionMatch = 0;
     for (const word of descriptionWords) {
-      if (word.length > 3 && normalizedInput.includes(word)) {
-        confidence += 5;
+      if (word.length > 3) {
+        const wordSimilarity = calculateWordSimilarity(normalizedInput, word.toLowerCase());
+        if (wordSimilarity > 0) {
+          descriptionMatch += wordSimilarity * 0.1; // Very low weight for description
+        }
       }
+    }
+    if (descriptionMatch > 0) {
+      confidence += Math.min(descriptionMatch, 1.0) * 5;
+    }
+
+    // Bonus for exact matches and high-quality partial matches
+    if (titleSimilarity === 1.0) {
+      confidence += 20; // Bonus for perfect title match
+    }
+    
+    if (bestSynonymMatch === 1.0) {
+      confidence += 15; // Bonus for perfect synonym match
     }
 
     // Update best match if confidence is higher
@@ -251,7 +327,8 @@ export function findClosestJobTitle(userInput: string): { jobTitle: JobTitle; co
   }
 
   // Only return matches with reasonable confidence
-  if (bestMatch && highestConfidence >= 30) {
+  // Increased threshold to avoid false positives
+  if (bestMatch && highestConfidence >= 50) {
     return {
       jobTitle: bestMatch,
       confidence: Math.min(highestConfidence, 100), // Cap at 100%

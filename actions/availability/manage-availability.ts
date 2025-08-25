@@ -4,7 +4,7 @@ import { db } from "@/lib/drizzle/db";
 import { UsersTable } from "@/lib/drizzle/schema/users";
 import { WorkerAvailabilityTable } from "@/lib/drizzle/schema/availability";
 import { eq } from "drizzle-orm";
-import { AvailabilitySlot, AvailabilityFormData } from "@/app/types/AvailabilityTypes";
+import { AvailabilitySlot, AvailabilityFormData, AvailabilityUpdateData } from "@/app/types/AvailabilityTypes";
 import { revalidatePath } from "next/cache";
 
 export async function getWorkerAvailability(userId: string) {
@@ -185,10 +185,6 @@ export async function createAvailabilitySlot(userId: string, data: AvailabilityF
 
 export async function updateAvailabilitySlot(userId: string, slotId: string, data: AvailabilityFormData) {
   try {
-    console.log('updateAvailabilitySlot called with userId:', userId);
-    console.log('updateAvailabilitySlot called with slotId:', slotId);
-    console.log('updateAvailabilitySlot called with data:', data);
-    
     // Validate required fields
     if (!data.startTime || !data.endTime) {
       console.error('updateAvailabilitySlot: Missing required time fields');
@@ -230,7 +226,7 @@ export async function updateAvailabilitySlot(userId: string, slotId: string, dat
     };
 
     // Prepare update data
-    const updateData: any = {
+    const updateData: AvailabilityUpdateData = {
       days: data.days,
       frequency: data.frequency as "never" | "weekly" | "biweekly" | "monthly",
       startDate: data.startDate,

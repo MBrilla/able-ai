@@ -10,6 +10,7 @@ import { Star, Send, Loader2 } from 'lucide-react'; // Lucide icons
 import styles from './RecommendationPage.module.css';
 import { useAuth } from '@/context/AuthContext';
 import ScreenHeaderWithBack from '@/app/components/layout/ScreenHeaderWithBack';
+import { createRecommendation } from '@/actions/user/recommendations';
 
 interface RecommendationFormData {
   recommendationText: string;
@@ -20,17 +21,10 @@ interface RecommendationFormData {
 
 // Mock function to get worker details - replace with actual API call
 async function getWorkerDetails(workerId: string): Promise<{ name: string; primarySkill: string } | null> {
-  console.log("Fetching details for workerId:", workerId);
-  // In a real app, fetch from your backend:
-  // const response = await fetch(`/api/workers/${workerId}/public-profile`);
-  // if (!response.ok) return null;
-  // return response.json();
-  if (workerId === "benji-asamoah-id") { // Example workerId
-    return { name: "Benji Asamoah", primarySkill: "Bartender" };
-  }
+  // TODO: Replace with actual API call to get worker details
+  // For now, return mock data
   return { name: "Selected Worker", primarySkill: "Talent" }; // Fallback
 }
-
 
 export default function RecommendationPage() {
   const router = useRouter();
@@ -83,29 +77,17 @@ export default function RecommendationPage() {
       recommenderEmail: user.email || ''
     }));
 
-  }, [user, loadingAuth, authUserId, recommenderUserId, router, pathname]);
+    // Load worker details
+    getWorkerDetails(workerToRecommendId)
+      .then(details => {
+        if (details) {
+          setWorkerDetails(details);
+        }
+      })
+      .catch(() => setError("Error fetching worker details."))
+      .finally(() => setIsLoadingWorker(false));
 
-
-  // Fetch worker details
-  useEffect(() => {
-    if (workerToRecommendId) {
-      setIsLoadingWorker(true);
-      getWorkerDetails(workerToRecommendId)
-        .then(details => {
-          if (details) {
-            setWorkerDetails(details);
-          } else {
-            setError("Could not load worker details to recommend.");
-          }
-        })
-        .catch(err => {
-          console.error("Error fetching worker details:", err);
-          setError("Error fetching worker details.");
-        })
-        .finally(() => setIsLoadingWorker(false));
-    }
-  }, [workerToRecommendId]);
-
+  }, [loadingAuth, user, authUserId, recommenderUserId, workerToRecommendId, pathname, router]);
 
   const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
@@ -126,19 +108,17 @@ export default function RecommendationPage() {
     
     setIsSubmitting(true);
 
-    const submissionPayload = {
-      workerId: workerToRecommendId,
-      recommenderUserId: user?.uid, // Use the authenticated user's UID from context
-      ...formData
-    };
-
     try {
-      // Replace with your actual API endpoint
-      console.log("Submitting recommendation:", submissionPayload);
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
+      // Submit recommendation to database
+      const result = await createRecommendation({
+        workerUserId: workerToRecommendId,
+        recommendationText: formData.recommendationText,
+        relationship: formData.relationship,
+        recommenderName: formData.recommenderName,
+        recommenderEmail: formData.recommenderEmail,
+      });
 
-      const success = true; // Assume success for now
-      if (success) {
+      if (result.success) {
         setSuccessMessage("Recommendation submitted successfully! Thank you.");
         setFormData({
           recommendationText: '',
@@ -148,7 +128,7 @@ export default function RecommendationPage() {
         });
         // Optionally redirect or clear form further
       } else {
-        setError("Failed to submit recommendation. Please try again.");
+        setError(result.error || "Failed to submit recommendation. Please try again.");
       }
     } catch (error) {
       console.error("Submission error:", error);
@@ -168,78 +148,130 @@ export default function RecommendationPage() {
   }
 
   // If we reach here, auth checks have passed and worker details fetching is complete.
-  // If workerDetails is null here, it means getWorkerDetails failed.
-  if (!workerDetails) {
-     return <div className={styles.container}><p className={styles.errorMessage}>{error || "Worker not found."}</p></div>;
-  }
+  const firstName = workerDetails?.name.split(' ')[0];
 
   return (
     <div className={styles.container}>
-      <ScreenHeaderWithBack title='Recommendation' onBackClick={() => router.back()} />
-      <div className={styles.pageWrapper}>
-        <div className={styles.recommendationCard}>
-          <p className={styles.prompt}>
-            {workerDetails.name} is available for hire on Able! <br /> Please provide a reference for {workerDetails.name}&apos;s skills as a {workerDetails.primarySkill}.
-          Your feedback will be added to their public profile.
-          </p>
+      <ScreenHeaderWithBack 
+        title="Recommend Worker" 
+        onBackClick={() => router.back()}
+      />
 
-          {error && <p className={styles.errorMessage}>{error}</p>}
-          {successMessage && <p className={styles.successMessage}>{successMessage}</p>}
+      <div className={styles.content}>
+        <div className={styles.workerInfo}>
+          <div className={styles.workerAvatar}>
+            <Image
+              src="/images/default-avatar.png"
+              alt={`${workerDetails?.name || 'Worker'} avatar`}
+              width={80}
+              height={80}
+              className={styles.avatarImage}
+            />
+          </div>
+          <div className={styles.workerDetails}>
+            <h2 className={styles.workerName}>{workerDetails?.name || 'Worker Name'}</h2>
+            <p className={styles.workerSkill}>{workerDetails?.primarySkill || 'Professional'}</p>
+          </div>
+        </div>
+
+        <div className={styles.recommendationForm}>
+          <h3 className={styles.formTitle}>
+            Write a recommendation for {firstName || 'this worker'}
+          </h3>
+          
+          {error && (
+            <div className={styles.errorMessage}>
+              {error}
+            </div>
+          )}
+          
+          {successMessage && (
+            <div className={styles.successMessage}>
+              {successMessage}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className={styles.form}>
-            <div className={styles.inputGroup}>
-              <label htmlFor="recommendationText" className={styles.label}>Your Recommendation <span style={{color: 'var(--error-color)'}}>*</span></label>
+            <div className={styles.formGroup}>
+              <label htmlFor="recommendationText" className={styles.label}>
+                Your Recommendation *
+              </label>
               <textarea
                 id="recommendationText"
                 name="recommendationText"
                 value={formData.recommendationText}
                 onChange={handleChange}
-                className={styles.textarea}
-                placeholder={`What makes ${workerDetails.name} great at ${workerDetails.primarySkill}?`}
+                placeholder="What makes this person great to work with? Share specific examples of their skills, reliability, and professionalism..."
                 required
+                className={styles.textarea}
+                rows={4}
               />
             </div>
 
-            <div className={styles.inputGroup}>
-              <label htmlFor="relationship" className={styles.label}>Please describe how you know {workerDetails.name}? <span style={{color: 'var(--error-color)'}}>*</span></label>
+            <div className={styles.formGroup}>
+              <label htmlFor="relationship" className={styles.label}>
+                How do you know them? *
+              </label>
               <textarea
                 id="relationship"
                 name="relationship"
                 value={formData.relationship}
                 onChange={handleChange}
-                className={styles.textarea}
                 placeholder="e.g., Worked together at [Company/Event], Supervised them, Hired them for a gig..."
                 required
+                className={styles.textarea}
+                rows={3}
               />
             </div>
 
-            <div className={styles.inputGroup}>
-              <label htmlFor="recommenderName" className={styles.label}>Your Details (won&apos;t be public on their profile) <span style={{color: 'var(--error-color)'}}>*</span></label>
-              <div className={styles.nameEmailGroup}>
+            <div className={styles.formRow}>
+              <div className={styles.formGroup}>
+                <label htmlFor="recommenderName" className={styles.label}>
+                  Your Name *
+                </label>
                 <InputField
-                    id="recommenderName"
-                    name="recommenderName"
-                    type="text"
-                    value={formData.recommenderName}
-                    onChange={handleChange}
-                    placeholder='Your Full Name'
-                    required
+                  id="recommenderName"
+                  name="recommenderName"
+                  type="text"
+                  value={formData.recommenderName}
+                  onChange={handleChange}
+                  placeholder="Your Full Name"
+                  required
                 />
+              </div>
+              
+              <div className={styles.formGroup}>
+                <label htmlFor="recommenderEmail" className={styles.label}>
+                  Your Email *
+                </label>
                 <InputField
-                    id="recommenderEmail"
-                    name="recommenderEmail"
-                    type="email"
-                    value={formData.recommenderEmail}
-                    onChange={handleChange}
-                    placeholder='Your Email Address'
-                    required
+                  id="recommenderEmail"
+                  name="recommenderEmail"
+                  type="email"
+                  value={formData.recommenderEmail}
+                  onChange={handleChange}
+                  placeholder="you@example.com"
+                  required
                 />
               </div>
             </div>
 
-            <button type="submit" className={styles.submitButton} disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : <Send size={18} />}
-              {isSubmitting ? 'Submitting...' : 'Submit'}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={styles.submitButton}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send size={20} />
+                  Submit Recommendation
+                </>
+              )}
             </button>
           </form>
         </div>

@@ -25,6 +25,21 @@ export interface AvailabilityFormData {
   notes?: string; // Optional notes about the availability period
 }
 
+export interface AvailabilityUpdateData {
+  days: string[];
+  frequency: 'never' | 'weekly' | 'biweekly' | 'monthly';
+  startDate?: string;
+  startTimeStr: string;
+  endTimeStr: string;
+  startTime: Date;
+  endTime: Date;
+  ends: 'never' | 'on_date' | 'after_occurrences';
+  occurrences?: number;
+  endDate?: string | null;
+  notes?: string;
+  updatedAt: Date;
+}
+
 export interface AvailabilityEvent {
   id: string;
   title: string;

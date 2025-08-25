@@ -256,11 +256,19 @@
   grid-template-columns: repeat(2, 1fr);
 }
 
-/* --- Bio Text (if used) --- */
+/* --- Bio Text Styles --- */
 .bioText {
-  font-size: 0.95rem;
-  line-height: 1.7;
-  color: #c2c2c2;
-  white-space: pre-line;
+  color: #e0e0e0;
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap; /* Preserve line breaks */
+}
+
+.aboutSection {
+  background-color: #161616;
+  border-radius: 1.5rem;
+  border: 1px solid #2b2b2b;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
 }
 

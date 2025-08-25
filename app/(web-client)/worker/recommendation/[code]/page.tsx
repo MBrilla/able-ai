@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, ChangeEvent, FormEvent } from "react";
+import React, { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { createRecommendation, getRecommendationByCode } from "@/actions/user/recommendations";
 
 type RecommendationFormData = {
   recommendationText: string;
@@ -23,6 +24,36 @@ export default function PublicRecommendationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [workerDetails, setWorkerDetails] = useState<{ name: string; primarySkill: string } | null>(null);
+  const [isLoadingWorker, setIsLoadingWorker] = useState(true);
+
+  // Fetch worker details when the page loads
+  useEffect(() => {
+    const fetchWorkerDetails = async () => {
+      if (!code) return;
+      
+      try {
+        setIsLoadingWorker(true);
+        const result = await getRecommendationByCode(code);
+        
+        if (result.success && result.data) {
+          // Set worker details for display
+          setWorkerDetails({
+            name: result.data.worker?.fullName || "Worker",
+            primarySkill: "Professional" // You can enhance this later
+          });
+        } else {
+          setError("Invalid recommendation link or worker not found.");
+        }
+      } catch (err) {
+        setError("Error loading worker details.");
+      } finally {
+        setIsLoadingWorker(false);
+      }
+    };
+
+    fetchWorkerDetails();
+  }, [code]);
 
   const handleChange = (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -50,23 +81,76 @@ export default function PublicRecommendationPage() {
 
     setIsSubmitting(true);
     try {
-      // TODO: Implement API call to persist recommendation by code
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      setSuccessMessage(
-        "Thanks! Your recommendation has been recorded (mocked)."
-      );
-      setFormData({
-        recommendationText: "",
-        relationship: "",
-        recommenderName: "",
-        recommenderEmail: "",
+      // Get worker details to get the workerUserId
+      const workerResult = await getRecommendationByCode(code);
+      
+      if (!workerResult.success || !workerResult.data) {
+        throw new Error("Worker not found");
+      }
+
+      // Submit the recommendation to the database
+      const result = await createRecommendation({
+        workerUserId: workerResult.data.workerUserId,
+        recommendationText: formData.recommendationText,
+        relationship: formData.relationship,
+        recommenderName: formData.recommenderName,
+        recommenderEmail: formData.recommenderEmail,
+        recommendationCode: code, // Use the existing code
       });
+
+      if (result.success) {
+        setSuccessMessage("Thanks! Your recommendation has been recorded successfully.");
+        setFormData({
+          recommendationText: "",
+          relationship: "",
+          recommenderName: "",
+          recommenderEmail: "",
+        });
+      } else {
+        setError(result.error || "Failed to submit recommendation. Please try again.");
+      }
     } catch (e) {
+      console.error("Submission error:", e);
       setError("Unexpected error. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (isLoadingWorker) {
+    return (
+      <div style={{ 
+        maxWidth: 720, 
+        margin: "24px auto", 
+        padding: "0 16px", 
+        textAlign: "center",
+        color: "#e5e5e5" 
+      }}>
+        <div>Loading worker details...</div>
+      </div>
+    );
+  }
+
+  if (error && !workerDetails) {
+    return (
+      <div style={{ 
+        maxWidth: 720, 
+        margin: "24px auto", 
+        padding: "0 16px", 
+        color: "#e5e5e5" 
+      }}>
+        <div style={{
+          background: "#b91c1c",
+          color: "#fff",
+          padding: "16px",
+          borderRadius: 8,
+          margin: "24px 0"
+        }}>
+          {error}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -79,7 +163,8 @@ export default function PublicRecommendationPage() {
     >
       <h1 style={{ marginBottom: 8 }}>Provide a Recommendation</h1>
       <p style={{ marginTop: 0, opacity: 0.8 }}>
-        This is a public reference link. Code: <strong>{code}</strong>
+        This is a public reference link for <strong>{workerDetails?.name}</strong>. 
+        Code: <strong>{code}</strong>
       </p>
 
       {error && (

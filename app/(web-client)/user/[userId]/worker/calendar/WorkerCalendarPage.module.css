@@ -133,6 +133,112 @@
   background-color: rgba(255, 68, 68, 0.1);
 }
 
+/* Edit Options Modal Styles */
+.editOptionsOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.editOptionsModal {
+  background-color: #232323;
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 400px;
+  width: 90%;
+  color: #fff;
+}
+
+.editOptionsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.editOptionsTitle {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.editOptionsCloseButton {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.editOptionsCloseButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.editOptionsContent {
+  margin-bottom: 20px;
+}
+
+.editOptionsDescription {
+  margin-bottom: 20px;
+  color: #ccc;
+  line-height: 1.5;
+}
+
+.editOptionsButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editPatternButton {
+  background: #41a1e8;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.editPatternButton:hover {
+  background: #3a8fd8;
+  transform: translateY(-1px);
+}
+
+.editSingleOccurrenceButton {
+  background: #7eeef9;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #000;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.editSingleOccurrenceButton:hover {
+  background: #6ddde8;
+  transform: translateY(-1px);
+}
+
 
 
 /* Responsive design for small screens */
