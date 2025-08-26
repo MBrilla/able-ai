@@ -728,10 +728,62 @@ function isValidCoordinate(value: unknown): value is { lat: number; lng: number 
          !isNaN(coord.lat) && !isNaN(coord.lng);
 }
 
-// UK Video Bio Script Generator from MD document
-class UKVideoBioScriptGenerator {
-  generateScript(profileData: FormData): { formattedScript: string; notesVersion: string; estimatedDuration: string } {
-    const script = this.createScriptSections(profileData);
+// Helper: generate a compact random code and build a recommendation URL
+function generateRandomCode(length = 8): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Avoid ambiguous chars
+  let result = "";
+  const array = new Uint32Array(length);
+  if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(array);
+    for (let i = 0; i < length; i++) {
+      result += alphabet[array[i] % alphabet.length];
+    }
+  } else {
+    for (let i = 0; i < length; i++) {
+      result += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+  }
+  return result;
+}
+
+function buildRecommendationLink(): string {
+  const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:3000';
+  const code = generateRandomCode(10);
+  return `${origin}/worker/${code}/recommendation`;
+}
+
+// Date and time formatting functions with better error handling
+function formatDateForDisplay(dateValue: unknown): string {
+  if (!dateValue || !isValidDate(dateValue)) return '';
+  
+  try {
+    const date = new Date(dateValue as string | Date);
+    return date.toLocaleDateString('en-GB', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  } catch (error) {
+    console.error('Date formatting error:', error);
+    return String(dateValue);
+  }
+}
+
+
+
+// Helper to format summary values with better error handling
+function formatSummaryValue(value: unknown, field?: string): string {
+  if (!value) return "Not provided";
+  
+  try {
+    if (field === 'location' && isValidCoordinate(value)) {
+      // Check if we have a formatted address, otherwise show coordinates
+      if (typeof value === 'object' && 'formatted_address' in value && (value as any).formatted_address) {
+        return (value as any).formatted_address;
+      }
+      return `Lat: ${value.lat.toFixed(6)}, Lng: ${value.lng.toFixed(6)}`;
+    }
     
     const formattedScript = `
 VIDEO BIO SCRIPT - 30-45 seconds
@@ -915,13 +967,20 @@ export default function OnboardWorkerPage() {
   const [setupMode, setSetupMode] = useState<'ai' | 'manual' | null>(null);
   const [manualFormData, setManualFormData] = useState<any>({});
   
-  // Check if special components are active (video recorder, calendar, etc.)
-  const isSpecialComponentActive = useMemo(() => {
-    return chatSteps.some(step => 
-      step.type === 'video' || 
-      step.type === 'calendar' || 
-      step.type === 'location'
-    );
+
+
+  // Helper to get next required field not in formData - matching gig creation
+  const getNextRequiredField = useCallback((formData: FormData) => {
+    return requiredFields.find(f => !formData[f.name]);
+  }, []);
+
+  // Helper to determine if this is the active input step - matching gig creation
+  const isActiveInputStep = useCallback((step: ChatStep, idx: number) => {
+    const lastIncompleteInputStep = chatSteps
+      .filter(s => (s.type === 'input' || s.type === 'calendar' || s.type === 'location') && !s.isComplete)
+      .pop();
+    
+    return step.id === lastIncompleteInputStep?.id;
   }, [chatSteps]);
 
   // Scroll to bottom when new messages are added
@@ -1710,9 +1769,389 @@ You can now start applying for gigs and setting your availability. Good luck!`,
     }
   }, [formData, processUserInput]);
 
-  // Add a new chat step
-  const addChatStep = useCallback((step: ChatStep) => {
-    setChatSteps(prev => [...prev, step]);
+  // Handle sanitized confirmation with better error handling
+  const handleSanitizedConfirm = useCallback(async (fieldName: string, sanitized: string | unknown) => {
+    try {
+      // Reset reformulating state
+      setIsReformulating(false);
+      setReformulateField(null);
+      
+      // Track clicked button
+      setClickedSanitizedButtons(prev => new Set([...prev, `${fieldName}-confirm`]));
+      
+      // Update formData first
+      const updatedFormData = { ...formData, [fieldName]: sanitized };
+      setFormData(updatedFormData);
+      
+      // Mark sanitized step as complete
+      setChatSteps((prev) => prev.map((step) =>
+        step.type === "sanitized" && step.fieldName === fieldName ? { ...step, isComplete: true } : step
+      ));
+      
+      // Find next required field using updated formData
+      const nextField = getNextRequiredField(updatedFormData);
+      
+      if (nextField) {
+        // Special handling: auto-generate references link instead of asking for input
+        if (nextField.name === 'references') {
+          const recommendationLink = buildRecommendationLink();
+          const afterRefFormData = { ...formData, [fieldName]: sanitized, references: recommendationLink };
+          setFormData(afterRefFormData);
+
+          // Add combined reference message with embedded link and gigfolio info
+          setChatSteps((prev) => [
+            ...prev,
+            {
+              id: Date.now() + 2,
+              type: "bot",
+              content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+              isNew: true,
+            }
+          ]);
+
+          setTimeout(() => {
+            setChatSteps((prev) => [
+              ...prev,
+              {
+                id: Date.now() + 3,
+                type: "bot",
+                content: "Watch out for notifications of your first shift offer! If you don't accept within 90 minutes we will offer the gig to someone else.",
+                isNew: true,
+              }
+            ]);
+          }, 1500);
+
+          setTimeout(() => {
+            setChatSteps((prev) => [
+              ...prev,
+              {
+                id: Date.now() + 4,
+                type: "bot",
+                content: "We might offer you gigs outside of your defined skill area, watch out for those opportunities too!",
+                isNew: true,
+              }
+            ]);
+          }, 3000);
+
+          // Add next field or summary after all reference messages are shown
+          setTimeout(async () => {
+            const nextAfterReferences = getNextRequiredField(afterRefFormData);
+            if (nextAfterReferences) {
+              const aboutInfo = afterRefFormData.about || '';
+              const contextAwarePrompt = await generateContextAwarePrompt(nextAfterReferences.name, aboutInfo, ai);
+              const newInputConfig = {
+                type: nextAfterReferences.type as FormInputType,
+                name: nextAfterReferences.name,
+                placeholder: nextAfterReferences.placeholder,
+                ...(nextAfterReferences.rows && { rows: nextAfterReferences.rows }),
+              };
+              setChatSteps((prev) => [
+                ...prev,
+                {
+                  id: Date.now() + 5,
+                  type: "bot",
+                  content: contextAwarePrompt,
+                  isNew: true,
+                },
+                {
+                  id: Date.now() + 6,
+                  type: nextAfterReferences.type === "location" ? "location" : nextAfterReferences.type === "availability" ? "availability" : nextAfterReferences.type === "date" ? "calendar" : nextAfterReferences.type === "video" ? "video" : "input",
+                  inputConfig: newInputConfig,
+                  isComplete: false,
+                  isNew: true,
+                },
+              ]);
+            } else {
+              // No more fields -> summary
+              setChatSteps((prev) => [
+                ...prev,
+                {
+                  id: Date.now() + 5,
+                  type: "bot",
+                  content: `Perfect! Here's a summary of your worker profile:\n${JSON.stringify(afterRefFormData, null, 2)}`,
+                  isNew: true,
+                },
+              ]);
+            }
+          }, 4500);
+          return;
+        }
+        // Generate context-aware prompt
+        const aboutInfo = updatedFormData.about || (fieldName === 'about' ? (typeof sanitized === 'string' ? sanitized : JSON.stringify(sanitized)) : '');
+        
+        // Add typing indicator first
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "typing",
+            isNew: true,
+          },
+        ]);
+        
+        // Generate AI prompt
+        setTimeout(async () => {
+          const contextAwarePrompt = await generateContextAwarePrompt(nextField.name, aboutInfo, ai);
+          
+          setChatSteps((prev) => {
+            // Remove typing indicator and add bot message and input
+            const filtered = prev.filter(s => s.type !== 'typing');
+            const newInputConfig = {
+              type: nextField.type as FormInputType,
+              name: nextField.name,
+              placeholder: nextField.placeholder,
+              ...(nextField.rows && { rows: nextField.rows }),
+            };
+            
+            return [
+              ...filtered,
+              {
+                id: Date.now() + 3,
+                type: "bot",
+                content: contextAwarePrompt,
+                isNew: true,
+              },
+              {
+                id: Date.now() + 4,
+                type: nextField.type === "location" ? "location" : nextField.type === "date" ? "calendar" : nextField.type === "video" ? "video" : "input",
+                inputConfig: newInputConfig,
+                isComplete: false,
+                isNew: true,
+              },
+            ];
+          });
+        }, 700);
+      } else {
+        // All fields collected, show summary
+        // Add typing indicator first
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 4,
+            type: "typing",
+            isNew: true,
+          },
+        ]);
+        
+        setTimeout(() => {
+          setChatSteps((prev) => {
+            // Remove typing indicator and add summary
+            const filtered = prev.filter(s => s.type !== 'typing');
+            return [
+              ...filtered,
+              {
+                id: Date.now() + 5,
+                type: "bot",
+                content: `Perfect! Here's a summary of your worker profile:\n${JSON.stringify(updatedFormData, null, 2)}`,
+                isNew: true,
+              },
+            ];
+          });
+        }, 700);
+      }
+    } catch (error) {
+      console.error('Error in sanitized confirmation:', error);
+      setError('Failed to process confirmation. Please try again.');
+    }
+  }, [formData, getNextRequiredField, ai]);
+
+  const handleSanitizedReformulate = (fieldName: string) => {
+    if (isReformulating) return; // Prevent multiple clicks
+    setReformulateField(fieldName);
+    setClickedSanitizedButtons(prev => new Set([...prev, `${fieldName}-reformulate`]));
+  };
+
+  const handlePickerConfirm = useCallback(async (stepId: number, inputName: string) => {
+    setIsConfirming(true);
+    setConfirmedSteps(prev => new Set([...prev, stepId]));
+
+    // Mark the current step as complete
+    setChatSteps(prev => prev.map(step => 
+      step.id === stepId ? { ...step, isComplete: true } : step
+    ));
+
+    // Add typing indicator
+    setChatSteps(prev => [
+      ...prev,
+      {
+        id: Date.now() + 1,
+        type: "typing",
+        isNew: true,
+      },
+    ]);
+
+    // Update form data
+    const currentValue = formData[inputName];
+    setFormData(prev => ({ ...prev, [inputName]: currentValue }));
+
+    // Find next required field
+    const nextField = getNextRequiredField({ ...formData, [inputName]: currentValue });
+
+    if (nextField) {
+              // Special handling: auto-generate references link instead of asking for input
+        if (nextField.name === 'references') {
+          const recommendationLink = buildRecommendationLink();
+        const afterRefFormData = { ...formData, references: recommendationLink };
+        setFormData(afterRefFormData);
+
+        // Add combined reference message with embedded link and gigfolio info
+        setChatSteps(prev => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+            isNew: true,
+          }
+        ]);
+
+        const nextAfterReferences = getNextRequiredField(afterRefFormData);
+        if (nextAfterReferences) {
+          const contextAwarePrompt = await generateContextAwarePrompt(nextAfterReferences.name, formData.about || '', ai);
+          setTimeout(() => {
+            setChatSteps(prev => {
+              const filtered = prev.filter(s => s.type !== 'typing');
+              return [
+                ...filtered,
+                {
+                  id: Date.now() + 4,
+                  type: "bot",
+                  content: contextAwarePrompt,
+                  isNew: true,
+                },
+                {
+                  id: Date.now() + 5,
+                  type: nextAfterReferences.type === "location" ? "location" : nextAfterReferences.type === "availability" ? "availability" : nextAfterReferences.type === "date" ? "calendar" : nextAfterReferences.type === "video" ? "video" : "input",
+                  inputConfig: {
+                    type: nextAfterReferences.type,
+                    name: nextAfterReferences.name,
+                    placeholder: nextAfterReferences.placeholder,
+                    rows: nextAfterReferences.rows,
+                  },
+                  isComplete: false,
+                  isNew: true,
+                },
+              ];
+            });
+          }, 700);
+        } else {
+          setTimeout(() => {
+            setChatSteps(prev => {
+              const filtered = prev.filter(s => s.type !== 'typing');
+              return [
+                ...filtered,
+                {
+                  id: Date.now() + 6,
+                  type: "bot",
+                  content: `Perfect! Here's your worker profile summary:\n\n${JSON.stringify(afterRefFormData, null, 2)}`,
+                  isNew: true,
+                },
+              ];
+            });
+          }, 700);
+        }
+        setIsConfirming(false);
+        return;
+      }
+      // Generate context-aware prompt
+      const contextAwarePrompt = await generateContextAwarePrompt(nextField.name, formData.about || '', ai);
+
+      setTimeout(() => {
+        setChatSteps(prev => {
+          // Remove typing indicator and add bot message and next input/picker step
+          const filtered = prev.filter(s => s.type !== 'typing');
+          return [
+            ...filtered,
+            {
+              id: Date.now() + 2,
+              type: "bot",
+              content: contextAwarePrompt,
+              isNew: true,
+            },
+            {
+              id: Date.now() + 3,
+              type: nextField.type === "location" ? "location" : nextField.type === "availability" ? "availability" : nextField.type === "date" ? "calendar" : nextField.type === "video" ? "video" : "input",
+              inputConfig: {
+                type: nextField.type,
+                name: nextField.name,
+                placeholder: nextField.placeholder,
+                rows: nextField.rows,
+              },
+              isComplete: false,
+            },
+          ];
+        });
+      }, 700);
+    } else {
+      // All fields completed, show summary
+      setTimeout(() => {
+        setChatSteps(prev => {
+          const filtered = prev.filter(s => s.type !== 'typing');
+          return [
+            ...filtered,
+            {
+              id: Date.now() + 2,
+              type: "bot",
+              content: `Perfect! Here's your worker profile summary:\n\n${JSON.stringify({ ...formData, [inputName]: currentValue }, null, 2)}`,
+              isNew: true,
+            },
+          ];
+        });
+      }, 700);
+    }
+
+    setIsConfirming(false);
+  }, [formData, ai, getNextRequiredField]);
+
+  // Handle input changes with better validation
+  const handleInputChange = useCallback((name: string, value: unknown) => {
+    try {
+      // Special handling for availability fields
+      if (name === 'availability') {
+        // If it's already an object with days array, use it as is
+        if (typeof value === 'object' && value !== null && 'days' in value) {
+          setFormData((prev) => ({ ...prev, [name]: value }));
+        } else if (value) {
+          // Legacy handling for string/date values - convert to new format
+          let processedValue = value;
+          
+          // If it's an ISO string with time, extract just the date part
+          if (typeof value === 'string' && value.includes('T')) {
+            processedValue = value.split('T')[0];
+          }
+          
+          // If it's a Date object, convert to date string
+          if (value instanceof Date) {
+            processedValue = value.toISOString().split('T')[0];
+          }
+          
+          // Convert to new availability format
+          setFormData((prev) => ({ 
+            ...prev, 
+            [name]: {
+              days: [],
+              startTime: '09:00',
+              endTime: '17:00'
+            }
+          }));
+        } else {
+          // Initialize with default availability structure
+          setFormData((prev) => ({ 
+            ...prev, 
+            [name]: {
+              days: [],
+              startTime: '09:00',
+              endTime: '17:00'
+            }
+          }));
+        }
+      } else {
+        setFormData((prev) => ({ ...prev, [name]: value }));
+      }
+    } catch (error) {
+      console.error('Error handling input change:', error);
+      setError('Failed to update input. Please try again.');
+    }
   }, []);
 
   // Get next step ID

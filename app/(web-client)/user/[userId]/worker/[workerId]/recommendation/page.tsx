@@ -8,9 +8,10 @@ import { useAuth } from "@/context/AuthContext";
 import InputField from "@/app/components/form/InputField"; // Reusing shared InputField
 import { Send, Loader2, Star } from "lucide-react"; // Lucide icons
 
-import styles from "./RecommendationPage.module.css";
-import { submitExternalRecommendationAction } from "@/actions/user/recommendation";
-import Loader from "@/app/components/shared/Loader";
+import styles from './RecommendationPage.module.css';
+import { useAuth } from '@/context/AuthContext';
+import ScreenHeaderWithBack from '@/app/components/layout/ScreenHeaderWithBack';
+import { submitRecommendationAction } from '@/actions/user/recommendations';
 
 interface RecommendationFormData {
   recommendationText: string;
@@ -131,11 +132,20 @@ export default function PublicRecommendationPage() {
     };
 
     try {
-      const result = await submitExternalRecommendationAction(
-        submissionPayload
-      );
-      if (!result.success) {
-        throw new Error(result.error || "Failed to submit recommendation.");
+      // Submit recommendation using server action
+      const result = await submitRecommendationAction(submissionPayload);
+      
+      if (result.success) {
+        setSuccessMessage("Recommendation submitted successfully! Thank you.");
+        setFormData({
+          recommendationText: '',
+          relationship: '',
+          recommenderName: user?.displayName || '', // Reset with prefill if available
+          recommenderEmail: user?.email || ''
+        });
+        // Optionally redirect or clear form further
+      } else {
+        setError(result.error || "Failed to submit recommendation. Please try again.");
       }
       setSuccessMessage("Thank you! Your recommendation has been submitted.");
       setFormData({

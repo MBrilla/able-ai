@@ -24,6 +24,15 @@ function buildRecommendationLink(workerProfileId: string | null): string {
   if (!workerProfileId) {
     throw new Error('Worker profile ID is required to build recommendation link');
   }
+  return result;
+}
+
+function buildRecommendationLink(workerProfileId: string | null): string {
+  const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:3000';
+  
+  if (!workerProfileId) {
+    throw new Error('Worker profile ID is required to build recommendation link');
+  }
   
   // Use the worker profile ID (UUID) for the recommendation URL
   return `${origin}/worker/${workerProfileId}/recommendation`;
@@ -50,7 +59,6 @@ interface ManualProfileFormProps {
   onSwitchToAI: () => void;
   initialData?: Partial<FormData>;
   workerProfileId?: string | null;
-  existingProfileData?: ExistingData;
 }
 
 // Export validation function for external use (basic validation only)
@@ -257,8 +265,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
   onSubmit,
   onSwitchToAI,
   initialData = {},
-  workerProfileId = null,
-  existingProfileData = {}
+  workerProfileId = null
 }) => {
   const { user } = useAuth();
   
@@ -282,9 +289,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       occurrences: undefined
     },
     videoIntro: null,
-    references: workerProfileId ? buildRecommendationLink(workerProfileId) : '',
-    experienceYears: 0,
-    experienceMonths: 0,
+    references: buildRecommendationLink(workerProfileId),
     ...initialData
   });
   

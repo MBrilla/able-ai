@@ -116,7 +116,7 @@ import {
   getDownloadURL,
 } from "firebase/storage";
 import { firebaseApp } from "@/lib/firebase/clientApp";
-import { updateVideoUrlProfileAction, saveWorkerProfileFromOnboardingAction } from "@/actions/user/gig-worker-profile";
+import { updateVideoUrlProfileAction, saveWorkerProfileFromOnboardingAction, createWorkerProfileAction } from "@/actions/user/gig-worker-profile";
 
 // Define required fields and their configs - matching gig creation pattern
 const requiredFields: RequiredField[] = [
@@ -554,11 +554,15 @@ function generateRandomCode(length = 8): string {
   return result;
 }
 
-function buildRecommendationLink(): string {
+function buildRecommendationLink(workerProfileId: string | null): string {
   const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:3000';
-  const code = generateRandomCode(10);
-  // Example format requested: /worker/{code}/recommendation
-  return `${origin}/worker/${code}/recommendation`;
+  
+  if (!workerProfileId) {
+    throw new Error('Worker profile ID is required to build recommendation link');
+  }
+  
+  // Use the worker profile ID (UUID) for the recommendation URL
+  return `${origin}/worker/${workerProfileId}/recommendation`;
 }
 
 // Date and time formatting functions with better error handling
@@ -803,6 +807,35 @@ export default function OnboardWorkerPage() {
   const [showSetupChoice, setShowSetupChoice] = useState(true);
   const [setupMode, setSetupMode] = useState<'ai' | 'manual' | null>(null);
   const [manualFormData, setManualFormData] = useState<any>({});
+  
+  // Worker profile ID for recommendation URL
+  const [workerProfileId, setWorkerProfileId] = useState<string | null>(null);
+
+  // Create worker profile on component mount
+  useEffect(() => {
+    const createWorkerProfile = async () => {
+      if (!user?.token) {
+        console.log('User not authenticated, skipping worker profile creation');
+        return;
+      }
+
+      try {
+        console.log('Creating worker profile...');
+        const result = await createWorkerProfileAction(user.token);
+        
+        if (result.success && result.workerProfileId) {
+          console.log('Worker profile created successfully:', result.workerProfileId);
+          setWorkerProfileId(result.workerProfileId);
+        } else {
+          console.error('Failed to create worker profile:', result.error);
+        }
+      } catch (error) {
+        console.error('Error creating worker profile:', error);
+      }
+    };
+
+    createWorkerProfile();
+  }, [user?.token]);
 
   // Helper to get next required field not in formData - matching gig creation
   const getNextRequiredField = useCallback((formData: FormData) => {
@@ -1208,7 +1241,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
                  if (nextField) {
            // Special handling: auto-generate references link instead of asking for input
            if (nextField.name === 'references') {
-             const recommendationLink = buildRecommendationLink();
+             const recommendationLink = buildRecommendationLink(workerProfileId);
              const afterRefFormData = { ...updatedFormData, references: recommendationLink };
              setFormData(afterRefFormData);
 
@@ -1574,7 +1607,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
       if (nextField) {
         // Special handling: auto-generate references link instead of asking for input
         if (nextField.name === 'references') {
-          const recommendationLink = buildRecommendationLink();
+          const recommendationLink = buildRecommendationLink(workerProfileId);
           const afterRefFormData = { ...formData, [fieldName]: sanitized, references: recommendationLink };
           setFormData(afterRefFormData);
 
@@ -1793,7 +1826,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
     if (nextField) {
       // Special handling: auto-generate references link instead of asking for input
       if (nextField.name === 'references') {
-        const recommendationLink = buildRecommendationLink();
+        const recommendationLink = buildRecommendationLink(workerProfileId);
         const afterRefFormData = { ...formData, references: recommendationLink };
         setFormData(afterRefFormData);
 
@@ -2235,6 +2268,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
           onSubmit={handleManualFormSubmit}
           onSwitchToAI={handleSwitchToAI}
           initialData={manualFormData}
+          workerProfileId={workerProfileId}
         />
       </div>
     );
