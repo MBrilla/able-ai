@@ -19,50 +19,51 @@ import GigStatusIndicator from '../shared/GigStatusIndicator';
 import { acceptGigOffer } from '@/actions/gigs/accept-gig-offer';
 import { declineGigOffer } from '@/actions/gigs/decline-gig-offer';
 
-const formatGigDate = (isoDate: string) =>
-  new Date(isoDate).toLocaleDateString(undefined, {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-const formatGigTime = (isoTime: string) =>
-  new Date(isoTime).toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
+
+const formatGigDate = (isoDate: string) => new Date(isoDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+const formatGigTime = (isoTime: string) => new Date(isoTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true });
 const calculateDuration = (startIso: string, endIso: string): string => {
-  const startDate = new Date(startIso);
-  const endDate = new Date(endIso);
-  const diffMs = endDate.getTime() - startDate.getTime();
-  if (diffMs <= 0) return "N/A";
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  let durationStr = "";
-  if (hours > 0) durationStr += `${hours} hour${hours > 1 ? "s" : ""}`;
-  if (minutes > 0) durationStr += ` ${minutes} minute${minutes > 1 ? "s" : ""}`;
-  return durationStr.trim() || "N/A";
+	const startDate = new Date(startIso);
+	const endDate = new Date(endIso);
+	const diffMs = endDate.getTime() - startDate.getTime();
+	if (diffMs <= 0) return "N/A";
+	const hours = Math.floor(diffMs / (1000 * 60 * 60));
+	const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+	let durationStr = "";
+	if (hours > 0) durationStr += `${hours} hour${hours > 1 ? 's' : ''}`;
+	if (minutes > 0) durationStr += ` ${minutes} minute${minutes > 1 ? 's' : ''}`;
+	return durationStr.trim() || "N/A";
 };
 
 interface GigDetailsProps {
-  userId: string;
-  role: "buyer" | "worker";
-  gig: GigDetails;
-  setGig: (gig: GigDetails) => void; // Function to update gig state
-  isAvailableOffer?: boolean; // Whether this gig is an available offer for workers
-  isCheckingOffer?: boolean; // Whether we're checking if this is an offer
+	userId: string;
+	role: 'buyer' | 'worker';
+	gig: GigDetails;
+	setGig: (gig: GigDetails) => void; // Function to update gig state
+	isAvailableOffer?: boolean; // Whether this gig is an available offer for workers
+	isCheckingOffer?: boolean; // Whether we're checking if this is an offer
 }
 
 function getGigAcceptActionText(gig: GigDetails, lastRoleUsed: string): string {
 	const status = gig.status;
 	const internalStatus = gig.statusInternal;
 
-  useEffect(() => {
-    if (!gig.expiresAt) {
-      setTimeLeft("");
-      return;
-    }
+	if (internalStatus === 'PENDING_WORKER_ACCEPTANCE') {
+		if (lastRoleUsed === "GIG_WORKER") {
+			return 'Waiting for rate acceptance';
+		} else {
+			return 'Agree to Rate - Accept and Hold Payment';
+		}
+	}
+	if (status === 'PENDING') {
+		if (lastRoleUsed === "GIG_WORKER") {
+			return 'Accept Gig';
+		} else {
+			return 'Offer Sent-awaiting acceptance';
+		}
+	}
+	else return 'Gig Accepted';
+}
 
 const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = false, isCheckingOffer = false }: GigDetailsProps) => {
 	const router = useRouter();
@@ -75,10 +76,9 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 	const [isDelegating, setIsDelegating] = useState(false);
 	const [isLoadingTerms, setIsLoadingTerms] = useState(false);
 
-      if (difference <= 0) {
-        setTimeLeft("Expired");
-        return;
-      }
+	const gigDuration = calculateDuration(gig.startTime, gig.endTime);
+	const buyer = gig.buyerName.split(" ")[0];
+	const amendId = "123";
 
 	// Get worker name from gig data if available, otherwise use a placeholder
 	const getWorkerName = () => {
@@ -110,10 +110,14 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 	const getButtonLabel = (action: string) => {
 		const status = gig.status;
 
-      let timeLeftString = "";
-      if (hours > 0) timeLeftString += `${hours}h `;
-      if (minutes > 0) timeLeftString += `${minutes}m `;
-      timeLeftString += `${seconds}s`;
+		switch (action) {
+			case 'accept':
+				if (status === 'PENDING') {
+					return lastRoleUsed === "GIG_WORKER"
+					? 'Accept Gig'
+					: 'Offer Sent - awaiting acceptance';
+				}
+				return 'Gig Accepted';
 
 			case 'start':
 				if (status === 'PENDING' || status === 'ACCEPTED') {
@@ -422,33 +426,51 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 		<div className={styles.container}>
 			<ScreenHeaderWithBack title={`${gig.role} Gig`} onBackClick={() => router.back()} />
 
-    return () => clearInterval(intervalId);
-  }, [gig.expiresAt]);
+			{/* Core Gig Info Section - Adapted to new structure */}
+			<main className={styles.gigDetailsMain}>
+				<section className={styles.gigDetailsSection}>
+					<div className={styles.gigDetailsHeader}>
+						<h2 className={styles.sectionTitle}>Gig Details</h2>
+						<Calendar size={26} color='#ffffff' />
+					</div>
 
-  // Get worker name from gig data if available, otherwise use a placeholder
-  const getWorkerName = () => {
-    // If this is a worker viewing their own gig, use their name
-    if (role === "worker") {
-      return user?.displayName?.split(" ")[0] || "Worker";
-    }
-    // If there's a worker assigned to the gig, use their name
-    if (gig.workerName) {
-      return gig.workerName.split(" ")[0];
-    }
-    // Fallback for when no worker is assigned yet
-    return "Worker";
-  };
+					{/* <div className={styles.gigDetailsRow}>
+						<span className={styles.label}>Buyer:</span>
+						<span className={styles.detailValue}>{gig.buyerName}</span>
+					</div> */}
+					<div className={styles.gigDetailsRow}>
+						<span className={styles.label}>Location:</span>
+						<span className={styles.detailValue}>
+							{gig.location}
+							<a href={`https://maps.google.com/?q=${encodeURIComponent(gig.location)}`} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '0.5rem' }}>(View Map)</a>
+						</span>
+					</div>
+					<div className={styles.gigDetailsRow}>
+						<span className={styles.label}>Date:</span>
+						<span className={styles.detailValue}>{formatGigDate(gig.date)}</span>
+					</div>
+					<div className={styles.gigDetailsRow}>
+						<span className={styles.label}>Time:</span>
+						<span className={styles.detailValue}>{formatGigTime(gig.startTime)} - {formatGigTime(gig.endTime)} ({gigDuration})</span>
+					</div>
+					<div className={styles.gigDetailsRow}>
+						<span className={styles.label}>Pay per hour:</span>
+						<span className={styles.detailValue}>£{gig.hourlyRate.toFixed(2)}/hr</span>
+					</div>
+					<div className={styles.gigDetailsRow}>
+						<span className={styles.label}>Total pay:</span>
+						<span className={styles.detailValue}>£{gig.estimatedEarnings.toFixed(2)} + tips</span>
+					</div>
+					{/* Hiring Manager Info - Placeholder as it's not in current GigDetails interface */}
 
-  const workerName = getWorkerName();
+					{lastRoleUsed === "GIG_WORKER" && (
+						<div className={styles.gigDetailsRow}>
+							<span className={styles.label}>Hiring manager:</span>
+							<span className={styles.detailValue}>{gig.hiringManager} <br /> {gig.hiringManagerUsername}</span>
+						</div>
+					)}
 
-  // Get worker stats with fallbacks
-  const getWorkerStats = () => {
-    return {
-      gigs: gig.workerGigs || 0,
-      experience: gig.workerExperience || 0,
-      isStar: gig.isWorkerStar || false,
-    };
-  };
+				</section>
 
 				{lastRoleUsed === "GIG_WORKER" && (
 					<section
@@ -503,11 +525,21 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 					</section>
 				)}
 
-  const gigDuration = calculateDuration(gig.startTime, gig.endTime);
-  const buyer = gig.buyerName.split(" ")[0];
+				{/* Negotiation Button - Kept from new structure */}
+				{/* Added a check to only show if gig is accepted */}
+				{(gig.status === 'PENDING' || gig.status === 'IN_PROGRESS' || gig.status === 'ACCEPTED') && (
+					<button className={styles.negotiationButton} onClick={() => handleGigAction('requestAmendment')}>
+						Negotiate, cancel or change gig details
+					</button>
+				)}
 
-  const getButtonLabel = (action: string) => {
-    const status = gig.status;
+				{/* Special Instructions Section */}
+				{gig.specialInstructions && (
+					<section className={styles.instructionsSection}>
+						<h2 className={styles.specialInstTitle}><Info size={18} />Special Instructions</h2>
+						<p className={styles.specialInstructions}>{gig.specialInstructions}</p>
+					</section>
+				)}
 
 				{/* Primary Actions Section - Adapted to new structure */}
 				<section className={`${styles.actionSection}`}> {/* Using secondaryActionsSection class */}
@@ -687,326 +719,19 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 						</button> */}
 				</section>
 
-          if (!result.success) {
-            toast.error(result.error || "Failed to start gig");
-            return;
-          }
 
-          setGig({ ...gig, status: "IN_PROGRESS" });
-          toast.success("Gig started successfully!");
-        }
 
-        case "complete":
-          {
-            const result = await updateGigOfferStatus({
-              gigId: gig.id,
-              userUid: user?.uid || "",
-              role,
-              action: "complete",
-            });
-
-            if (!result.success) {
-              toast.error(result.error || "Failed to complete gig");
-              return;
-            }
-
-            setGig({ ...gig, status: "COMPLETED" });
-            toast.success("Gig completed successfully!");
-            router.push(
-              role === "worker"
-                ? `/user/${user?.uid}/worker/gigs/${gig.id}/feedback`
-                : `/user/${user?.uid}/buyer/gigs/${gig.id}/feedback`
-            );
-          }
-          break;
-
-        case "confirmed":
-          setGig({ ...gig, status: "CONFIRMED" });
-          toast.success("Gig confirmed successfully!");
-          break;
-
-        case "requestAmendment":
-          if (!user?.uid || !gig.id) return;
-
-          const userRole = pathname.includes("/worker/") ? "worker" : "buyer";
-          const path = `/user/${user?.uid}/${userRole}/gigs/${gig.id}/amend`;
-
-          try {
-            const result = await findExistingGigAmendment({
-              gigId: gig.id,
-              userId: user.uid,
-            });
-
-            if (result.error) {
-              toast.error(result.error);
-              return;
-            }
-
-            if (result.amendId) {
-              router.push(`${path}/${result.amendId}`);
-            } else {
-              router.push(`${path}/new`);
-            }
-          } catch (error) {
-            console.error("Failed to handle negotiation:", error);
-            toast.error("Could not start negotiation. Please try again.");
-          }
-          break;
-
-        case "reportIssue":
-          router.push(`/gigs/${gig.id}/report-issue`);
-          break;
-
-        case "delegate":
-          router.push(`/gigs/${gig.id}/delegate`);
-          break;
-
-        case "delete":
-          await deleteGig({ gigId: gig.id, userId });
-          toast.success("Gig deleted successfully!");
-          router.push(`/user/${user?.uid}/buyer`);
-          break;
-
-        case "paid":
-          toast.success("Payment confirmed!");
-          // extra logic goes here
-          break;
-
-        default:
-          console.warn(`Unknown action: ${action}`);
-      }
-    } catch (error) {
-      console.error("Error performing gig action:", error);
-      toast.error("Failed to perform action. Please try again.");
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  return (
-    <div className={styles.container}>
-      <ScreenHeaderWithBack title={`${gig.role} Gig`} />
-
-      {/* Core Gig Info Section - Adapted to new structure */}
-      <main className={styles.gigDetailsMain}>
-        <section className={styles.gigDetailsSection}>
-          <div className={styles.gigDetailsHeader}>
-            <h2 className={styles.sectionTitle}>Gig Details</h2>
-            <Calendar size={26} color="#ffffff" />
-          </div>
-          <div className={styles.gigDetailsRow}>
-            <span className={styles.label}>Location:</span>
-            <span className={styles.detailValue}>
-              {gig?.location?.formatted_address
-                ? gig.location.formatted_address
-                : "Location not provided"}
-              {gig?.location?.lat && gig?.location?.lng && (
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${gig.location.lat},${gig.location.lng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ marginLeft: "0.5rem" }}
-                >
-                  (View Map)
-                </a>
-              )}
-            </span>
-          </div>
-          <div className={styles.gigDetailsRow}>
-            <span className={styles.label}>Date:</span>
-            <span className={styles.detailValue}>
-              {formatGigDate(gig.date)}
-            </span>
-          </div>
-          <div className={styles.gigDetailsRow}>
-            <span className={styles.label}>Time:</span>
-            <span className={styles.detailValue}>
-              {formatGigTime(gig.startTime)} - {formatGigTime(gig.endTime)} (
-              {gigDuration})
-            </span>
-          </div>
-          <div className={styles.gigDetailsRow}>
-            <span className={styles.label}>Pay per hour:</span>
-            <span className={styles.detailValue}>
-              £{gig.hourlyRate.toFixed(2)}/hr
-            </span>
-          </div>
-          <div className={styles.gigDetailsRow}>
-            <span className={styles.label}>Total pay:</span>
-            <span className={styles.detailValue}>
-              £{gig.estimatedEarnings.toFixed(2)} + tips
-            </span>
-          </div>
-          {/* Hiring Manager Info - Placeholder as it's not in current GigDetails interface */}
-
-          {role === "worker" && (
-            <div className={styles.gigDetailsRow}>
-              <span className={styles.label}>Hiring manager:</span>
-              <span className={styles.detailValue}>
-                {gig.hiringManager} <br /> {gig.hiringManagerUsername}
-              </span>
-            </div>
-          )}
-
-          {timeLeft && (
-            <div className={styles.timerContainer}>
-              <Clock size={30} color="#fff" className={styles.timerIcon} />
-              <span className={styles.timerText}>
-                {timeLeft} <br /> to accept
-              </span>
-            </div>
-          )}
-        </section>
-
-        {gig?.worker ? (
-          <section
-            className={`${styles.gigDetailsSection} ${styles.workerSection}`}
-          >
-            <ProfileVideo
-              isSelfView={false}
-              onVideoUpload={() => {}}
-              videoUrl={gig.workerViderUrl}
-            />
-            <div className={styles.workerDetailsContainer}>
-              <div className={styles.workerDetails}>
-                <span className={styles.workerName}>
-                  {gig.worker?.fullName || "Worker"}
-                </span>
-                {workerStats?.gigs && workerStats?.experience
-                  ? `${workerStats.gigs} Able gigs, ${workerStats.experience} years experience`
-                  : gig?.workerFullBio}
-              </div>
-              {workerStats.isStar && (
-                <Image
-                  src="/images/star.svg"
-                  alt="Star"
-                  width={56}
-                  height={50}
-                />
-              )}
-            </div>
-          </section>
-        ) : (
-          <section
-            className={`${styles.gigDetailsSection} ${styles.noWorkerSection}`}
-          >
-            <p>
-              <VideoOff />
-            </p>
-            <div className={styles.noWorkerAssigned}>
-              <p>No worker assigned yet</p>
-            </div>
-          </section>
-        )}
-
-        {/* Negotiation Button - Kept from new structure */}
-        {/* Added a check to only show if gig is accepted */}
-        {(gig.status === "PENDING" ||
-          gig.status === "IN_PROGRESS" ||
-          gig.status === "ACCEPTED") && (
-          <button
-            className={styles.negotiationButton}
-            onClick={() => handleGigAction("requestAmendment")}
-          >
-            Negotiate, cancel or change gig details
-          </button>
-        )}
-
-        {/* Special Instructions Section */}
-        {gig.specialInstructions && (
-          <section className={styles.instructionsSection}>
-            <h2 className={styles.specialInstTitle}>
-              <Info size={18} />
-              Special Instructions
-            </h2>
-            <p className={styles.specialInstructions}>
-              {gig.specialInstructions}
-            </p>
-          </section>
-        )}
-
-        {/* Primary Actions Section - Adapted to new structure */}
-        <section className={styles.actionSection}>
-          <GigActionButton
-            label={getButtonLabel("accept")}
-            handleGigAction={() => handleGigAction("accept")}
-            isActive={gig.status === "PENDING" || gig.status === "CANCELLED"}
-            isDisabled={
-              (role === "worker" && gig.status !== "PENDING") ||
-              (role === "buyer" && gig.status !== "CANCELLED")
-            }
-          />
-
-          {/* 2. Start Gig */}
-          <GigActionButton
-            label={getButtonLabel("start")}
-            handleGigAction={() => handleGigAction("start")}
-            isActive={gig.status === "ACCEPTED"}
-            isDisabled={gig.status !== "ACCEPTED"}
-          />
-
-          {/* 3. Complete Gig */}
-          <GigActionButton
-            label={getButtonLabel("complete")}
-            handleGigAction={() => handleGigAction("complete")}
-            isActive={
-              (gig.status === "IN_PROGRESS" ||
-                gig.status === "COMPLETED" ||
-                gig.status === "CONFIRMED" ||
-                gig.status === "AWAITING_BUYER_CONFIRMATION") &&
-              ((role === "worker" && !gig.isWorkerSubmittedFeedback) ||
-                (role === "buyer" && !gig.isBuyerSubmittedFeedback))
-            }
-            isDisabled={
-              (role === "worker" && gig.isWorkerSubmittedFeedback) ||
-              (role === "buyer" && gig.isBuyerSubmittedFeedback)
-            }
-          />
-
-          {/* 4. Awaiting Buyer Confirmation */}
-
-          <GigStatusIndicator
-            label={getButtonLabel("awaiting")}
-            isActive={
-              (role === "worker" && gig.isWorkerSubmittedFeedback) ||
-              (role === "buyer" && gig.isBuyerSubmittedFeedback)
-            }
-            isDisabled={true}
-          />
-        </section>
-
-        {/* Secondary Actions Section - Adapted to new structure */}
-        <section className={`${styles.secondaryActionsSection}`}>
-          {" "}
-          {/* Using secondaryActionsSection class */}
-          <div className={styles.secondaryButtonsContainer}>
-            <button
-              onClick={() => handleGigAction("reportIssue")}
-              className={styles.secondaryActionButton}
-              disabled={isActionLoading}
-            >
-              Report an Issue
-            </button>
-            <button
-              onClick={() => handleGigAction("delegate")}
-              className={styles.secondaryActionButton}
-              disabled={isActionLoading}
-            >
-              Delegate gig
-            </button>
-          </div>
-          <Link
-            href="/terms-of-service"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.termsLink}
-          >
-            Terms of agreement
-          </Link>
-        </section>
-      </main>
-    </div>
-  );
-};
+				{/* Footer (Home Button) */}
+				{/* <footer className={styles.footer}>
+					<Link href={`/user/${user?.uid}/worker`} passHref>
+					<button className={styles.homeButton} aria-label="Go to Home">
+						<Home size={24} />
+					</button>
+					</Link>
+				</footer> */}
+			</main>
+		</div>
+	)
+}
 
 export default GigDetailsComponent;

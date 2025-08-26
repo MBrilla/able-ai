@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { db } from '@/lib/drizzle/db';
+import { GigsTable } from '@/lib/drizzle/schema/gigs';
+import { eq } from 'drizzle-orm';
 import styles from './CompleteGigPage.module.css';
 
 interface Gig {
