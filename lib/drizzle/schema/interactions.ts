@@ -20,6 +20,33 @@ import { reviewTypeEnum, moderationStatusEnum, badgeTypeEnum, activeRoleContextE
 import { UsersTable } from "./users";
 import { GigsTable } from "./gigs";
 
+// --- RECOMMENDATIONS TABLE ---
+export const RecommendationsTable = pgTable("recommendations", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  workerUserId: uuid("worker_user_id")
+    .notNull()
+    .references(() => UsersTable.id, { onDelete: "cascade" }),
+  recommendationCode: varchar("recommendation_code", { length: 50 })
+    .unique()
+    .notNull(),
+  recommendationText: text("recommendation_text"),
+  relationship: text("relationship"),
+  recommenderName: varchar("recommender_name", { length: 100 }),
+  recommenderEmail: varchar("recommender_email", { length: 255 }),
+  isVerified: boolean("is_verified").default(false),
+  moderationStatus: moderationStatusEnum("moderation_status")
+    .default("PENDING")
+    .notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+});
+
 // --- REVIEWS TABLE ---
 export const ReviewsTable = pgTable(
   "reviews",

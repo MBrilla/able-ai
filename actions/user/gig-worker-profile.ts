@@ -407,6 +407,56 @@ export const deleteImageAction = async (
   }
 }
 
+export const createWorkerProfileAction = async (token: string) => {
+  try {
+    if (!token) {
+      throw new Error("Token is required");
+    }
+
+    const { uid } = await isUserAuthenticated(token);
+    if (!uid) throw ERROR_CODES.UNAUTHORIZED;
+
+    const user = await db.query.UsersTable.findFirst({
+      where: eq(UsersTable.firebaseUid, uid),
+    });
+
+    if (!user) throw "User not found";
+
+    // Check if worker profile already exists
+    const existingWorkerProfile = await db.query.GigWorkerProfilesTable.findFirst({
+      where: eq(GigWorkerProfilesTable.userId, user.id),
+    });
+
+    if (existingWorkerProfile) {
+      return { success: true, data: "Worker profile already exists", workerProfileId: existingWorkerProfile.id };
+    }
+
+    // Create new worker profile
+    const newProfile = await db.insert(GigWorkerProfilesTable).values({
+      userId: user.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }).returning();
+
+    const workerProfileId = newProfile[0].id;
+
+    // Update user table to mark as gig worker
+    await db
+      .update(UsersTable)
+      .set({
+        isGigWorker: true,
+        lastRoleUsed: "GIG_WORKER",
+        updatedAt: new Date(),
+      })
+      .where(eq(UsersTable.id, user.id));
+
+    return { success: true, data: "Worker profile created successfully", workerProfileId };
+  } catch (error) {
+    console.error("Error creating worker profile:", error);
+    return { success: false, data: null, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+};
+
 export const saveWorkerProfileFromOnboardingAction = async (
   profileData: {
     about: string;
@@ -462,19 +512,23 @@ export const saveWorkerProfileFromOnboardingAction = async (
       updatedAt: new Date(),
     };
 
+    let workerProfileId: string;
+    
     if (workerProfile) {
       // Update existing profile
       await db
         .update(GigWorkerProfilesTable)
         .set(profileUpdateData)
         .where(eq(GigWorkerProfilesTable.userId, user.id));
+      workerProfileId = workerProfile.id;
     } else {
       // Create new profile
-      await db.insert(GigWorkerProfilesTable).values({
+      const newProfile = await db.insert(GigWorkerProfilesTable).values({
         userId: user.id,
         ...profileUpdateData,
         createdAt: new Date(),
-      });
+      }).returning();
+      workerProfileId = newProfile[0].id;
     }
 
     // Save availability data to worker_availability table
@@ -516,7 +570,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
       })
       .where(eq(UsersTable.id, user.id));
 
-    return { success: true, data: "Worker profile saved successfully" };
+    return { success: true, data: "Worker profile saved successfully", workerProfileId };
   } catch (error) {
     console.error("Error saving worker profile:", error);
     return { success: false, data: null, error: error instanceof Error ? error.message : "Unknown error" };

@@ -11,6 +11,7 @@ import { Star, Send, Loader2 } from 'lucide-react'; // Lucide icons
 import styles from './RecommendationPage.module.css';
 import Logo from '@/app/components/brand/Logo';
 import ScreenHeaderWithBack from '@/app/components/layout/ScreenHeaderWithBack';
+import { submitRecommendationAction } from '@/actions/user/recommendations';
 
 interface RecommendationFormData {
   recommendationText: string;
@@ -93,25 +94,16 @@ export default function PublicRecommendationPage() {
     };
 
     try {
-      // Replace with your actual API endpoint for submitting recommendations publicly
-      // const response = await fetch('/api/recommendations/public-submit', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(submissionPayload),
-      // });
-      // if (!response.ok) {
-      //   const errorData = await response.json();
-      //   throw new Error(errorData.message || 'Failed to submit recommendation.');
-      // }
-      // const result = await response.json();
-
-      // MOCK API CALL
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      console.log('Public Recommendation Submitted:', submissionPayload);
+      // Submit recommendation using server action
+      const result = await submitRecommendationAction(submissionPayload);
       
-      setSuccessMessage('Thank you! Your recommendation has been submitted.');
-      // Optionally clear form
-      // setFormData({ recommendationText: '', relationship: '', recommenderName: '', recommenderEmail: '' });
+      if (result.success) {
+        setSuccessMessage('Thank you! Your recommendation has been submitted.');
+        // Optionally clear form
+        // setFormData({ recommendationText: '', relationship: '', recommenderName: '', recommenderEmail: '' });
+      } else {
+        setError(result.error || 'Failed to submit recommendation.');
+      }
 
     } catch (err: unknown) {
       if (err instanceof Error) {

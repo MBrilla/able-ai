@@ -75,43 +75,5 @@ export async function getWorkerDetailsAction(workerId: string): Promise<{
   }
 }
 
-// TODO: Implement recommendations table in schema before using this function
-// export async function getWorkerDetailsByRecommendationCodeAction(recommendationCode: string): Promise<{
-//   success: boolean;
-//   data?: WorkerDetails;
-//   error?: string;
-// }> {
-//   try {
-//     if (!recommendationCode) {
-//       return {
-//         success: false,
-//         error: "Recommendation code is required"
-//       };
-//     }
-
-//     // Get recommendation to find worker ID
-//     const recommendation = await db.query.RecommendationsTable.findFirst({
-//       where: eq(RecommendationsTable.recommendationCode, recommendationCode),
-//       columns: {
-//         workerUserId: true,
-//       }
-//     });
-
-//     if (!recommendation) {
-//       return {
-//         success: false,
-//         error: "Recommendation not found"
-//       };
-//     }
-
-//     // Get worker details using the worker ID
-//     return await getWorkerDetailsAction(recommendation.workerUserId);
-
-//   } catch (error) {
-//     console.error('Error fetching worker details by recommendation code:', error);
-//     return {
-//       success: false,
-//       error: 'Internal server error'
-//     };
-//   }
-// }
+// This function is now implemented in actions/user/recommendations.ts
+// and can be imported from there if needed
