@@ -85,6 +85,8 @@ import { useFirebase } from '@/context/FirebaseContext';
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { Schema } from '@firebase/ai';
 import { FormInputType } from "@/app/types/form";
+import { createEscalatedIssueClient } from '@/utils/client-escalation';
+import { detectEscalationTriggers, generateEscalationDescription } from '@/utils/escalation-detection';
 
 // Type assertion for Schema to resolve TypeScript errors
 const TypedSchema = Schema as any;
@@ -447,23 +449,38 @@ function isUnrelatedResponse(userInput: string, currentPrompt: string): boolean 
   return hasUnrelatedPhrase || (isTooShort && !hasRelevantKeywords && !isValidShortResponse && !isSpecificQuestion);
 }
 
-// Helper: save support case to Firebase
-async function saveSupportCaseToFirebase(userData: any, conversationHistory: any[], reason: string): Promise<string> {
+// Helper: save support case to database
+async function saveSupportCaseToDatabase(userData: any, conversationHistory: any[], reason: string): Promise<string> {
   try {
-    // This would integrate with your Firebase setup
-    // For now, return a mock case ID
-    console.log('Saving support case to Firebase:', { userData, conversationHistory, reason });
+    console.log('Saving support case to database:', { userData, conversationHistory, reason });
     
-    // Mock implementation - replace with actual Firebase call
-    const caseId = `SUPPORT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Simulate Firebase save
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    return caseId;
+    // Get user ID from userData
+    const userId = userData?.userId;
+    if (!userId) {
+      console.error('No user ID provided for escalation');
+      return `ERROR-${Date.now()}`;
+    }
+
+    // Create escalated issue in database via API
+    const escalationResult = await createEscalatedIssueClient({
+      userId: userId,
+      issueType: 'onboarding_difficulty',
+      description: `Onboarding escalation: ${reason}. User struggling with AI onboarding process.`,
+      contextType: 'onboarding'
+    });
+
+    if (escalationResult.success && escalationResult.issueId) {
+      console.log('✅ Escalated issue created successfully:', escalationResult.issueId);
+      return escalationResult.issueId;
+    } else {
+      console.error('❌ Failed to create escalated issue:', escalationResult.error);
+      // Fallback to mock ID if database save fails
+      return `SUPPORT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
   } catch (error) {
-    console.error('Failed to save support case:', error);
-    return `ERROR-${Date.now()}`;
+    console.error('Failed to save support case to database:', error);
+    // Fallback to mock ID if database save fails
+    return `SUPPORT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 }
 
@@ -1080,6 +1097,26 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
     } catch (error) {
       console.error('AI validation failed:', error);
       setError('AI validation failed. Please try again.');
+      
+      // Check if we should escalate due to AI failure
+      const escalationTrigger = detectEscalationTriggers('AI processing failed', {
+        retryCount: 1,
+        conversationLength: chatSteps.length,
+        userRole: 'worker',
+        gigId: undefined
+      });
+
+      if (escalationTrigger.shouldEscalate) {
+        console.log('🚨 Escalation triggered due to AI failure:', escalationTrigger);
+        
+        const description = generateEscalationDescription(escalationTrigger, 'AI validation failed', {
+          userRole: 'worker',
+          conversationLength: chatSteps.length
+        });
+
+        // Note: We can't await here since this is in a catch block, so we'll handle it in the calling function
+        // The escalation will be handled when the user tries to submit again
+      }
     }
     
     // Simple fallback - accept most inputs
@@ -1095,6 +1132,51 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
     }
     
     try {
+      // Check for escalation triggers in user input
+      if (typeof valueToUse === 'string') {
+        const escalationTrigger = detectEscalationTriggers(valueToUse, {
+          retryCount: 0, // Could track this if needed
+          conversationLength: chatSteps.length,
+          userRole: 'worker',
+          gigId: undefined
+        });
+
+        if (escalationTrigger.shouldEscalate) {
+          console.log('🚨 Escalation trigger detected:', escalationTrigger);
+          
+          const description = generateEscalationDescription(escalationTrigger, valueToUse, {
+            userRole: 'worker',
+            conversationLength: chatSteps.length
+          });
+
+          const caseId = await saveSupportCaseToDatabase(
+            { userId: user?.uid, formData },
+            chatSteps,
+            description
+          );
+          
+          setSupportCaseId(caseId);
+          setShowHumanSupport(true);
+          
+          setChatSteps(prev => [
+            ...prev,
+            {
+              id: Date.now() + 1,
+              type: 'bot',
+              content: `I understand you're having trouble with the AI onboarding process. I've created a support case (${caseId}) and our team will be in touch shortly.`,
+              isNew: true,
+            },
+            {
+              id: Date.now() + 2,
+              type: 'support',
+              isNew: true,
+            }
+          ]);
+          
+          return;
+        }
+      }
+
       // Check if this is an unrelated response
       const currentStep = chatSteps.find(s => s.id === stepId);
       
@@ -1117,7 +1199,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
           
           if (newCount >= 3) {
             // Escalate to human support after 3 unrelated responses
-            const caseId = await saveSupportCaseToFirebase(
+            const caseId = await saveSupportCaseToDatabase(
               { userId: user?.uid, formData },
               chatSteps,
               'Multiple unrelated responses - user struggling with AI onboarding'

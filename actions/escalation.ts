@@ -1,7 +1,7 @@
 import { db } from '@/lib/drizzle/db';
 import { escalatedIssues } from '@/lib/drizzle/schema/ai';
 import { UsersTable } from '@/lib/drizzle/schema/users';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 export interface CreateEscalatedIssueParams {
   userId: string;
