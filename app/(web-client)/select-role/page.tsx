@@ -23,11 +23,29 @@ export default function SelectRolePage() {
     if (isChangingRole) {
       return;
     }
-    if (lastRoleUsed === "BUYER") {
-      const lastPathBuyer = localStorage.getItem("lastPathBuyer");
-      if (lastPathBuyer) {
-        window.location.replace(lastPathBuyer);
-        return;
+  
+    setIsLoading(true);
+    setError(null);
+  
+    try {
+      
+      await setLastRoleUsed(role);
+      
+      // Save rute initial in the localstorage
+      if (role === "BUYER") {
+          const path = `user/${user.uid || "this_user"}/buyer/gigs/new`;
+          localStorage.setItem("lastPathBuyer", path);
+          
+          router.push(path);
+      } else if (role === "GIG_WORKER") {
+        const isWorker = ["GIG_WORKER", "QA"].includes(user.claims.role);
+        
+        const path = isWorker
+          ? `user/${user.uid || "this_user"}/worker`
+          : `user/${user.uid || "this_user"}/worker/onboarding-ai`;
+ 
+          localStorage.setItem("lastPathGigWorker", path);
+          router.push(path);
       }
       window.location.replace(`/user/${user?.uid}/buyer`);
       return;
