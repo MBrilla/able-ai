@@ -18,7 +18,7 @@ import {
 } from "@/lib/drizzle/schema";
 import { ERROR_CODES } from "@/lib/responses/errors";
 import { isUserAuthenticated } from "@/lib/user.server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 export const getPublicWorkerProfileAction = async (workerId: string) => {
   if (!workerId) throw "Worker ID is required";
@@ -424,38 +424,60 @@ export const deleteImageAction = async (
 
 export const createWorkerProfileAction = async (token: string) => {
   try {
+    console.log("🔍 createWorkerProfileAction: Starting...");
+    console.log("🔍 Token received:", token ? "Yes" : "No");
+    
+    // Test database connection
+    console.log("🔍 Testing database connection...");
+    try {
+      const testQuery = await db.execute(sql`SELECT 1 as test`);
+      console.log("🔍 Database connection test successful:", testQuery);
+    } catch (dbError) {
+      console.error("❌ Database connection test failed:", dbError);
+      throw new Error(`Database connection failed: ${dbError}`);
+    }
+    
     if (!token) {
       throw new Error("Token is required");
     }
 
     const { uid } = await isUserAuthenticated(token);
+    console.log("🔍 Firebase UID:", uid);
     if (!uid) throw ERROR_CODES.UNAUTHORIZED;
 
+    console.log("🔍 Querying UsersTable...");
     const user = await db.query.UsersTable.findFirst({
       where: eq(UsersTable.firebaseUid, uid),
     });
+    console.log("🔍 User found:", user ? "Yes" : "No", user?.id);
 
     if (!user) throw "User not found";
 
     // Check if worker profile already exists
+    console.log("🔍 Checking for existing worker profile...");
     const existingWorkerProfile = await db.query.GigWorkerProfilesTable.findFirst({
       where: eq(GigWorkerProfilesTable.userId, user.id),
     });
+    console.log("🔍 Existing profile:", existingWorkerProfile ? "Yes" : "No");
 
     if (existingWorkerProfile) {
+      console.log("🔍 Returning existing profile ID:", existingWorkerProfile.id);
       return { success: true, data: "Worker profile already exists", workerProfileId: existingWorkerProfile.id };
     }
 
     // Create new worker profile
+    console.log("🔍 Creating new worker profile...");
     const newProfile = await db.insert(GigWorkerProfilesTable).values({
       userId: user.id,
       createdAt: new Date(),
       updatedAt: new Date(),
     }).returning();
+    console.log("🔍 New profile created:", newProfile[0].id);
 
     const workerProfileId = newProfile[0].id;
 
     // Update user table to mark as gig worker
+    console.log("🔍 Updating user table...");
     await db
       .update(UsersTable)
       .set({
@@ -464,10 +486,13 @@ export const createWorkerProfileAction = async (token: string) => {
         updatedAt: new Date(),
       })
       .where(eq(UsersTable.id, user.id));
+    console.log("🔍 User table updated successfully");
 
+    console.log("🔍 Worker profile creation completed successfully");
     return { success: true, data: "Worker profile created successfully", workerProfileId };
   } catch (error) {
-    console.error("Error creating worker profile:", error);
+    console.error("❌ Error creating worker profile:", error);
+    console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack trace");
     return { success: false, data: null, error: error instanceof Error ? error.message : "Unknown error" };
   }
 };
@@ -492,6 +517,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
         }
       | string;
     videoIntro: File | string;
+    jobTitle?: string; // Add job title field
   },
   token: string,
 ) => {
@@ -599,6 +625,23 @@ export const saveWorkerProfileFromOnboardingAction = async (
         occurrences: profileData.availability.occurrences,
         endDate: profileData.availability.endDate || null,
         notes: `Onboarding availability - Hourly Rate: ${profileData.hourlyRate}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+
+    // Save job title as a skill if provided
+    if (profileData.jobTitle) {
+      await db.insert(SkillsTable).values({
+        workerProfileId: workerProfileId,
+        name: profileData.jobTitle,
+        experienceMonths: 0,
+        experienceYears: 0,
+        agreedRate: String(parseFloat(profileData.hourlyRate) || 0),
+        skillVideoUrl: null,
+        adminTags: null,
+        ableGigs: null,
+        images: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       });

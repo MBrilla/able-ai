@@ -4,7 +4,7 @@ import { BuyerFeedbackFormData, GigDetails } from "@/app/types/GigFeedbackTypes"
 import styles from "@/app/(web-client)/user/[userId]/buyer/gigs/[gigId]/feedback/FeedbackPage.module.css";
 import stylesFeed from "@/app/components/gigs/Feedback.module.css";
 import stylesLoader from '@/app/components/shared/Loader.module.css'; // Adjust the path as necessary
-import AwardDisplayBadge from "../profile/AwardDisplayBadge";
+import AwardDisplayBadge from "@/app/components/profile/AwardDisplayBadge";
 
 type BuyerFeedbackFieldsProps = {
   gigDetails: GigDetails;

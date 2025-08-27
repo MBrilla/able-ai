@@ -3,7 +3,7 @@ import { Calendar, Check, Info, MessageSquare, Clock, XCircle, ChevronLeft } fro
 import Logo from '../brand/Logo';
 import styles from './GigDetails.module.css';
 import { useRouter } from 'next/navigation';
-import GigActionButton from '../shared/GigActionButton';
+import GigActionButton from '../GigActionButton';
 import Link from 'next/link';
 import { useState } from 'react';
 import type GigDetails from '@/app/types/GigDetailsTypes';

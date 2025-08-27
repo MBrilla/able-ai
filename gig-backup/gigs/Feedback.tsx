@@ -7,7 +7,7 @@ import BuyerFeedbackFields from "./BuyerFeedbackFields";
 import styles from "@/app/(web-client)/user/[userId]/buyer/gigs/[gigId]/feedback/FeedbackPage.module.css";
 import stylesFeed from "@/app/components/gigs/Feedback.module.css";
 import { BuyerFeedbackFormData, FeedbackProps, WorkerFeedbackFormData } from "@/app/types/GigFeedbackTypes";
-import ScreenHeaderWithBack from "../layout/ScreenHeaderWithBack";
+import ScreenHeaderWithBack from "@/app/components/layout/ScreenHeaderWithBack";
 
 const Feedback: React.FC<FeedbackProps> = ({
   gigDetails,
