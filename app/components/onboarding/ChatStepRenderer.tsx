@@ -147,12 +147,12 @@ export default function ChatStepRenderer({
     console.log('Bot message content:', content);
     console.log('Content type:', typeof content);
     console.log('Content length:', content?.length);
-    console.log('Contains "You need two references":', content && content.includes("You need two references"));
+    console.log('Contains "You need one reference per skill":', content && content.includes("You need one reference per skill"));
     console.log('ReferenceMessageBubble component:', ReferenceMessageBubble);
     console.log('MessageBubble component:', MessageBubble);
     
     // TEST: Log the exact string we're checking
-    if (content && content.includes("You need two references")) {
+    if (content && content.includes("You need one reference per skill")) {
       console.log('✅ STRING MATCH FOUND!');
       console.log('✅ Content contains the target string');
     } else {
@@ -161,7 +161,7 @@ export default function ChatStepRenderer({
     }
     
     // Check if this is a reference message - FORCE TEST
-    if (content && content.includes("You need two references")) {
+    if (content && content.includes("You need one reference per skill")) {
       console.log('🎯 MATCH FOUND! Using ReferenceMessageBubble for reference message');
       console.log('ReferenceMessageBubble component exists:', typeof ReferenceMessageBubble);
       console.log('ReferenceMessageBubble component:', ReferenceMessageBubble);
@@ -394,7 +394,7 @@ export default function ChatStepRenderer({
                   onClick={() => handleSanitizedReformulate(step.fieldName!)}
                   disabled={isStepComplete}
                 >
-                  Reformulate
+                  {step.fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit'}
                 </button>
               </div>
             )}

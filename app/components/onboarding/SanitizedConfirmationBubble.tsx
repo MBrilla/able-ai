@@ -256,7 +256,7 @@ const SanitizedConfirmationBubble: React.FC<SanitizedConfirmationBubbleProps> = 
                 }
               }}
             >
-              Reformulate
+                              {fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit'}
             </button>
           )}
         </div>

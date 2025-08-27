@@ -729,7 +729,7 @@ Make the conversation feel natural and build on what they've already told you.`;
               {
                 id: Date.now() + 3,
                 type: "bot",
-                content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+                content: `You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.\n\nShare this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
                 isNew: true,
               }
             ]);
@@ -916,7 +916,7 @@ Make the conversation feel natural and build on what they've already told you.`;
             {
               id: Date.now() + 2,
               type: "bot",
-              content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+              content: `You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.\n\nShare this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
               isNew: true,
             }
           ]);
@@ -1112,7 +1112,7 @@ Make the conversation feel natural and build on what they've already told you.`;
           {
             id: Date.now() + 2,
             type: "bot",
-            content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+            content: `You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.\n\nShare this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
             isNew: true,
           }
         ]);
@@ -1710,7 +1710,7 @@ Make the conversation feel natural and build on what they've already told you.`;
                         }
                       }}
                     >
-                      {reformulateClicked ? 'Reformulated' : (isReformulatingThisField ? 'Reformulating...' : 'Reformulate')}
+                                              {reformulateClicked ? (step.fieldName === 'videoIntro' ? 'Re-shot' : 'Edited') : (isReformulatingThisField ? (step.fieldName === 'videoIntro' ? 'Re-shooting...' : 'Editing...') : (step.fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit message'))}
                     </button>
                   </div>
                 </div>
@@ -1778,7 +1778,7 @@ Make the conversation feel natural and build on what they've already told you.`;
                  if (step.type === "bot") {
            // Check if this is a reference message or follow-up messages (no AI avatar)
            if (step.content && typeof step.content === 'string' && (
-             step.content.includes("You need two references") ||
+             step.content.includes("You need one reference per skill") ||
              step.content.includes("Watch out for notifications") ||
              step.content.includes("We might offer you gigs")
            )) {
@@ -1799,7 +1799,7 @@ Make the conversation feel natural and build on what they've already told you.`;
                     borderBottomLeftRadius: '4px'
                   }}>
                                        {/* Make URLs clickable with copy/share functionality for reference messages */}
-                    {step.content.includes("You need two references") ? (
+                    {step.content.includes("You need one reference per skill") ? (
                       (step.content as string).split(/(https?:\/\/[^\s\n]+)/g).map((part, index) => {
                         if (part.match(/(https?:\/\/[^\s\n]+)/g)) {
                           return (

@@ -1718,7 +1718,7 @@ Make the conversation feel natural and build on what they've already told you.`;
                           e.currentTarget.style.color = 'var(--secondary-color)'; 
                         }}
                       >
-                        {reformulateClicked ? 'Reformulated' : (isReformulatingThisField ? 'Reformulating...' : 'Reformulate')}
+                     {reformulateClicked ? (step.fieldName === 'videoIntro' ? 'Re-shot' : 'Edited') : (isReformulatingThisField ? (step.fieldName === 'videoIntro' ? 'Re-shooting...' : 'Editing...') : (step.fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit message'))}
                       </button>
                     </div>
                   </div>

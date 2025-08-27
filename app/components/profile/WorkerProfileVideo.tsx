@@ -77,7 +77,7 @@ export default function ProfileVideo({
               cursor: "pointer",
             }}
           >
-            Edit video
+            Re-SHOOT
           </button>
         </div>
       )}
