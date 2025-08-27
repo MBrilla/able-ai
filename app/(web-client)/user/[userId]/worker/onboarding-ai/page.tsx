@@ -350,17 +350,15 @@ async function interpretJobTitle(userExperience: string, ai: any): Promise<{ job
 function isUnrelatedResponse(userInput: string, currentPrompt: string): boolean {
   // Simple heuristic: check if response contains common unrelated phrases
   const unrelatedPhrases = [
-    'help', 'support', 'contact', 'human', 'person', 'agent', 'representative',
-    'complaint', 'issue', 'problem', 'broken', 'not working', 'error',
-    'customer service', 'speak to someone', 'talk to human', 'real person',
-    'please', 'need', 'want', 'can i', 'could i', 'i need', 'i want',
+    'problem', 'broken', 'not working', 'error',
+   'speak to someone', 'talk to human', 'real person',
     // Curse words and inappropriate language
     'fuck', 'shit', 'damn', 'bitch', 'ass', 'asshole', 'bastard', 'crap',
-    'piss', 'dick', 'cock', 'pussy', 'cunt', 'whore', 'slut', 'fucker',
+    'piss', 'dick', 'pussy', 'cunt', 'whore', 'slut', 'fucker',
     'motherfucker', 'fucking', 'shitty', 'damned', 'bloody', 'bugger',
     'wanker', 'twat', 'bellend', 'knob', 'prick', 'tosser', 'arse',
     'bollocks', 'wank', 'fanny', 'minge', 'gash', 'snatch', 'cooch',
-    'pussy', 'vagina', 'penis', 'cock', 'dick', 'willy', 'johnson'
+    'pussy', 'vagina', 'penis', 'dick', 'willy', 'johnson'
   ];
   
   const userLower = userInput.toLowerCase().trim();
@@ -1340,7 +1338,11 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
                {
                  id: Date.now() + 3,
                  type: "bot",
-                 content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+                 content: `You need one reference per skill, from previous managers, colleagues or teachers.
+
+If you do not have experience you can get a character reference from a friend or someone in your network. 
+
+Share this link to get your reference\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network \n\nif your connections make a hire on Able you get £5!`,
                  isNew: true,
                }
              ]);
@@ -1712,7 +1714,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
             {
               id: Date.now() + 2,
               type: "bot",
-              content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+              content: `You need references from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
               isNew: true,
             }
           ]);
@@ -1937,7 +1939,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
           {
             id: Date.now() + 2,
             type: "bot",
-            content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+            content: `You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.\n\nShare this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
             isNew: true,
           }
         ]);
@@ -2716,7 +2718,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
                         }
                       }}
                     >
-                      {reformulateClicked ? 'Reformulated' : (isReformulatingThisField ? 'Reformulating...' : 'Reformulate')}
+                    {reformulateClicked ? (step.fieldName === 'videoIntro' ? 'Re-shot' : 'Edited') : (isReformulatingThisField ? (step.fieldName === 'videoIntro' ? 'Re-shooting...' : 'Editing...') : (step.fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit message'))}
                     </button>
                   </div>
                 </div>
@@ -2784,7 +2786,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
                  if (step.type === "bot") {
            // Check if this is a reference message or follow-up messages (no AI avatar)
            if (step.content && typeof step.content === 'string' && (
-             step.content.includes("You need two references") ||
+             step.content.includes("You need one reference per skill") ||
              step.content.includes("Watch out for notifications") ||
              step.content.includes("We might offer you gigs")
            )) {
@@ -2805,7 +2807,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
                     borderBottomLeftRadius: '4px'
                   }}>
                                        {/* Make URLs clickable with copy/share functionality for reference messages */}
-                    {step.content.includes("You need two references") ? (
+                    {step.content.includes("You need one reference per skill") ? (
                       (step.content as string).split(/(https?:\/\/[^\s\n]+)/g).map((part, index) => {
                         if (part.match(/(https?:\/\/[^\s\n]+)/g)) {
                           return (
@@ -3419,7 +3421,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
                     >
                       <option value="never">Never ends</option>
                       <option value="on_date">Until date</option>
-                      <option value="after_occurrences">After times</option>
+                      <option value="after_occurrences">After number of times</option>
                     </select>
 
                     {currentAvailability.ends === 'on_date' && (

@@ -1763,6 +1763,208 @@ You can now start applying for gigs and setting your availability. Good luck!`,
       // Process the input based on the current phase
       await processUserInput(valueToUse, inputName);
       
+      if (!aiResult.sufficient) {
+        // Add clarification message and re-open the same input step to collect a better answer
+        setChatSteps((prev) => {
+          const reopenedType: "input" | "calendar" | "location" =
+            currentStep?.type === 'location' ? 'location' :
+            currentStep?.type === 'calendar' ? 'calendar' :
+            'input';
+          const reopenedInputConfig = currentStep?.inputConfig ?? {
+            type: 'text',
+            name: inputName,
+            placeholder: '',
+          };
+          const nextSteps: ChatStep[] = [
+            ...prev,
+            { 
+              id: Date.now() + 2, 
+              type: 'bot', 
+              content: aiResult.clarificationPrompt!,
+              isNew: true,
+            },
+            {
+              id: Date.now() + 3,
+              type: reopenedType,
+              inputConfig: reopenedInputConfig,
+              isComplete: false,
+              isNew: true,
+            },
+          ];
+          return nextSteps;
+        });
+        // Focus the same input name on next render
+        setCurrentFocusedInputName(inputName);
+        return;
+      }
+      
+      // If this is a reformulation, update the form data and proceed to next field
+      // instead of showing sanitized confirmation again
+      if (isReformulation) {
+        // Update form data with the new value
+        setFormData(prev => ({ ...prev, [inputName]: aiResult.sanitized }));
+        
+        // Reset reformulating state and clear reformulateField
+        setIsReformulating(false);
+        setReformulateField(null);
+        
+        // Find next required field
+        const updatedFormData = { ...formData, [inputName]: aiResult.sanitized };
+        const nextField = getNextRequiredField(updatedFormData);
+        
+        if (nextField) {
+          // Special handling: auto-generate references link instead of asking for input
+          if (nextField.name === 'references') {
+            const recommendationLink = buildRecommendationLink();
+            const afterRefFormData = { ...updatedFormData, references: recommendationLink };
+            setFormData(afterRefFormData);
+
+            // Add combined reference message with embedded link and gigfolio info
+            setChatSteps((prev) => [
+              ...prev,
+              {
+                id: Date.now() + 3,
+                type: "bot",
+                content: `You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.\n\nShare this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+                isNew: true,
+              }
+            ]);
+
+            setTimeout(() => {
+              setChatSteps((prev) => [
+                ...prev,
+                {
+                  id: Date.now() + 4,
+                  type: "bot",
+                  content: "Watch out for notifications of your first shift offer! If you don't accept within 90 minutes we will offer the gig to someone else.",
+                  isNew: true,
+                }
+              ]);
+            }, 1500);
+
+            setTimeout(() => {
+              setChatSteps((prev) => [
+                ...prev,
+                {
+                  id: Date.now() + 5,
+                  type: "bot",
+                  content: "We might offer you gigs outside of your defined skill area, watch out for those opportunities too!",
+                  isNew: true,
+                }
+              ]);
+            }, 3000);
+
+            // Add next field or summary after all reference messages are shown
+            setTimeout(async () => {
+              const nextAfterReferences = getNextRequiredField(afterRefFormData);
+              if (nextAfterReferences) {
+                const aboutInfo = afterRefFormData.about || '';
+                const contextAwarePrompt = await generateContextAwarePrompt(nextAfterReferences.name, aboutInfo, ai);
+                const newInputConfig = {
+                  type: nextAfterReferences.type as FormInputType,
+                  name: nextAfterReferences.name,
+                  placeholder: nextAfterReferences.placeholder,
+                  ...(nextAfterReferences.rows && { rows: nextAfterReferences.rows }),
+                };
+                let stepType: "input" | "calendar" | "location" | "video" | "availability" = "input";
+                if (nextAfterReferences.name === "availability") stepType = "availability";
+                else if (nextAfterReferences.name === "location") stepType = "location";
+                else if (nextAfterReferences.name === "videoIntro") stepType = "video";
+
+                setChatSteps((prev) => [
+                  ...prev,
+                  {
+                    id: Date.now() + 6,
+                    type: "bot",
+                    content: contextAwarePrompt,
+                    isNew: true,
+                  },
+                  {
+                    id: Date.now() + 7,
+                    type: stepType,
+                    inputConfig: newInputConfig,
+                    isComplete: false,
+                    isNew: true,
+                  },
+                ]);
+              } else {
+                // No more fields -> summary
+                setChatSteps((prev) => [
+                  ...prev,
+                  {
+                    id: Date.now() + 6,
+                    type: "bot",
+                    content: `Perfect! Here's a summary of your worker profile:\n${JSON.stringify(afterRefFormData, null, 2)}`,
+                    isNew: true,
+                  },
+                ]);
+              }
+            }, 4500);
+            return;
+          }
+          // Generate context-aware prompt for next field
+          const aboutInfo = updatedFormData.about || '';
+          const contextAwarePrompt = await generateContextAwarePrompt(nextField.name, aboutInfo, ai);
+          
+          const newInputConfig = {
+            type: nextField.type as FormInputType,
+            name: nextField.name,
+            placeholder: nextField.placeholder,
+            ...(nextField.rows && { rows: nextField.rows }),
+          };
+          
+          // Determine the step type based on the field
+          let stepType: "input" | "calendar" | "location" | "video" | "availability" = "input";
+          if (nextField.name === "availability") {
+            stepType = "availability";
+          } else if (nextField.name === "location") {
+            stepType = "location";
+          } else if (nextField.name === "videoIntro") {
+            stepType = "video";
+          }
+          
+          setChatSteps((prev) => [
+            ...prev,
+            {
+              id: Date.now() + 6,
+              type: "bot",
+              content: contextAwarePrompt,
+              isNew: true,
+            },
+            {
+              id: Date.now() + 7,
+              type: stepType,
+              inputConfig: newInputConfig,
+              isComplete: false,
+              isNew: true,
+            },
+          ]);
+        } else {
+          // All fields collected, show summary
+          setChatSteps((prev) => [
+            ...prev,
+            {
+              id: Date.now() + 5,
+              type: "bot",
+              content: `Perfect! Here's a summary of your worker profile:\n${JSON.stringify(updatedFormData, null, 2)}`,
+              isNew: true,
+            },
+          ]);
+        }
+      } else {
+        // Show sanitized confirmation step for regular inputs (not reformulations)
+        setChatSteps((prev) => [
+          ...prev,
+          { 
+            id: Date.now() + 3, 
+            type: "sanitized",
+            fieldName: inputName,
+            sanitizedValue: aiResult.sanitized!,
+            originalValue: valueToUse,
+            isNew: true,
+          },
+        ]);
+      }
     } catch (error) {
       console.error('Error processing input:', error);
       setError('Failed to process your input. Please try again.');
@@ -1804,7 +2006,7 @@ You can now start applying for gigs and setting your availability. Good luck!`,
             {
               id: Date.now() + 2,
               type: "bot",
-              content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+              content: `You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.\n\nShare this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
               isNew: true,
             }
           ]);
@@ -2000,7 +2202,7 @@ You can now start applying for gigs and setting your availability. Good luck!`,
           {
             id: Date.now() + 2,
             type: "bot",
-            content: `You need two references (at least one recommendation per skill) from previous managers, colleagues or teachers. If you don't have experience you can get a reference from a friend or someone in your network.\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
+            content: `You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.\n\nShare this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network - if your connections make a hire on Able you get £5!`,
             isNew: true,
           }
         ]);
@@ -2280,8 +2482,943 @@ You can now start applying for gigs and setting your availability. Good luck!`,
                     __html: formattedContent.replace(/\n/g, '<br/>')
                   }} />
                 }
-                senderType="bot"
-                isNew={step.isNew}
+              } catch (e) {
+                // Not JSON, return as string
+              }
+              return sanitizedValue;
+            }
+            
+            // Handle other objects
+            if (typeof sanitizedValue === 'object') {
+              return JSON.stringify(sanitizedValue);
+            }
+            
+            // Handle other types
+            return String(sanitizedValue || '');
+          })();
+          
+          // Check button states
+          const confirmClicked = clickedSanitizedButtons.has(`${step.fieldName}-confirm`);
+          const reformulateClicked = clickedSanitizedButtons.has(`${step.fieldName}-reformulate`);
+          const isReformulatingThisField = reformulateField === step.fieldName;
+          const isCompleted = step.isComplete || confirmClicked || reformulateClicked;
+          
+          return (
+            <MessageBubble
+              key={key}
+              text={
+                <div>
+                  <div style={{ marginBottom: 8, color: 'var(--primary-color)', fontWeight: 600, fontSize: '14px' }}>This is what you wanted?</div>
+                  {typeof displayValue === 'string' ? (
+                    <div style={{ marginBottom: 16, fontStyle: 'italic', color: '#e5e5e5', fontSize: '15px', lineHeight: '1.4' }}>{displayValue}</div>
+                  ) : (
+                    displayValue
+                  )}
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button
+                      style={{ 
+                        background: isCompleted ? '#555' : 'var(--primary-color)', 
+                        color: '#fff', 
+                        border: 'none', 
+                        borderRadius: 8, 
+                        padding: '8px 16px', 
+                        fontWeight: 600, 
+                        fontSize: '14px', 
+                        cursor: isCompleted ? 'not-allowed' : 'pointer', 
+                        transition: 'background-color 0.2s',
+                        opacity: isCompleted ? 0.7 : 1
+                      }}
+                      onClick={isCompleted ? undefined : () => handleSanitizedConfirm(step.fieldName!, step.sanitizedValue!)}
+                      disabled={isCompleted}
+                      onMouseOver={(e) => {
+                        if (!isCompleted) {
+                          e.currentTarget.style.background = 'var(--primary-darker-color)';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (!isCompleted) {
+                          e.currentTarget.style.background = isCompleted ? '#555' : 'var(--primary-color)';
+                        }
+                      }}
+                    >
+                      {confirmClicked ? 'Confirmed' : 'Confirm'}
+                    </button>
+                    <button
+                      style={{ 
+                        background: isCompleted ? '#555' : 'transparent', 
+                        color: isCompleted ? '#999' : 'var(--primary-color)', 
+                        border: '1px solid var(--primary-color)', 
+                        borderRadius: 8, 
+                        padding: '8px 16px', 
+                        fontWeight: 600, 
+                        fontSize: '14px', 
+                        cursor: isCompleted ? 'not-allowed' : 'pointer', 
+                        transition: 'all 0.2s',
+                        opacity: isCompleted ? 0.7 : 1
+                      }}
+                      onClick={isCompleted ? undefined : () => handleSanitizedReformulate(step.fieldName!)}
+                      disabled={isCompleted}
+                      onMouseOver={(e) => { 
+                        if (!isCompleted) {
+                          e.currentTarget.style.background = 'var(--primary-color)'; 
+                          e.currentTarget.style.color = '#fff'; 
+                        }
+                      }}
+                      onMouseOut={(e) => { 
+                        if (!isCompleted) {
+                          e.currentTarget.style.background = 'transparent'; 
+                          e.currentTarget.style.color = 'var(--primary-color)'; 
+                        }
+                      }}
+                    >
+                                              {reformulateClicked ? (step.fieldName === 'videoIntro' ? 'Re-shot' : 'Edited') : (isReformulatingThisField ? (step.fieldName === 'videoIntro' ? 'Re-shooting...' : 'Editing...') : (step.fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit message'))}
+                    </button>
+                  </div>
+                </div>
+              }
+              senderType="bot"
+              role="GIG_WORKER"
+              showAvatar={true}
+            />
+          );
+        }
+        
+        if (step.type === "typing") {
+          return (
+            <div key={key}>
+              {/* AI Avatar - Separated */}
+              <div key={`${key}-avatar`} style={{ 
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                marginBottom: '0.5rem'
+              }}>
+                <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(135deg, var(--primary-color), var(--primary-darker-color))',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)'
+                  }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: '#000000',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255, 255, 255, 0.2)'
+                    }}>
+                      <Image 
+                        src="/images/ableai.png" 
+                        alt="Able AI" 
+                        width={24} 
+                        height={24} 
+                        style={{
+                          borderRadius: '50%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* Typing Indicator - Separated */}
+              <div key={`${key}-typing`}>
+                <TypingIndicator />
+              </div>
+            </div>
+          );
+        }
+        
+                 if (step.type === "bot") {
+           // Check if this is a reference message or follow-up messages (no AI avatar)
+           if (step.content && typeof step.content === 'string' && (
+             step.content.includes("You need one reference per skill") ||
+             step.content.includes("Watch out for notifications") ||
+             step.content.includes("We might offer you gigs")
+           )) {
+             console.log('🎯 Reference/follow-up message detected in worker onboarding!');
+                           return (
+                <div key={key} className="messageWrapper alignBot" data-role="GIG_WORKER" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '1rem' }}>
+                  {/* No avatar for reference and follow-up messages, but maintain alignment as if avatar was present */}
+                  <div style={{ flexShrink: 0, width: '32px' }}></div> {/* Spacer to align with avatar-containing messages */}
+                  <div className="bubble bubbleBot" style={{ 
+                    maxWidth: '70%', 
+                    padding: '0.75rem 1rem', 
+                    borderRadius: '18px', 
+                    fontSize: '14px', 
+                    lineHeight: '1.4', 
+                    wordWrap: 'break-word',
+                    backgroundColor: '#333',
+                    color: '#fff',
+                    borderBottomLeftRadius: '4px'
+                  }}>
+                                       {/* Make URLs clickable with copy/share functionality for reference messages */}
+                    {step.content.includes("You need one reference per skill") ? (
+                      (step.content as string).split(/(https?:\/\/[^\s\n]+)/g).map((part, index) => {
+                        if (part.match(/(https?:\/\/[^\s\n]+)/g)) {
+                          return (
+                            <div key={`url-${index}-${part}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', margin: '4px 0' }}>
+                              <a
+                                href={part}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: '#41a1e8',
+                                  textDecoration: 'underline',
+                                  wordBreak: 'break-all'
+                                }}
+                              >
+                                Send this link to your reference
+                              </a>
+                                                           <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(part);
+                                  alert('Link copied to clipboard!');
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  border: '1px solid #41a1e8',
+                                  borderRadius: '4px',
+                                  padding: '6px',
+                                  color: '#41a1e8',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '28px',
+                                  height: '28px'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.background = '#41a1e8';
+                                  e.currentTarget.style.color = 'white';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.background = 'transparent';
+                                  e.currentTarget.style.color = '#41a1e8';
+                                }}
+                                title="Copy link"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                </svg>
+                              </button>
+                             {navigator.share && (
+                                                               <button
+                                  onClick={() => {
+                                    navigator.share({
+                                      title: 'Worker Reference Link',
+                                      text: 'Please use this link to provide a reference:',
+                                      url: part
+                                    });
+                                  }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: '1px solid #41a1e8',
+                                    borderRadius: '4px',
+                                    padding: '6px',
+                                    color: '#41a1e8',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '28px',
+                                    height: '28px'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    e.currentTarget.style.background = '#41a1e8';
+                                    e.currentTarget.style.color = 'white';
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.background = 'transparent';
+                                    e.currentTarget.style.color = '#41a1e8';
+                                  }}
+                                  title="Share link"
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+                                  </svg>
+                                </button>
+                             )}
+                           </div>
+                         );
+                       }
+                       return <span key={`text-${index}`}>{part}</span>;
+                     })
+                   ) : (
+                     // For follow-up messages, just display the text
+                     step.content
+                   )}
+                 </div>
+               </div>
+             );
+           }
+          
+          // Check if this is a summary message (contains JSON)
+          if (step.content && typeof step.content === 'string' && step.content.includes('{')) {
+            try {
+              const jsonMatch = step.content.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const summaryData = JSON.parse(jsonMatch[0]) as FormData;
+                return (
+                  <MessageBubble
+                    key={key}
+                    text={
+                      <div style={{ background: '#222', color: '#fff', borderRadius: 8, padding: 16, margin: '16px 0', boxShadow: '0 2px 8px #0002' }}>
+                        <h3 style={{ marginTop: 0 }}>Profile Summary</h3>
+                        <ul style={{ listStyle: 'none', padding: 0 }}>
+                          {requiredFields.map((field) => (
+                            <li key={field.name} style={{ marginBottom: 8 }}>
+                              <strong style={{ textTransform: 'capitalize' }}>{field.name.replace(/([A-Z])/g, ' $1')}: </strong>
+                              <span>
+                                {formatSummaryValue(summaryData[field.name], field.name)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                                                 <button
+                           style={{ 
+                             marginTop: 16, 
+                             background: isSubmitting ? "#666" : "var(--primary-color)", 
+                             color: "#fff", 
+                             border: "none", 
+                             borderRadius: 8, 
+                             padding: "8px 16px", 
+                             fontWeight: 600,
+                             transition: 'all 0.3s ease',
+                             transform: 'scale(1)',
+                             animation: isSubmitting ? 'none' : 'pulse 2s infinite',
+                             cursor: isSubmitting ? 'not-allowed' : 'pointer'
+                           }}
+                           disabled={isSubmitting}
+                           onClick={async () => {
+                             if (!user?.token) {
+                               setError('Authentication required. Please sign in again.');
+                               return;
+                             }
+                             
+                             try {
+                               setIsSubmitting(true);
+                               // Ensure all required fields are present from summary data
+                               const requiredData = {
+                                 about: summaryData.about || '',
+                                 experience: summaryData.experience || '',
+                                 skills: summaryData.skills || '',
+                                 hourlyRate: String(summaryData.hourlyRate || ''),
+                                 location: summaryData.location || '',
+                                 availability: summaryData.availability || { days: [], startTime: '09:00', endTime: '17:00' },
+                                 videoIntro: summaryData.videoIntro || '',
+                                 references: summaryData.references || ''
+                               };
+                               
+                               // Save the profile data to database
+                               const result = await saveWorkerProfileFromOnboardingAction(requiredData, user.token);
+                               if (result.success) {
+                                 // Navigate to worker dashboard
+                                 router.push(`/user/${user?.uid}/worker`);
+                               } else {
+                                 setError('Failed to save profile. Please try again.');
+                               }
+                             } catch (error) {
+                               console.error('Error saving profile:', error);
+                               setError('Failed to save profile. Please try again.');
+                             } finally {
+                               setIsSubmitting(false);
+                             }
+                           }}
+                           onMouseOver={(e) => {
+                             e.currentTarget.style.transform = 'scale(1.05)';
+                             e.currentTarget.style.background = 'var(--primary-darker-color)';
+                           }}
+                           onMouseOut={(e) => {
+                             e.currentTarget.style.transform = 'scale(1)';
+                             e.currentTarget.style.background = 'var(--primary-color)';
+                           }}
+                         >
+                           <style>{`
+                             @keyframes pulse {
+                               0% {
+                                 box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7);
+                               }
+                               70% {
+                                 box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
+                               }
+                               100% {
+                                 box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+                               }
+                             }
+                           `}</style>
+                           {isSubmitting ? 'Saving Profile...' : 'Confirm & Go to Dashboard'}
+                         </button>
+                      </div>
+                    }
+                    senderType="bot"
+                    role="GIG_WORKER"
+                  />
+                );
+              }
+            } catch (error) {
+              console.error('Failed to parse summary JSON:', error);
+            }
+          }
+          return (
+            <MessageBubble
+              key={key}
+              text={step.content as string}
+              senderType="bot"
+              isNew={step.isNew}
+              role="GIG_WORKER"
+            />
+          );
+        }
+        
+        if (step.type === "user") {
+          return (
+            <MessageBubble
+              key={key}
+              text={typeof step.content === 'object' && step.content !== null ? JSON.stringify(step.content) : String(step.content || '')}
+              senderType="user"
+              showAvatar={false}
+              isNew={step.isNew}
+              role="GIG_WORKER"
+            />
+          );
+        }
+        
+        if (step.type === "input") {
+          // Return null for completed inputs - they're handled by user messages now
+          return null;
+        }
+
+        if (step.type === "shareLink") {
+          return (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <ShareLinkBubble linkUrl={step.linkUrl} linkText={step.linkText} />
+            </div>
+          );
+        }
+
+        if (step.type === "calendar") {
+          return (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* AI Avatar - Separated */}
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                marginBottom: '0.5rem'
+              }}>
+                <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(135deg, var(--primary-color), var(--primary-darker-color))',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)'
+                  }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: '#000000',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255, 255, 255, 0.2)'
+                    }}>
+                      <Image 
+                        src="/images/ableai.png" 
+                        alt="Able AI" 
+                        width={24} 
+                        height={24} 
+                        style={{
+                          borderRadius: '50%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <CalendarPickerBubble
+                value={typeof formData.availability === 'string' && formData.availability ? new Date(formData.availability) : null}
+                onChange={date => handleInputChange('availability', date ? date.toISOString() : "")}
+              />
+              {!confirmedSteps.has(step.id) && (
+                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    style={{
+                      background: isConfirming ? '#555' : 'var(--primary-color)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 16px',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      cursor: isConfirming ? 'not-allowed' : 'pointer',
+                      transition: 'background-color 0.2s',
+                      opacity: isConfirming ? 0.7 : 1
+                    }}
+                    onClick={() => handlePickerConfirm(step.id, 'availability')}
+                    onMouseOver={(e) => {
+                      if (!isConfirming) {
+                        e.currentTarget.style.background = 'var(--primary-darker-color)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (!isConfirming) {
+                        e.currentTarget.style.background = 'var(--primary-color)';
+                      }
+                    }}
+                    disabled={isConfirming}
+                  >
+                    {isConfirming ? 'Confirming...' : 'Confirm Date'}
+                  </button>
+                </div>
+              )}
+              {confirmedSteps.has(step.id) && (
+                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{
+                    background: 'var(--primary-color)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>✓</span>
+                    Date Confirmed
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        if (step.type === "availability") {
+          const weekDays = [
+            { value: 'monday', label: 'Monday' },
+            { value: 'tuesday', label: 'Tuesday' },
+            { value: 'wednesday', label: 'Wednesday' },
+            { value: 'thursday', label: 'Thursday' },
+            { value: 'friday', label: 'Friday' },
+            { value: 'saturday', label: 'Saturday' },
+            { value: 'sunday', label: 'Sunday' }
+          ];
+
+          const currentAvailability = typeof formData.availability === 'object' ? formData.availability : {
+            days: [],
+            startTime: '09:00',
+            endTime: '17:00',
+            frequency: 'never',
+            ends: 'never'
+          };
+
+          const handleDayToggle = (day: string) => {
+            const newDays = currentAvailability.days.includes(day)
+              ? currentAvailability.days.filter(d => d !== day)
+              : [...currentAvailability.days, day];
+            
+            handleInputChange('availability', {
+              ...currentAvailability,
+              days: newDays
+            });
+          };
+
+          return (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* AI Avatar - Separated */}
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                marginBottom: '0.5rem'
+              }}>
+                <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(135deg, var(--primary-color), var(--primary-darker-color))',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)'
+                  }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: '#000000',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255, 255, 255, 0.2)'
+                    }}>
+                      <Image 
+                        src="/images/ableai.png" 
+                        alt="Able AI" 
+                        width={24} 
+                        height={24} 
+                        style={{
+                          borderRadius: '50%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                background: '#2F2F2F',
+                border: '2px solid #444444',
+                borderRadius: '12px',
+                padding: '20px',
+                color: '#ffffff'
+              }}>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600' }}>
+                  Set Your Weekly Availability
+                </h3>
+                
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+                    Available Days *
+                  </label>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', 
+                    gap: '8px' 
+                  }}>
+                    {weekDays.map((day) => (
+                      <button
+                        key={day.value}
+                        type="button"
+                        style={{
+                          padding: '8px 12px',
+                          border: `2px solid ${currentAvailability.days.includes(day.value) ? '#41a1e8' : '#444444'}`,
+                          borderRadius: '8px',
+                          background: currentAvailability.days.includes(day.value) ? '#41a1e8' : 'transparent',
+                          color: currentAvailability.days.includes(day.value) ? '#ffffff' : '#a0a0a0',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          fontSize: '14px',
+                          fontWeight: '500'
+                        }}
+                        onClick={() => handleDayToggle(day.value)}
+                        onMouseOver={(e) => {
+                          if (!currentAvailability.days.includes(day.value)) {
+                            e.currentTarget.style.borderColor = '#41a1e8';
+                            e.currentTarget.style.color = '#ffffff';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (!currentAvailability.days.includes(day.value)) {
+                            e.currentTarget.style.borderColor = '#444444';
+                            e.currentTarget.style.color = '#a0a0a0';
+                          }
+                        }}
+                      >
+                        {day.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+                    Available Hours *
+                  </label>
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: '16px', 
+                    alignItems: 'center',
+                    flexWrap: 'wrap'
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '12px', color: '#a0a0a0', fontWeight: '500' }}>From:</label>
+                      <input
+                        type="time"
+                        style={{
+                          padding: '8px 12px',
+                          border: '2px solid #444444',
+                          borderRadius: '8px',
+                          background: '#1A1A1A',
+                          color: '#ffffff',
+                          fontSize: '14px'
+                        }}
+                        value={currentAvailability.startTime}
+                        onChange={(e) => handleInputChange('availability', {
+                          ...currentAvailability,
+                          startTime: e.target.value
+                        })}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '12px', color: '#a0a0a0', fontWeight: '500' }}>To:</label>
+                      <input
+                        type="time"
+                        style={{
+                          padding: '8px 12px',
+                          border: '2px solid #444444',
+                          borderRadius: '8px',
+                          background: '#1A1A1A',
+                          color: '#ffffff',
+                          fontSize: '14px'
+                        }}
+                        value={currentAvailability.endTime}
+                        onChange={(e) => handleInputChange('availability', {
+                          ...currentAvailability,
+                          endTime: e.target.value
+                        })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recurring Options */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+                    Recurring Pattern
+                  </label>
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: '12px', 
+                    alignItems: 'center',
+                    flexWrap: 'wrap'
+                  }}>
+                    <select
+                      style={{
+                        padding: '8px 12px',
+                        border: '2px solid #444444',
+                        borderRadius: '8px',
+                        background: '#1A1A1A',
+                        color: '#ffffff',
+                        fontSize: '14px',
+                        minWidth: '120px'
+                      }}
+                      value={currentAvailability.frequency || 'never'}
+                      onChange={(e) => handleInputChange('availability', {
+                        ...currentAvailability,
+                        frequency: e.target.value
+                      })}
+                    >
+                      <option value="never">No repeat</option>
+                      <option value="weekly">Every week</option>
+                      <option value="biweekly">Every 2 weeks</option>
+                      <option value="monthly">Every month</option>
+                    </select>
+
+                    <select
+                      style={{
+                        padding: '8px 12px',
+                        border: '2px solid #444444',
+                        borderRadius: '8px',
+                        background: '#1A1A1A',
+                        color: '#ffffff',
+                        fontSize: '14px',
+                        minWidth: '120px'
+                      }}
+                      value={currentAvailability.ends || 'never'}
+                      onChange={(e) => handleInputChange('availability', {
+                        ...currentAvailability,
+                        ends: e.target.value,
+                        // Clear endDate and occurrences when changing ends type
+                        endDate: undefined,
+                        occurrences: undefined
+                      })}
+                    >
+                      <option value="never">Never ends</option>
+                      <option value="on_date">Until date</option>
+                      <option value="after_occurrences">After times</option>
+                    </select>
+
+                    {currentAvailability.ends === 'on_date' && (
+                      <input
+                        type="date"
+                        style={{
+                          padding: '8px 12px',
+                          border: '2px solid #444444',
+                          borderRadius: '8px',
+                          background: '#1A1A1A',
+                          color: '#ffffff',
+                          fontSize: '14px'
+                        }}
+                        value={currentAvailability.endDate || ''}
+                        min={new Date().toISOString().split('T')[0]}
+                        onChange={(e) => handleInputChange('availability', {
+                          ...currentAvailability,
+                          endDate: e.target.value
+                        })}
+                      />
+                    )}
+
+                    {currentAvailability.ends === 'after_occurrences' && (
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        placeholder="Times"
+                        style={{
+                          padding: '8px 12px',
+                          border: '2px solid #444444',
+                          borderRadius: '8px',
+                          background: '#1A1A1A',
+                          color: '#ffffff',
+                          fontSize: '14px',
+                          width: '80px'
+                        }}
+                        value={currentAvailability.occurrences || ''}
+                        onChange={(e) => handleInputChange('availability', {
+                          ...currentAvailability,
+                          occurrences: parseInt(e.target.value) || 1
+                        })}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ 
+                  background: '#1A1A1A', 
+                  padding: '12px', 
+                  borderRadius: '8px', 
+                  border: '1px solid #444444',
+                  fontSize: '14px',
+                  color: '#a0a0a0'
+                }}>
+                  <strong>Preview:</strong> {currentAvailability.days.length > 0 ?
+                    `${currentAvailability.days.map(day => weekDays.find(d => d.value === day)?.label).join(', ')} ${currentAvailability.startTime} - ${currentAvailability.endTime}` +
+                    (currentAvailability.frequency && currentAvailability.frequency !== 'never' ? 
+                      ` (${currentAvailability.frequency === 'weekly' ? 'Every week' : 
+                          currentAvailability.frequency === 'biweekly' ? 'Every 2 weeks' : 
+                          currentAvailability.frequency === 'monthly' ? 'Every month' : ''})` : '') +
+                    (currentAvailability.ends === 'on_date' && currentAvailability.endDate ? 
+                      ` until ${new Date(currentAvailability.endDate).toLocaleDateString()}` : '') +
+                    (currentAvailability.ends === 'after_occurrences' && currentAvailability.occurrences ? 
+                      ` (${currentAvailability.occurrences} times)` : '') :
+                    'Please select days and times'
+                  }
+                </div>
+              </div>
+
+              {!confirmedSteps.has(step.id) && (
+                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    style={{
+                      background: isConfirming ? '#555' : 'var(--primary-color)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 16px',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      cursor: isConfirming ? 'not-allowed' : 'pointer',
+                      transition: 'background-color 0.2s',
+                      opacity: isConfirming ? 0.7 : 1
+                    }}
+                    onClick={() => handlePickerConfirm(step.id, 'availability')}
+                    onMouseOver={(e) => {
+                      if (!isConfirming) {
+                        e.currentTarget.style.background = 'var(--primary-darker-color)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (!isConfirming) {
+                        e.currentTarget.style.background = 'var(--primary-color)';
+                      }
+                    }}
+                    disabled={isConfirming || currentAvailability.days.length === 0}
+                  >
+                    {isConfirming ? 'Confirming...' : 'Confirm Availability'}
+                  </button>
+                </div>
+              )}
+              {confirmedSteps.has(step.id) && (
+                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{
+                    background: 'var(--primary-color)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>✓</span>
+                    Availability Confirmed
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        if (step.type === "location") {
+          return (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* AI Avatar - Separated */}
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                marginBottom: '0.5rem'
+              }}>
+                <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(135deg, var(--primary-color), var(--primary-darker-color))',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)'
+                  }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: '#000000',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255, 255, 255, 0.2)'
+                    }}>
+                      <Image 
+                        src="/images/ableai.png" 
+                        alt="Able AI" 
+                        width={24} 
+                        height={24} 
+                        style={{
+                          borderRadius: '50%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <LocationPickerBubble
+                value={formData.location}
+                onChange={val => handleInputChange('location', val)}
+                showConfirm={false}
+                onConfirm={() => handlePickerConfirm(step.id, 'location')}
                 role="GIG_WORKER"
               />
             );

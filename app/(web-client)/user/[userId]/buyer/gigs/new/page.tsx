@@ -2809,74 +2809,71 @@ Make the conversation feel natural and build on what they've already told you, b
               <MessageBubble
                 key={key}
                 text={
-                  <div className={styles.gigSummaryContainer}>
-                    <h3 className={styles.gigSummaryTitle}>Gig Summary</h3>
-                    <ul className={styles.gigSummaryList}>
-                      {Object.entries(summaryData).map(([field, value]) => {
-                        if (field === "gigLocation" && typeof value === "string" && value.length > 40) {
-                          return (
-                            <li key={field} className={styles.gigSummaryListItem}>
-                              <strong className={styles.gigSummaryField}>
-                                {field.replace(/([A-Z])/g, " $1")}:{" "}
-                              </strong>
-                              <span
-                                className={`${styles.gigSummaryExpandable} ${expandedSummaryFields[field] ? styles.gigSummaryExpanded : ""
-                                  }`}
-                                title={
-                                  expandedSummaryFields[field]
-                                    ? "Click to collapse"
-                                    : "Click to expand"
-                                }
-                                onClick={() =>
-                                  setExpandedSummaryFields((prev) => ({
-                                    ...prev,
-                                    [field]: !prev[field],
-                                  }))
-                                }
-                              >
-                                {expandedSummaryFields[field]
-                                  ? value
-                                  : value.slice(0, 37) + "..."}
-                              </span>
-                            </li>
-                          );
-                        }
-                        return (
-                          <li key={field} className={styles.gigSummaryListItem}>
-                            <strong className={styles.gigSummaryField}>
-                              {field.replace(/([A-Z])/g, " $1")}:{" "}
-                            </strong>
-                            <span>
-                              {field === "hourlyRate" && typeof value === "number"
-                                ? `£${value.toFixed(2)}`
-                                : value && typeof value === "object" && "lat" in value && "lng" in value
-                                  ? (value as any).formatted_address ||
-                                  `Coordinates: ${(value as any).lat.toFixed(
-                                    6
-                                  )}, ${(value as any).lng.toFixed(6)}`
-                                  : field === "gigDate"
-                                    ? formatDateForDisplay(value)
-                                    : field === "gigTime"
-                                      ? formatTimeForDisplay(value)
-                                      : typeof value === "object"
-                                        ? JSON.stringify(value)
-                                        : String(value)}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    <button
-                      className={styles.gigSummaryButton}
-                      onClick={() => {
-                        if (!isSubmitting) {
-                          void handleFinalSubmit();
-                        }
-                      }}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? "Creating..." : "Confirm & Go to Dashboard"}
-                    </button>
+                  <div>
+                    <div style={{ marginBottom: 8, color: 'var(--secondary-color)', fontWeight: 600, fontSize: '14px' }}>This is what you wanted?</div>
+                    {typeof displayValue === 'string' ? (
+                      <div style={{ marginBottom: 16, fontStyle: 'italic', color: '#e5e5e5', fontSize: '15px', lineHeight: '1.4' }}>{displayValue}</div>
+                    ) : (
+                      displayValue
+                    )}
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <button
+                        style={{ 
+                          background: isCompleted ? '#555' : 'var(--secondary-color)', 
+                          color: isCompleted ? '#fff' : '#000', 
+                          border: 'none', 
+                          borderRadius: 8, 
+                          padding: '8px 16px', 
+                          fontWeight: 600, 
+                          fontSize: '14px', 
+                          cursor: isCompleted ? 'not-allowed' : 'pointer', 
+                          transition: 'background-color 0.2s',
+                          opacity: isCompleted ? 0.7 : 1
+                        }}
+                        onClick={isCompleted ? undefined : () => handleSanitizedConfirm(step.fieldName!, step.sanitizedValue!)}
+                        disabled={isCompleted}
+                        onMouseOver={(e) => {
+                          if (!isCompleted) {
+                            e.currentTarget.style.background = 'var(--secondary-darker-color)';
+                            e.currentTarget.style.color = '#000';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.background = isCompleted ? '#555' : 'var(--secondary-color)';
+                          e.currentTarget.style.color = isCompleted ? '#fff' : '#000';
+                        }}
+                      >
+                        {confirmClicked ? 'Confirmed' : 'Confirm'}
+                      </button>
+                      <button
+                        style={{ 
+                          background: isCompleted ? '#555' : 'transparent', 
+                          color: isCompleted ? '#999' : 'var(--secondary-color)', 
+                          border: '1px solid var(--secondary-color)', 
+                          borderRadius: 8, 
+                          padding: '8px 16px', 
+                          fontWeight: 600, 
+                          fontSize: '14px', 
+                          cursor: isCompleted ? 'not-allowed' : 'pointer', 
+                          transition: 'all 0.2s',
+                          opacity: isCompleted ? 0.7 : 1
+                        }}
+                        onClick={isCompleted ? undefined : () => handleSanitizedReformulate(step.fieldName!)}
+                        disabled={isCompleted}
+                        onMouseOver={(e) => { 
+                          if (!isCompleted) {
+                            e.currentTarget.style.background = 'var(--secondary-color)'; 
+                            e.currentTarget.style.color = '#fff'; 
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.background = 'transparent'; 
+                          e.currentTarget.style.color = 'var(--secondary-color)'; 
+                        }}
+                      >
+                     {reformulateClicked ? (step.fieldName === 'videoIntro' ? 'Re-shot' : 'Edited') : (isReformulatingThisField ? (step.fieldName === 'videoIntro' ? 'Re-shooting...' : 'Editing...') : (step.fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit message'))}
+                      </button>
+                    </div>
                   </div>
                 }
                 senderType="bot"
