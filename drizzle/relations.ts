@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { users, discountCodes, notificationPreferences, gigs, gigSkillsRequired, skills, passwordRecoveryRequests, chatMessages, gigWorkerProfiles, qualifications, equipment, payments, teamMembers, buyerProfiles, adminLogs, reviews, aiPrompts, userBadgesLink, badgeDefinitions, mockPayments, userAiUsage, escalatedIssues, recommendations } from "./schema";
+import { users, adminLogs, aiPrompts, buyerProfiles, gigs, chatMessages, gigWorkerProfiles, equipment, escalatedIssues, gigSkillsRequired, skills, mockPayments, notificationPreferences, passwordRecoveryRequests, payments, qualifications, recommendations, reviews, teamMembers, userAiUsage, userBadgesLink, badgeDefinitions } from "./schema";
 
 export const discountCodesRelations = relations(discountCodes, ({one}) => ({
 	user: one(users, {
@@ -19,14 +19,7 @@ export const usersRelations = relations(users, ({many}) => ({
 	payments_receiverUserId: many(payments, {
 		relationName: "payments_receiverUserId_users_id"
 	}),
-	teamMembers: many(teamMembers),
-	adminLogs: many(adminLogs),
-	gigs_buyerUserId: many(gigs, {
-		relationName: "gigs_buyerUserId_users_id"
-	}),
-	gigs_workerUserId: many(gigs, {
-		relationName: "gigs_workerUserId_users_id"
-	}),
+	recommendations: many(recommendations),
 	reviews_authorUserId: many(reviews, {
 		relationName: "reviews_authorUserId_users_id"
 	}),
@@ -189,6 +182,13 @@ export const buyerProfilesRelations = relations(buyerProfiles, ({one, many}) => 
 export const adminLogsRelations = relations(adminLogs, ({one}) => ({
 	user: one(users, {
 		fields: [adminLogs.adminUserId],
+		references: [users.id]
+	}),
+}));
+
+export const recommendationsRelations = relations(recommendations, ({one}) => ({
+	user: one(users, {
+		fields: [recommendations.workerUserId],
 		references: [users.id]
 	}),
 }));

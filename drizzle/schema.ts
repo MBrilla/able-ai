@@ -1,4 +1,4 @@
-import { pgTable, foreignKey, serial, uuid, varchar, jsonb, timestamp, unique, text, integer, boolean, numeric, uniqueIndex, index, date, vector, pgEnum } from "drizzle-orm/pg-core"
+import { pgTable, foreignKey, serial, uuid, varchar, jsonb, timestamp, unique, text, integer, boolean, numeric, uniqueIndex, index, date, vector } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -284,7 +284,6 @@ export const gigs = pgTable("gigs", {
 	finalAgreedPrice: numeric("final_agreed_price", { precision: 10, scale:  2 }),
 	adjustmentNotes: text("adjustment_notes"),
 	adjustedAt: timestamp("adjusted_at", { withTimezone: true, mode: 'string' }),
-	discountCodeId: integer("discount_code_id"),
 }, (table) => [
 	foreignKey({
 			columns: [table.buyerUserId],
@@ -448,6 +447,31 @@ export const recommendations = pgTable("recommendations", {
 	unique("recommendations_recommendation_code_key").on(table.recommendationCode),
 ]);
 
+export const recommendations = pgTable("recommendations", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	workerUserId: uuid("worker_user_id").notNull(),
+	recommendationCode: varchar("recommendation_code", { length: 50 }).notNull(),
+	recommendationText: text("recommendation_text").notNull(),
+	relationship: text().notNull(),
+	recommenderName: varchar("recommender_name", { length: 100 }).notNull(),
+	recommenderEmail: varchar("recommender_email", { length: 255 }).notNull(),
+	isVerified: boolean("is_verified").default(false).notNull(),
+	// TODO: failed to parse database type 'moderation_status_enum'
+	moderationStatus: text("moderation_status").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("recommendations_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
+	index("recommendations_recommendation_code_idx").using("btree", table.recommendationCode.asc().nullsLast().op("text_ops")),
+	index("recommendations_worker_user_id_idx").using("btree", table.workerUserId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.workerUserId],
+			foreignColumns: [users.id],
+			name: "recommendations_worker_user_id_users_id_fk"
+		}).onDelete("cascade"),
+	unique("recommendations_recommendation_code_key").on(table.recommendationCode),
+]);
+
 export const reviews = pgTable("reviews", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	gigId: uuid("gig_id"),
@@ -470,7 +494,6 @@ export const reviews = pgTable("reviews", {
 	relationship: text(),
 	recommenderName: text("recommender_name"),
 	recommenderEmail: text("recommender_email"),
-	skillId: uuid("skill_id"),
 }, (table) => [
 	uniqueIndex("author_target_gig_unique_idx").using("btree", table.authorUserId.asc().nullsLast().op("uuid_ops"), table.targetUserId.asc().nullsLast().op("uuid_ops"), table.gigId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
@@ -648,7 +671,7 @@ export const users = pgTable("users", {
 
 export const vectorEmbeddings = pgTable("vector_embeddings", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	entityType: vector("entity_type", { dimensions: 1536 }).notNull(),
+	entityType: text("entity_type").notNull(),
 	entityPostgresId: uuid("entity_postgres_id"),
 	entityFirestoreId: text("entity_firestore_id"),
 	embedding: vector({ dimensions: 1536 }).notNull(),

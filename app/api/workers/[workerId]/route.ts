@@ -5,10 +5,10 @@ import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { workerId: string } }
+  { params }: { params: Promise<{ workerId: string }> }
 ) {
   try {
-    const { workerId } = params;
+    const { workerId } = await params;
 
     if (!workerId) {
       return NextResponse.json(
@@ -45,7 +45,7 @@ export async function GET(
       limit: 1,
     });
 
-    const primarySkill = skills[0]?.skillName || 'Professional';
+    const primarySkill = skills[0]?.name || 'Professional';
 
     return NextResponse.json({
       success: true,
@@ -54,7 +54,6 @@ export async function GET(
         name: user.fullName || 'Unknown Worker',
         email: user.email,
         primarySkill,
-        profileHeadline: workerProfile?.profileHeadline,
         bio: workerProfile?.fullBio,
       }
     });

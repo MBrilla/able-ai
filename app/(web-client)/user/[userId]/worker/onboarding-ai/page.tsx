@@ -160,6 +160,7 @@ interface FormData {
   } | string;
   videoIntro?: string;
   references?: string;
+  jobTitle?: string; // Add job title field
   [key: string]: any;
 }
 
@@ -811,16 +812,15 @@ export default function OnboardWorkerPage() {
   // Worker profile ID for recommendation URL
   const [workerProfileId, setWorkerProfileId] = useState<string | null>(null);
 
-  // Create worker profile on component mount
+  // Create worker profile automatically when component mounts
   useEffect(() => {
-    const createWorkerProfile = async () => {
-      if (!user?.token) {
-        console.log('User not authenticated, skipping worker profile creation');
+    const createProfile = async () => {
+      if (!user?.token || workerProfileId) {
         return;
       }
 
       try {
-        console.log('Creating worker profile...');
+        console.log('Creating worker profile automatically...');
         const result = await createWorkerProfileAction(user.token);
         
         if (result.success && result.workerProfileId) {
@@ -833,9 +833,9 @@ export default function OnboardWorkerPage() {
         console.error('Error creating worker profile:', error);
       }
     };
-
-    createWorkerProfile();
-  }, [user?.token]);
+    
+    createProfile();
+  }, [user?.token, workerProfileId]);
 
   // Helper to get next required field not in formData - matching gig creation
   const getNextRequiredField = useCallback((formData: FormData) => {
@@ -885,7 +885,8 @@ export default function OnboardWorkerPage() {
           location: formData.location || '',
           availability: formData.availability || { days: [], startTime: '09:00', endTime: '17:00' },
           videoIntro: formData.videoIntro || '',
-          time: formData.time || ''
+          time: formData.time || '',
+          jobTitle: formData.jobTitle || ''
         };
       
       // Save the profile data to database
@@ -1241,7 +1242,13 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
                  if (nextField) {
            // Special handling: auto-generate references link instead of asking for input
            if (nextField.name === 'references') {
-             const recommendationLink = buildRecommendationLink(workerProfileId);
+            // Use existing worker profile ID
+            if (!workerProfileId) {
+              console.error('Worker profile not yet created');
+              return;
+            }
+            
+            const recommendationLink = buildRecommendationLink(workerProfileId);
              const afterRefFormData = { ...updatedFormData, references: recommendationLink };
              setFormData(afterRefFormData);
 
@@ -1607,7 +1614,13 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
       if (nextField) {
         // Special handling: auto-generate references link instead of asking for input
         if (nextField.name === 'references') {
-          const recommendationLink = buildRecommendationLink(workerProfileId);
+                  // Use existing worker profile ID
+        if (!workerProfileId) {
+          console.error('Worker profile not yet created');
+          return;
+        }
+        
+        const recommendationLink = buildRecommendationLink(workerProfileId);
           const afterRefFormData = { ...formData, [fieldName]: sanitized, references: recommendationLink };
           setFormData(afterRefFormData);
 
@@ -1824,8 +1837,14 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
     const nextField = getNextRequiredField({ ...formData, [inputName]: currentValue });
 
     if (nextField) {
-      // Special handling: auto-generate references link instead of asking for input
-      if (nextField.name === 'references') {
+              // Special handling: auto-generate references link instead of asking for input
+        if (nextField.name === 'references') {
+                  // Use existing worker profile ID
+        if (!workerProfileId) {
+          console.error('Worker profile not yet created');
+          return;
+        }
+        
         const recommendationLink = buildRecommendationLink(workerProfileId);
         const afterRefFormData = { ...formData, references: recommendationLink };
         setFormData(afterRefFormData);
@@ -2108,8 +2127,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
         // Mark the sanitized step as complete so it doesn't show buttons anymore
         const updatedSteps = prev.map(step => 
           step.type === "sanitized" && step.fieldName === reformulateField 
-            ? { ...step, isComplete: true }
-            : step
+            ? { ...step, isComplete: true } : step
         );
         
         // Add typing indicator
@@ -2424,7 +2442,8 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
                           location: step.summaryData?.location || '',
                           availability: step.summaryData?.availability || { days: [], startTime: '09:00', endTime: '17:00' },
                           videoIntro: step.summaryData?.videoIntro || '',
-                          references: step.summaryData?.references || ''
+                          references: step.summaryData?.references || '',
+                          jobTitle: step.summaryData?.jobTitle || ''
                         };
                         
                         // Save the profile data to database
@@ -2889,7 +2908,8 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
                                  location: summaryData.location || '',
                                  availability: summaryData.availability || { days: [], startTime: '09:00', endTime: '17:00' },
                                  videoIntro: summaryData.videoIntro || '',
-                                 references: summaryData.references || ''
+                                 references: summaryData.references || '',
+                                 jobTitle: summaryData.jobTitle || ''
                                };
                                
                                // Save the profile data to database
