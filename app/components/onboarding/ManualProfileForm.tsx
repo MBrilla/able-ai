@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { saveWorkerProfileFromOnboardingAction } from '@/actions/user/gig-worker-profile';
+import { saveWorkerProfileFromOnboardingAction, getPrivateWorkerProfileAction } from '@/actions/user/gig-worker-profile';
 import { useAuth } from '@/context/AuthContext';
 import styles from './ManualProfileForm.module.css';
 import LocationPickerBubble from './LocationPickerBubble';
-import VideoRecorderBubble from './VideoRecorderBubble';
+import VideoRecorderOnboarding from './VideoRecorderOnboarding';
 
 // Helper: generate a compact random code and build a recommendation URL
 function generateRandomCode(length = 8): string {
@@ -39,6 +39,7 @@ interface FormData {
   about: string;
   experience: string;
   skills: string;
+  equipment: string;
   hourlyRate: number;
   location: any; // Changed to any for LocationPickerBubble
   availability: {
@@ -64,10 +65,13 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
   workerProfileId = null
 }) => {
   const { user } = useAuth();
+ 
+  
   const [formData, setFormData] = useState<FormData>({
     about: '',
     experience: '',
     skills: '',
+    equipment: '',
     hourlyRate: 0,
     location: null,
     availability: {
@@ -76,10 +80,10 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       endTime: '17:00'
     },
     videoIntro: null,
-    references: buildRecommendationLink(workerProfileId),
+    references: workerProfileId ? buildRecommendationLink(workerProfileId) : '',
     ...initialData
   });
-
+  
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -94,11 +98,53 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     { value: 'sunday', label: 'Sunday' }
   ];
 
+  // Update references field when workerProfileId becomes available
+  useEffect(() => {
+    if (workerProfileId && !formData.references) {
+      setFormData(prev => ({
+        ...prev,
+        references: buildRecommendationLink(workerProfileId)
+      }));
+    }
+  }, [workerProfileId, formData.references]);
+
+  // Check if user already has a worker profile and build recommendation link if available
+  useEffect(() => {
+    const fetchExistingProfile = async () => {
+      if (user?.claims?.role === "GIG_WORKER" && user?.token && !formData.references) {
+        try {
+          const result = await getPrivateWorkerProfileAction(user.token);
+          if (result.success && result.data?.id) {
+            // User already has a worker profile, build the recommendation link
+            setFormData(prev => ({
+              ...prev,
+              references: buildRecommendationLink(result.data.id as string)
+            }));
+          }
+        } catch (error) {
+          console.error('Failed to fetch existing worker profile:', error);
+          // If we can't fetch the existing profile, set a placeholder
+          setFormData(prev => ({
+            ...prev,
+            references: "Recommendation link will be generated after profile creation"
+          }));
+        }
+      }
+    };
+
+    fetchExistingProfile();
+  }, [user?.claims?.role, user?.token, formData.references]);
+
   // Calculate progress based on filled fields
   useEffect(() => {
-    const requiredFields = ['about', 'experience', 'skills', 'hourlyRate', 'location', 'availability', 'videoIntro'];
+    const requiredFields = ['about', 'experience', 'skills', 'equipment', 'hourlyRate', 'location', 'availability', 'videoIntro'];
+ 
+    
     const filledFields = requiredFields.filter(field => {
       const value = formData[field as keyof FormData];
+      
+
+      
       if (field === 'location') {
         return value && typeof value === 'object' && 'lat' in value && 'lng' in value;
       }
@@ -110,19 +156,25 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       }
       return value && (typeof value === 'string' ? value.trim() !== '' : value > 0);
     });
+    
+
+    
     setProgress((filledFields.length / requiredFields.length) * 100);
   }, [formData]);
 
   const validateField = (name: keyof FormData, value: any): string => {
+
     switch (name) {
       case 'about':
         return value.trim().length < 10 ? 'Please provide at least 10 characters about yourself' : '';
       case 'experience':
-        return value.trim().length < 10 ? 'Please describe your experience (at least 10 characters)' : '';
+        return value.trim().length < 10 ? 'Please describe your years of experience (at least 10 characters)' : '';
       case 'skills':
         return value.trim().length < 5 ? 'Please list your skills (at least 5 characters)' : '';
+      case 'equipment':
+        return !value || value.trim().length < 5 ? 'Please list your equipment (at least 5 characters)' : '';
       case 'hourlyRate':
-        return !value || value < 5 ? 'Please enter a valid hourly rate (minimum £5)' : '';
+        return !value || value < 12.21 ? 'Please enter a valid hourly rate (minimum £12.21)' : '';
       case 'location':
         return !value || !value.lat || !value.lng ? 'Please select your location' : '';
       case 'availability':
@@ -135,7 +187,14 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
   };
 
   const handleInputChange = (name: keyof FormData, value: any) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    setFormData(prev => {
+      const newData = { ...prev, [name]: value };
+      
+
+      
+      return newData;
+    });
 
     // Clear error when user starts typing
     if (errors[name]) {
@@ -171,16 +230,23 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
-    Object.keys(formData).forEach(key => {
-      const fieldName = key as keyof FormData;
-      const value = formData[fieldName];
-      const error = validateField(fieldName, value);
+    // Check all required fields, not just the ones in formData
+    const requiredFields = ['about', 'experience', 'skills', 'equipment', 'hourlyRate', 'location', 'availability', 'videoIntro'];
+    
+    requiredFields.forEach(fieldName => {
+      const value = formData[fieldName as keyof FormData];
+      
+
+      
+      const error = validateField(fieldName as keyof FormData, value);
 
       if (error) {
         newErrors[fieldName] = error;
         isValid = false;
       }
     });
+
+
 
     setErrors(newErrors);
     return isValid;
@@ -205,6 +271,23 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       console.error('Form submission error:', error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Prevent implicit submit when pressing Enter in inputs
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== 'Enter') return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    const tagName = target.tagName?.toLowerCase();
+    const isTextarea = tagName === 'textarea';
+    const isButton = tagName === 'button';
+    const isSubmitButton = isButton && (target as HTMLButtonElement).type === 'submit';
+
+    // Block Enter unless it's inside a textarea (new line) or the explicit submit button
+    if (!isTextarea && !isSubmitButton) {
+      e.preventDefault();
     }
   };
 
@@ -240,7 +323,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className={styles.form}>
+      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className={styles.form}>
         {/* About Section */}
         <div className={styles.formSection}>
           <h3 className={styles.sectionTitle}>About You</h3>
@@ -261,31 +344,45 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
 
           <div className={styles.formGroup}>
             <label className={styles.label}>
-              Your Experience *
+              Years of Experience *
             </label>
             <textarea
               className={`${styles.textarea} ${errors.experience ? styles.error : ''}`}
               value={formData.experience}
               onChange={(e) => handleInputChange('experience', e.target.value)}
-              placeholder="Tell us about your experience in your field..."
+              placeholder="How many years of experience do you have in your field? (e.g., 5 years in construction, 3 years in plumbing...)"
               rows={3}
             />
             {errors.experience && <span className={styles.errorText}>{errors.experience}</span>}
           </div>
 
-          <div className={styles.formGroup}>
-            <label className={styles.label}>
-              Skills & Certifications *
-            </label>
-            <textarea
-              className={`${styles.textarea} ${errors.skills ? styles.error : ''}`}
-              value={formData.skills}
-              onChange={(e) => handleInputChange('skills', e.target.value)}
-              placeholder="List your skills, certifications, and qualifications..."
-              rows={3}
-            />
-            {errors.skills && <span className={styles.errorText}>{errors.skills}</span>}
-          </div>
+                     <div className={styles.formGroup}>
+             <label className={styles.label}>
+               Skills & Certifications *
+             </label>
+             <textarea
+               className={`${styles.textarea} ${errors.skills ? styles.error : ''}`}
+               value={formData.skills}
+               onChange={(e) => handleInputChange('skills', e.target.value)}
+               placeholder="List your skills, certifications, and qualifications..."
+               rows={3}
+             />
+             {errors.skills && <span className={styles.errorText}>{errors.skills}</span>}
+           </div>
+
+           <div className={styles.formGroup}>
+             <label className={styles.label}>
+               Equipment *
+             </label>
+             <textarea
+               className={`${styles.textarea} ${errors.equipment ? styles.error : ''}`}
+               value={formData.equipment}
+               onChange={(e) => handleInputChange('equipment', e.target.value)}
+               placeholder="List any equipment you have that you can use for your work..."
+               rows={3}
+             />
+             {errors.equipment && <span className={styles.errorText}>{errors.equipment}</span>}
+           </div>
         </div>
 
         {/* Pricing & Location Section */}
@@ -304,8 +401,8 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
                 value={formData.hourlyRate || ''}
                 onChange={(e) => handleInputChange('hourlyRate', parseFloat(e.target.value) || 0)}
                 placeholder="15"
-                min="5"
-                step="0.50"
+                min="12.21"
+                step="0.01"
               />
             </div>
             {errors.hourlyRate && <span className={styles.errorText}>{errors.hourlyRate}</span>}
@@ -397,7 +494,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
             <label className={styles.label}>
               Video Introduction *
             </label>
-            <VideoRecorderBubble
+            <VideoRecorderOnboarding
               onVideoRecorded={handleVideoRecorded}
               prompt="Record a 30-second introduction video to help clients get to know you"
             />

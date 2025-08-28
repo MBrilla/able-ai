@@ -267,7 +267,7 @@ export default function ChatStepRenderer({
               id={inputConf.name}
               name={inputConf.name}
               type="number"
-              min="0"
+              min="12.21"
               step="0.01"
               value={formData[inputConf.name] || ""}
               disabled={isSubmitting}
