@@ -5,6 +5,7 @@ import InputBubble from './InputBubble';
 import LocationPickerBubble from './LocationPickerBubble';
 import CalendarPickerBubble from './CalendarPickerBubble';
 import { ChatStep } from '@/app/hooks';
+import { StepInputConfig } from '@/app/types';
 import { VALIDATION_CONSTANTS } from '@/app/constants/validation';
 
 
@@ -140,27 +141,18 @@ export default function ChatStepRenderer({
   // Bot message
   if (step.type === "bot") {
     const content = step.content as string;
-    console.log('=== BOT MESSAGE DEBUG ===');
-    console.log('Bot message content:', content);
-    console.log('Content type:', typeof content);
-    console.log('Content length:', content?.length);
-    console.log('Contains "You need one reference per skill":', content && content.includes("You need one reference per skill"));
-    console.log('ReferenceMessageBubble component:', ReferenceMessageBubble);
-    console.log('MessageBubble component:', MessageBubble);
+
     
     // TEST: Log the exact string we're checking
     if (content && content.includes("You need one reference per skill")) {
-      console.log('✅ STRING MATCH FOUND!');
-      console.log('✅ Content contains the target string');
+
     } else {
 
     }
     
     // Check if this is a reference message - FORCE TEST
     if (content && content.includes("You need one reference per skill")) {
-      console.log('🎯 MATCH FOUND! Using ReferenceMessageBubble for reference message');
-      console.log('ReferenceMessageBubble component exists:', typeof ReferenceMessageBubble);
-      console.log('ReferenceMessageBubble component:', ReferenceMessageBubble);
+
       
       // Force use ReferenceMessageBubble for testing
       try {
@@ -262,7 +254,7 @@ export default function ChatStepRenderer({
               id={inputConf.name}
               name={inputConf.name}
               type="number"
-              min="12.21"
+              min={VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}
               step="0.01"
               value={formData[inputConf.name] || ""}
               disabled={isSubmitting}

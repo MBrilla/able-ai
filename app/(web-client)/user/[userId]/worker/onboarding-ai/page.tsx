@@ -119,6 +119,7 @@ import {
 } from "firebase/storage";
 import { firebaseApp } from "@/lib/firebase/clientApp";
 import { updateVideoUrlProfileAction, saveWorkerProfileFromOnboardingAction, createWorkerProfileAction } from "@/actions/user/gig-worker-profile";
+import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
 
 // Define required fields and their configs - matching gig creation pattern
 const requiredFields: RequiredField[] = [
@@ -3010,8 +3011,8 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                                setIsSubmitting(true);
                                // Validate hourly rate before saving
                                const hourlyRate = parseFloat(String(summaryData.hourlyRate || '0'));
-                               if (hourlyRate < 12.21) {
-                                 setError('Hourly rate must be at least £12.21. Please update your rate and try again.');
+                               if (hourlyRate < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE) {
+                                 setError(`Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}. Please update your rate and try again.`);
                                  setIsSubmitting(false);
                                  return;
                                }
