@@ -262,7 +262,7 @@ export default function ChatStepRenderer({
               id={inputConf.name}
               name={inputConf.name}
               type="number"
-              min={VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}
+              min="12.21"
               step="0.01"
               value={formData[inputConf.name] || ""}
               disabled={isSubmitting}

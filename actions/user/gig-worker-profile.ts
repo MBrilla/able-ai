@@ -266,6 +266,12 @@ export const createSkillWorker = async (
     const { uid } = await isUserAuthenticated(token);
     if (!uid) throw new Error("Unauthorized");
 
+    // Validate hourly rate minimum
+    const hourlyRate = parseFloat(String(agreedRate));
+    if (hourlyRate < 12.21) {
+      throw new Error("Hourly rate must be at least £12.21");
+    }
+
     const user = await db.query.UsersTable.findFirst({
       where: eq(UsersTable.firebaseUid, uid),
     });
@@ -501,12 +507,28 @@ export const saveWorkerProfileFromOnboardingAction = async (
     } | string;
     videoIntro: File | string;
     jobTitle?: string; // Add job title field
+    equipment?: { name: string; description?: string }[]; // Add equipment field
   },
   token: string
 ) => {
   try {
+    // Debug: Log the incoming profile data
+    console.log('🔍 Server Action - saveWorkerProfileFromOnboardingAction called with:');
+    console.log('  - Full profileData:', profileData);
+    console.log('  - Equipment field:', profileData.equipment);
+    console.log('  - Equipment type:', typeof profileData.equipment);
+    console.log('  - Equipment is array:', Array.isArray(profileData.equipment));
+    console.log('  - Equipment length:', profileData.equipment?.length);
+    console.log('  - Equipment content:', profileData.equipment);
+    
     if (!token) {
       throw new Error("Token is required");
+    }
+
+    // Validate hourly rate minimum
+    const hourlyRate = parseFloat(profileData.hourlyRate || '0');
+    if (hourlyRate < 12.21) {
+      throw new Error("Hourly rate must be at least £12.21");
     }
 
     const { uid } = await isUserAuthenticated(token);
@@ -601,6 +623,50 @@ export const saveWorkerProfileFromOnboardingAction = async (
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+    }
+
+    // Debug: Log the equipment data received
+    console.log('🔍 Server Action - Equipment processing:');
+    console.log('  - Equipment data received:', profileData.equipment);
+    console.log('  - Equipment exists:', !!profileData.equipment);
+    console.log('  - Equipment is array:', Array.isArray(profileData.equipment));
+    console.log('  - Equipment length:', profileData.equipment?.length);
+    console.log('  - Equipment > 0 check:', profileData.equipment && profileData.equipment.length > 0);
+    
+    // Save equipment data if provided
+    if (profileData.equipment && profileData.equipment.length > 0) {
+      console.log('✅ Server Action - Saving equipment data:', profileData.equipment);
+      console.log('  - Worker profile ID:', workerProfileId);
+      
+      try {
+        // Delete existing equipment for this worker
+        console.log('  - Deleting existing equipment...');
+        await db
+          .delete(EquipmentTable)
+          .where(eq(EquipmentTable.workerProfileId, workerProfileId));
+        console.log('  - Existing equipment deleted successfully');
+
+        // Insert new equipment
+        console.log('  - Inserting new equipment...');
+        const insertResult = await db.insert(EquipmentTable).values(
+          profileData.equipment.map(equipment => ({
+            workerProfileId: workerProfileId,
+            name: equipment.name,
+            description: equipment.description || null,
+            isVerifiedByAdmin: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }))
+        );
+        console.log('✅ Server Action - Equipment data saved successfully:', insertResult);
+      } catch (dbError) {
+        console.error('❌ Server Action - Error saving equipment:', dbError);
+        throw dbError;
+      }
+    } else {
+      console.log('❌ Server Action - No equipment data to save or empty array');
+      console.log('  - Equipment value:', profileData.equipment);
+      console.log('  - Equipment length:', profileData.equipment?.length);
     }
 
     // Update user table to mark as gig worker
