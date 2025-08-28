@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveWorkerProfileFromOnboardingAction, getPrivateWorkerProfileAction } from '@/actions/user/gig-worker-profile';
 import { useAuth } from '@/context/AuthContext';
+import { VALIDATION_CONSTANTS } from '@/app/constants/validation';
 import styles from './ManualProfileForm.module.css';
 import LocationPickerBubble from './LocationPickerBubble';
 import VideoRecorderOnboarding from './VideoRecorderOnboarding';
@@ -166,15 +167,15 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
 
     switch (name) {
       case 'about':
-        return value.trim().length < 10 ? 'Please provide at least 10 characters about yourself' : '';
+        return value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_ABOUT_LENGTH ? `Please provide at least ${VALIDATION_CONSTANTS.WORKER.MIN_ABOUT_LENGTH} characters about yourself` : '';
       case 'experience':
-        return value.trim().length < 10 ? 'Please describe your years of experience (at least 10 characters)' : '';
+        return value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH ? `Please describe your years of experience (at least ${VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH} characters)` : '';
       case 'skills':
-        return value.trim().length < 5 ? 'Please list your skills (at least 5 characters)' : '';
+        return value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH ? `Please list your skills (at least ${VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH} characters)` : '';
       case 'equipment':
-        return !value || value.trim().length < 5 ? 'Please list your equipment (at least 5 characters)' : '';
+        return !value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH ? `Please list your equipment (at least ${VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH} characters)` : '';
       case 'hourlyRate':
-        return !value || value < 12.21 ? 'Please enter a valid hourly rate (minimum £12.21)' : '';
+        return !value || value < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE ? `Please enter a valid hourly rate (minimum £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE})` : '';
       case 'location':
         return !value || !value.lat || !value.lng ? 'Please select your location' : '';
       case 'availability':
@@ -401,7 +402,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
                 value={formData.hourlyRate || ''}
                 onChange={(e) => handleInputChange('hourlyRate', parseFloat(e.target.value) || 0)}
                 placeholder="15"
-                min="12.21"
+                min={VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}
                 step="0.01"
               />
             </div>

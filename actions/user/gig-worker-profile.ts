@@ -19,6 +19,7 @@ import {
 import { ERROR_CODES } from "@/lib/responses/errors";
 import { isUserAuthenticated } from "@/lib/user.server";
 import { and, eq, sql } from "drizzle-orm";
+import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
 
 export const getPublicWorkerProfileAction = async (workerId: string) => {
   if (!workerId) throw "Worker ID is required";
@@ -120,7 +121,7 @@ export const getGigWorkerProfile = async (
 
     return { success: true, data };
   } catch (error) {
-    console.error("Error fetching buyer profile:", error);
+    
     throw error;
   }
 };
@@ -253,7 +254,7 @@ export const getSkillDetailsWorker = async (id: string) => {
 
     return { success: true, data: skillProfile };
   } catch (error) {
-    console.error(`Error fetching skill: ${error}`);
+
     return { success: false, data: null, error };
   }
 };
@@ -283,8 +284,8 @@ export const createSkillWorker = async (
 
     // Validate hourly rate minimum
     const hourlyRate = parseFloat(String(agreedRate));
-    if (hourlyRate < 12.21) {
-      throw new Error("Hourly rate must be at least £12.21");
+    if (hourlyRate < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE) {
+      throw new Error(`Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}`);
     }
 
     const user = await db.query.UsersTable.findFirst({
@@ -322,7 +323,7 @@ export const createSkillWorker = async (
 
     return { success: true, data: newSkill };
   } catch (error) {
-    console.error("Error creating skill:", error);
+
     return { success: false, data: null, error };
   }
 };
@@ -355,7 +356,7 @@ export const updateVideoUrlProfileAction = async (
 
     return { success: true, data: "Url video updated successfully" };
   } catch (error) {
-    console.log("Error saving video url", error);
+
     return { success: false, data: "Url video updated successfully", error };
   }
 };
@@ -388,7 +389,7 @@ export const updateProfileImageAction = async (
 
     return { success: true, data: updatedImages };
   } catch (error) {
-    console.error("Error adding profile image:", error);
+
     return { success: false, data: null, error };
   }
 };
@@ -423,23 +424,22 @@ export const deleteImageAction = async (
 
     return { success: true, data: updatedImages };
   } catch (error) {
-    console.error("Error deleting image:", error);
+
     return { success: false, data: null, error };
   }
 };
 
 export const createWorkerProfileAction = async (token: string) => {
   try {
-    console.log("🔍 createWorkerProfileAction: Starting...");
-    console.log("🔍 Token received:", token ? "Yes" : "No");
+
     
     // Test database connection
-    console.log("🔍 Testing database connection...");
+
     try {
       const testQuery = await db.execute(sql`SELECT 1 as test`);
-      console.log("🔍 Database connection test successful:", testQuery);
+
     } catch (dbError) {
-      console.error("❌ Database connection test failed:", dbError);
+
       throw new Error(`Database connection failed: ${dbError}`);
     }
     
@@ -448,42 +448,42 @@ export const createWorkerProfileAction = async (token: string) => {
     }
 
     const { uid } = await isUserAuthenticated(token);
-    console.log("🔍 Firebase UID:", uid);
+ 
     if (!uid) throw ERROR_CODES.UNAUTHORIZED;
 
-    console.log("🔍 Querying UsersTable...");
+
     const user = await db.query.UsersTable.findFirst({
       where: eq(UsersTable.firebaseUid, uid),
     });
-    console.log("🔍 User found:", user ? "Yes" : "No", user?.id);
+
 
     if (!user) throw "User not found";
 
     // Check if worker profile already exists
-    console.log("🔍 Checking for existing worker profile...");
+
     const existingWorkerProfile = await db.query.GigWorkerProfilesTable.findFirst({
       where: eq(GigWorkerProfilesTable.userId, user.id),
     });
-    console.log("🔍 Existing profile:", existingWorkerProfile ? "Yes" : "No");
+
 
     if (existingWorkerProfile) {
-      console.log("🔍 Returning existing profile ID:", existingWorkerProfile.id);
+
       return { success: true, data: "Worker profile already exists", workerProfileId: existingWorkerProfile.id };
     }
 
     // Create new worker profile
-    console.log("🔍 Creating new worker profile...");
+
     const newProfile = await db.insert(GigWorkerProfilesTable).values({
       userId: user.id,
       createdAt: new Date(),
       updatedAt: new Date(),
     }).returning();
-    console.log("🔍 New profile created:", newProfile[0].id);
+    
 
     const workerProfileId = newProfile[0].id;
 
     // Update user table to mark as gig worker
-    console.log("🔍 Updating user table...");
+ 
     await db
       .update(UsersTable)
       .set({
@@ -492,13 +492,11 @@ export const createWorkerProfileAction = async (token: string) => {
         updatedAt: new Date(),
       })
       .where(eq(UsersTable.id, user.id));
-    console.log("🔍 User table updated successfully");
 
-    console.log("🔍 Worker profile creation completed successfully");
+
     return { success: true, data: "Worker profile created successfully", workerProfileId };
   } catch (error) {
-    console.error("❌ Error creating worker profile:", error);
-    console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack trace");
+
     return { success: false, data: null, error: error instanceof Error ? error.message : "Unknown error" };
   }
 };
@@ -529,14 +527,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
   token: string,
 ) => {
   try {
-    // Debug: Log the incoming profile data
-    console.log('🔍 Server Action - saveWorkerProfileFromOnboardingAction called with:');
-    console.log('  - Full profileData:', profileData);
-    console.log('  - Equipment field:', profileData.equipment);
-    console.log('  - Equipment type:', typeof profileData.equipment);
-    console.log('  - Equipment is array:', Array.isArray(profileData.equipment));
-    console.log('  - Equipment length:', profileData.equipment?.length);
-    console.log('  - Equipment content:', profileData.equipment);
+
     
     if (!token) {
       throw new Error("Token is required");
@@ -544,8 +535,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
 
     // Validate hourly rate minimum
     const hourlyRate = parseFloat(profileData.hourlyRate || '0');
-    if (hourlyRate < 12.21) {
-      throw new Error("Hourly rate must be at least £12.21");
+    if (hourlyRate < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE) {
+      throw new Error(`Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}`);
     }
 
     const { uid } = await isUserAuthenticated(token);
@@ -670,47 +661,42 @@ export const saveWorkerProfileFromOnboardingAction = async (
     }
 
     // Debug: Log the equipment data received
-    console.log('🔍 Server Action - Equipment processing:');
-    console.log('  - Equipment data received:', profileData.equipment);
-    console.log('  - Equipment exists:', !!profileData.equipment);
-    console.log('  - Equipment is array:', Array.isArray(profileData.equipment));
-    console.log('  - Equipment length:', profileData.equipment?.length);
-    console.log('  - Equipment > 0 check:', profileData.equipment && profileData.equipment.length > 0);
+
     
     // Save equipment data if provided
     if (profileData.equipment && profileData.equipment.length > 0) {
-      console.log('✅ Server Action - Saving equipment data:', profileData.equipment);
-      console.log('  - Worker profile ID:', workerProfileId);
+
       
       try {
-        // Delete existing equipment for this worker
-        console.log('  - Deleting existing equipment...');
-        await db
-          .delete(EquipmentTable)
-          .where(eq(EquipmentTable.workerProfileId, workerProfileId));
-        console.log('  - Existing equipment deleted successfully');
+        // Wrap delete and insert operations in a transaction for data integrity
+        await db.transaction(async (tx) => {
+          // Delete existing equipment for this worker
 
-        // Insert new equipment
-        console.log('  - Inserting new equipment...');
-        const insertResult = await db.insert(EquipmentTable).values(
-          profileData.equipment.map(equipment => ({
-            workerProfileId: workerProfileId,
-            name: equipment.name,
-            description: equipment.description || null,
-            isVerifiedByAdmin: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }))
-        );
-        console.log('✅ Server Action - Equipment data saved successfully:', insertResult);
+          await tx
+            .delete(EquipmentTable)
+            .where(eq(EquipmentTable.workerProfileId, workerProfileId));
+          
+
+          // Insert new equipment
+
+          const insertResult = await tx.insert(EquipmentTable).values(
+            (profileData.equipment as NonNullable<typeof profileData.equipment>).map(equipment => ({
+              workerProfileId: workerProfileId,
+              name: equipment.name,
+              description: equipment.description || null,
+              isVerifiedByAdmin: false,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }))
+          );
+          
+        });
       } catch (dbError) {
-        console.error('❌ Server Action - Error saving equipment:', dbError);
+
         throw dbError;
       }
     } else {
-      console.log('❌ Server Action - No equipment data to save or empty array');
-      console.log('  - Equipment value:', profileData.equipment);
-      console.log('  - Equipment length:', profileData.equipment?.length);
+
     }
 
     // Update user table to mark as gig worker
@@ -725,7 +711,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
 
     return { success: true, data: "Worker profile saved successfully", workerProfileId };
   } catch (error) {
-    console.error("Error saving worker profile:", error);
+
     return {
       success: false,
       data: null,
