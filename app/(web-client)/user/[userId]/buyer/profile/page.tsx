@@ -67,7 +67,7 @@ interface DashboardData {
   averageRating: number;
   responseRateInternal: number;
   completedHires: number;
-  typesOfStaffHired: string[];
+  skills: string[];
   pieChartData?: Array<{ name: string; value: number; fill: string }>;
   barChartData?: Array<{ name: string; hires: number; spend?: number }>;
   badgesEarnedByTheirWorkers: Badge[];
@@ -103,7 +103,6 @@ export default function BuyerProfilePage() {
 
   const fetchUserProfile = async () => {
     const { success, profile } = await getGigBuyerProfileAction(user?.token);
-    console.log("profile data:", profile);
 
     if (success && profile) {
       const updatedBadges = (profile.badges ?? []).map((badge: any) => ({
@@ -243,10 +242,15 @@ export default function BuyerProfilePage() {
                       alignItems: "center",
                     }}
                   >
-                    <h3>Please, introduce yourself</h3>
+                    <h5>
+                      Please, <br />
+                      introduce yourself
+                    </h5>
                     <VideoRecorderBubble
                       key={1}
                       onVideoRecorded={handleVideoUpload}
+                      isInline={false}
+                      setIsEditingVideo={setIsEditingVideo}
                     />
                   </div>
                 ) : (
@@ -269,9 +273,9 @@ export default function BuyerProfilePage() {
                     style={{ display: "inline-block", textDecoration: "none" }}
                   >
                     <video
-                      width="180"
-                      height="180"
-                      style={{ borderRadius: "8px", objectFit: "cover" }}
+                      width="130"
+                      height="auto"
+                      style={{ borderRadius: "8px" }}
                       preload="metadata"
                       muted
                       poster="/video-placeholder.jpg"
@@ -284,7 +288,7 @@ export default function BuyerProfilePage() {
                   </Link>
 
                   {isSelfView && (
-                    <div style={{ marginTop: "8px" }}>
+                    <div>
                       <button
                         onClick={() => setIsEditingVideo(true)}
                         style={{
@@ -302,13 +306,14 @@ export default function BuyerProfilePage() {
                   )}
 
                   {isEditingVideo && (
-                    <div style={{ marginTop: "12px" }}>
+                    <div>
                       <VideoRecorderBubble
                         key={2}
                         onVideoRecorded={(video) => {
                           handleVideoUpload(video);
                           setIsEditingVideo(false);
                         }}
+                        setIsEditingVideo={setIsEditingVideo}
                       />
                     </div>
                   )}
@@ -336,17 +341,15 @@ export default function BuyerProfilePage() {
         <section className={styles.section}>
           <ContentCard title="Statistics" className={styles.statisticsCard}>
             <div className={styles.statisticsItemsContainer}>
-              {dashboardData?.responseRateInternal && (
-                <StatisticItemDisplay
-                  stat={{
-                    id: 1,
-                    icon: ThumbsUp,
-                    value: dashboardData.responseRateInternal,
-                    label: "Would work with Benji again",
-                    iconColor: "#0070f3",
-                  }}
-                />
-              )}
+              <StatisticItemDisplay
+                stat={{
+                  id: 1,
+                  icon: ThumbsUp,
+                  value: dashboardData?.responseRateInternal || 0,
+                  label: "Would work with Benji again",
+                  iconColor: "#0070f3",
+                }}
+              />
               {dashboardData?.averageRating && (
                 <StatisticItemDisplay
                   stat={{
@@ -375,7 +378,7 @@ export default function BuyerProfilePage() {
               Types of Staff Hired:
             </span>
             <ul>
-              {dashboardData?.typesOfStaffHired?.map((type) => (
+              {dashboardData?.skills?.map((type) => (
                 <li key={type}>{type}</li>
               ))}
             </ul>
