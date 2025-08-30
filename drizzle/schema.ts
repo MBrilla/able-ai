@@ -1,4 +1,4 @@
-import { pgTable, foreignKey, serial, uuid, varchar, jsonb, timestamp, unique, text, integer, boolean, numeric, uniqueIndex, index, date, vector } from "drizzle-orm/pg-core"
+import { pgTable, foreignKey, serial, uuid, varchar, jsonb, timestamp, unique, text, integer, boolean, numeric, uniqueIndex, index, date, vector, pgEnum } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -284,6 +284,7 @@ export const gigs = pgTable("gigs", {
 	finalAgreedPrice: numeric("final_agreed_price", { precision: 10, scale:  2 }),
 	adjustmentNotes: text("adjustment_notes"),
 	adjustedAt: timestamp("adjusted_at", { withTimezone: true, mode: 'string' }),
+	discountCodeId: integer("discount_code_id"),
 }, (table) => [
 	foreignKey({
 			columns: [table.buyerUserId],
@@ -494,6 +495,7 @@ export const reviews = pgTable("reviews", {
 	relationship: text(),
 	recommenderName: text("recommender_name"),
 	recommenderEmail: text("recommender_email"),
+	skillId: uuid("skill_id"),
 }, (table) => [
 	uniqueIndex("author_target_gig_unique_idx").using("btree", table.authorUserId.asc().nullsLast().op("uuid_ops"), table.targetUserId.asc().nullsLast().op("uuid_ops"), table.gigId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
@@ -671,7 +673,7 @@ export const users = pgTable("users", {
 
 export const vectorEmbeddings = pgTable("vector_embeddings", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	entityType: text("entity_type").notNull(),
+	entityType: vector("entity_type", { dimensions: 1536 }).notNull(),
 	entityPostgresId: uuid("entity_postgres_id"),
 	entityFirestoreId: text("entity_firestore_id"),
 	embedding: vector({ dimensions: 1536 }).notNull(),

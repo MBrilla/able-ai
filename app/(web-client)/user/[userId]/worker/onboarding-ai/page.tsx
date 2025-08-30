@@ -908,9 +908,14 @@ export default function OnboardWorkerPage() {
           jobTitle: formData.jobTitle || ''
         };
       
-      // Save the profile data to database
+      // Save the profile data to database - THIRD OCCURRENCE
       const result = await saveWorkerProfileFromOnboardingAction(requiredData, user.token);
       if (result.success) {
+        // Set the worker profile ID for references link generation
+        if (result.workerProfileId) {
+          setWorkerProfileId(result.workerProfileId);
+        }
+        
         // Navigate to worker dashboard
         router.push(`/user/${user?.uid}/worker`);
       } else {
@@ -1481,29 +1486,47 @@ Share this link to get your reference\n\nSend this link to get your reference: $
           ]);
         }
       } else {
-              // Check if this is an experience-related field that should trigger job title interpretation
-      if (inputName === 'experience' || inputName === 'about') {
-        // Try to interpret job title from user input
-        const jobTitleResult = await interpretJobTitle(valueToUse, ai);
-        
-        if (jobTitleResult && jobTitleResult.confidence >= 50) {
-          // Show job title confirmation step
-          setChatSteps((prev) => [
-            ...prev,
-            { 
-              id: Date.now() + 3, 
-              type: "jobTitleConfirmation",
-              fieldName: inputName,
-              originalValue: valueToUse,
-              suggestedJobTitle: jobTitleResult.jobTitle,
-              confidence: jobTitleResult.confidence,
-              matchedTerms: jobTitleResult.matchedTerms,
-              isAISuggested: jobTitleResult.isAISuggested,
-              isNew: true,
-            },
-          ]);
+        // Check if this is the about field that should trigger job title interpretation
+        // Only trigger job title interpretation if job title hasn't been collected yet
+        if (inputName === 'about' && !formData.jobTitle) {
+          // Try to interpret job title from user input
+          const jobTitleResult = await interpretJobTitle(valueToUse, ai);
+          
+          if (jobTitleResult && jobTitleResult.confidence >= 50) {
+            // Show job title confirmation step
+            setChatSteps((prev) => [
+              ...prev,
+              { 
+                id: Date.now() + 3, 
+                type: "jobTitleConfirmation",
+                fieldName: inputName,
+                originalValue: valueToUse,
+                suggestedJobTitle: jobTitleResult.jobTitle,
+                confidence: jobTitleResult.confidence,
+                matchedTerms: jobTitleResult.matchedTerms,
+                isAISuggested: jobTitleResult.isAISuggested,
+                isNew: true,
+              },
+            ]);
+          } else {
+            // Show regular sanitized confirmation step
+            setChatSteps((prev) => [
+              ...prev,
+              { 
+                id: Date.now() + 3, 
+                type: "sanitized",
+                fieldName: inputName,
+                sanitizedValue: aiResult.sanitized!,
+                originalValue: valueToUse,
+                naturalSummary: aiResult.naturalSummary,
+                extractedData: aiResult.extractedData,
+                isNew: true,
+              },
+            ]);
+          }
         } else {
-          // Show regular sanitized confirmation step
+          // Show sanitized confirmation step for regular inputs (not reformulations)
+          // This includes cases where job title is already collected for experience/about fields
           setChatSteps((prev) => [
             ...prev,
             { 
@@ -1518,22 +1541,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
             },
           ]);
         }
-      } else {
-        // Show sanitized confirmation step for regular inputs (not reformulations)
-        setChatSteps((prev) => [
-          ...prev,
-          { 
-            id: Date.now() + 3, 
-            type: "sanitized",
-            fieldName: inputName,
-            sanitizedValue: aiResult.sanitized!,
-            originalValue: valueToUse,
-            naturalSummary: aiResult.naturalSummary,
-            extractedData: aiResult.extractedData,
-            isNew: true,
-          },
-        ]);
-      }
       }
     } catch (error) {
       console.error("Error processing input:", error);
@@ -1550,8 +1557,9 @@ Share this link to get your reference\n\nSend this link to get your reference: $
   // Handle job title confirmation
   const handleJobTitleConfirm = useCallback(async (fieldName: string, suggestedJobTitle: string, originalValue: string) => {
     try {
-      // Update formData with the standardized job title
-      const updatedFormData = { ...formData, [fieldName]: suggestedJobTitle };
+      // Update formData with the standardized job title only
+      // Clear the original field value since it's being replaced by the standardized job title
+      const updatedFormData = { ...formData, jobTitle: suggestedJobTitle, [fieldName]: undefined };
       setFormData(updatedFormData);
       
       // Mark job title confirmation step as complete (like sanitization)
@@ -1619,7 +1627,8 @@ Share this link to get your reference\n\nSend this link to get your reference: $
   // Handle job title rejection
   const handleJobTitleReject = useCallback(async (fieldName: string, originalValue: string) => {
     try {
-      // Keep the original value
+      // Keep the original value in the original field
+      // Don't update the jobTitle field since user rejected the suggestion
       const updatedFormData = { ...formData, [fieldName]: originalValue };
       setFormData(updatedFormData);
       
@@ -1697,6 +1706,8 @@ Share this link to get your reference\n\nSend this link to get your reference: $
       
       // Update formData first
       const updatedFormData = { ...formData, [fieldName]: sanitized };
+      console.log(`🔍 [handleSanitizedConfirm] Storing ${fieldName}:`, sanitized);
+      console.log(`🔍 [handleSanitizedConfirm] Updated formData:`, updatedFormData);
       setFormData(updatedFormData);
       
       // Mark sanitized step as complete
@@ -1717,7 +1728,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
         }
         
         const recommendationLink = buildRecommendationLink(workerProfileId);
-          const afterRefFormData = { ...formData, [fieldName]: sanitized, references: recommendationLink };
+          const afterRefFormData = { ...updatedFormData, references: recommendationLink };
           setFormData(afterRefFormData);
 
           // Add combined reference message with embedded link and gigfolio info
@@ -1913,8 +1924,19 @@ Share this link to get your reference\n\nSend this link to get your reference: $
 
   const handleSanitizedReformulate = (fieldName: string) => {
     if (isReformulating) return; // Prevent multiple clicks
-    setReformulateField(fieldName);
-    setClickedSanitizedButtons(prev => new Set([...prev, `${fieldName}-reformulate`]));
+    
+    console.log('Starting reformulate for field:', fieldName);
+    
+    // Clear any existing reformulate state to prevent conflicts
+    setIsReformulating(false);
+    setReformulateField(null);
+    
+    // Small delay to ensure state is cleared before setting new state
+    setTimeout(() => {
+      console.log('Setting reformulate field:', fieldName);
+      setReformulateField(fieldName);
+      setClickedSanitizedButtons(prev => new Set([...prev, `${fieldName}-reformulate`]));
+    }, 100);
   };
 
   const handlePickerConfirm = useCallback(async (stepId: number, inputName: string) => {
@@ -2171,6 +2193,75 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                 isNew: true,
               }
             ]);
+
+                        // If this was a reformulation, continue to the next field after a short delay
+            if (reformulateField === name) {
+              console.log('Video upload was a reformulation, proceeding to next field...');
+              setTimeout(async () => {
+                // Double-check that we're still in reformulate state before proceeding
+                if (reformulateField === name && isReformulating) {
+                  console.log('Reformulate state confirmed, continuing to next field...');
+                  // Clear reformulating state
+                  setIsReformulating(false);
+                  setReformulateField(null);
+                  
+                  // Find next required field
+                  const nextField = getNextRequiredField(formData);
+                  
+                  if (nextField) {
+                    // Continue with next field
+                    const contextAwarePrompt = await generateContextAwarePrompt(nextField.name, nextField.defaultPrompt, ai);
+                    const newInputConfig = {
+                      type: nextField.type,
+                      name: nextField.name,
+                      placeholder: nextField.placeholder,
+                      ...(nextField.rows && { rows: nextField.rows }),
+                    };
+                    
+                    // Determine the step type based on the field
+                    let stepType: "input" | "calendar" | "location" | "video" | "availability" = "input";
+                    if (nextField.name === "availability") {
+                      stepType = "availability";
+                    } else if (nextField.name === "location") {
+                      stepType = "location";
+                    } else if (nextField.name === "videoIntro") {
+                      stepType = "video";
+                    }
+                    
+                    setChatSteps((prev) => [
+                      ...prev,
+                      {
+                        id: Date.now() + 2,
+                        type: "bot",
+                        content: contextAwarePrompt,
+                        isNew: true,
+                      },
+                      {
+                        id: Date.now() + 3,
+                        type: stepType,
+                        inputConfig: newInputConfig,
+                        isComplete: false,
+                        isNew: true,
+                      },
+                    ]);
+                  } else {
+                    // All fields collected, show final confirmation button
+                    setChatSteps((prev) => [
+                      ...prev,
+                      {
+                        id: Date.now() + 4,
+                        type: "summary",
+                        summaryData: formData,
+                        isNew: true,
+                      },
+                    ]);
+                  }
+                } else {
+                  // Reformulate state was cleared, just show the confirmation step
+                  console.log('Reformulate state was cleared, showing confirmation only');
+                }
+              }, 1000); // 1 second delay to show the confirmation
+            }
           }).catch((error) => {
             console.error('Failed to get download URL:', error);
             setError('Failed to get video URL. Please try again.');
@@ -2181,7 +2272,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
       console.error('Video upload error:', error);
       setError('Failed to upload video. Please try again.');
     }
-  }, [user, handleInputChange, handleInputSubmit]);
+  }, [user, handleInputChange, handleInputSubmit, reformulateField, formData, ai, getNextRequiredField]);
 
   // Auto-scroll to the bottom whenever chatSteps or isTyping changes
   useEffect(() => {
@@ -2220,9 +2311,24 @@ Share this link to get your reference\n\nSend this link to get your reference: $
     }
   }, [error]);
 
+  // Safety timeout to prevent reformulate state from getting stuck
+  useEffect(() => {
+    if (reformulateField && isReformulating) {
+      const safetyTimer = setTimeout(() => {
+        console.warn('Reformulate state stuck for too long, resetting...');
+        setIsReformulating(false);
+        setReformulateField(null);
+      }, 30000); // 30 seconds timeout
+
+      return () => clearTimeout(safetyTimer);
+    }
+  }, [reformulateField, isReformulating]);
+
   // Reformulate logic: when reformulateField is set, clear the field and add a new prompt/input step
   useEffect(() => {
     if (reformulateField) {
+      console.log('Reformulate effect triggered for field:', reformulateField);
+      
       // Set reformulating state to prevent multiple clicks
       setIsReformulating(true);
       
@@ -2248,16 +2354,20 @@ Share this link to get your reference\n\nSend this link to get your reference: $
         ];
       });
 
-             // Generate a reformulation question using ChatAI system
-       const reformulationPrompt = buildSpecializedPrompt('profileCreation', 'Reformulation', 'Could you provide your reformulated message?');
+      // Generate a reformulation question using ChatAI system
+      const reformulationPrompt = buildSpecializedPrompt('profileCreation', 'Reformulation', 'Could you provide your reformulated message?');
       
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
+        console.log('Adding reformulate input step for field:', reformulateField);
         setChatSteps(prev => {
           const filtered = prev.filter(s => s.type !== "typing");
           const fieldConfig = requiredFields.find(f => f.name === reformulateField);
           
           if (!fieldConfig) {
             console.error('Field config not found for:', reformulateField);
+            // Clear reformulate state if field config not found
+            setIsReformulating(false);
+            setReformulateField(null);
             return filtered;
           }
 
@@ -2286,8 +2396,13 @@ Share this link to get your reference\n\nSend this link to get your reference: $
           ];
         });
       }, 700);
+
+      // Cleanup function to clear timeout if component unmounts or reformulateField changes
+      return () => {
+        clearTimeout(timeoutId);
+      };
     }
-  }, [reformulateField]);
+  }, [reformulateField, requiredFields]);
 
   if (loadingAuth) {
     return (
@@ -2540,7 +2655,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                       
                       try {
                         setIsSubmitting(true);
-                        // Ensure all required fields are present from summary data
+                        // Ensure all required fields are present from summary data - FIRST OCCURRENCE
                         const requiredData = {
                           about: step.summaryData?.about || '',
                           experience: step.summaryData?.experience || '',
@@ -2556,9 +2671,14 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                           jobTitle: step.summaryData?.jobTitle || ''
                         };
                         
-                        // Save the profile data to database
+                        // Save the profile data to database - FIRST OCCURRENCE
                         const result = await saveWorkerProfileFromOnboardingAction(requiredData, user.token);
                         if (result.success) {
+                          // Set the worker profile ID for references link generation
+                          if (result.workerProfileId) {
+                            setWorkerProfileId(result.workerProfileId);
+                          }
+                          
                           // Navigate to worker dashboard
                           router.push(`/user/${user?.uid}/worker`);
                         } else {
@@ -3017,7 +3137,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                                  return;
                                }
                                
-                               // Ensure all required fields are present from summary data
+                               // Ensure all required fields are present from summary data - SECOND OCCURRENCE
                                const requiredData = {
                                  about: summaryData.about || '',
                                  experience: summaryData.experience || '',
@@ -3031,9 +3151,14 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                                  jobTitle: summaryData.jobTitle || ''
                                };
                                
-                               // Save the profile data to database
+                               // Save the profile data to database - SECOND OCCURRENCE
                                const result = await saveWorkerProfileFromOnboardingAction(requiredData, user.token);
                                if (result.success) {
+                                 // Set the worker profile ID for references link generation
+                                 if (result.workerProfileId) {
+                                   setWorkerProfileId(result.workerProfileId);
+                                 }
+                                 
                                  // Navigate to worker dashboard
                                  router.push(`/user/${user?.uid}/worker`);
                                } else {
