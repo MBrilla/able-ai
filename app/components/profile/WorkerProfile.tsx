@@ -3,7 +3,6 @@
 import Link from "next/link";
 
 // --- SHARED & HELPER COMPONENTS ---
-import ContentCard from "@/app/components/shared/ContentCard";
 import SkillsDisplayTable from "@/app/components/profile/SkillsDisplayTable";
 import StatisticItemDisplay from "@/app/components/profile/StatisticItemDisplay";
 import AwardDisplayBadge from "@/app/components/profile/AwardDisplayBadge";
@@ -15,9 +14,6 @@ import {
   BadgeCheck,
   ThumbsUp,
   MessageSquare,
-  Trophy,
-  Star,
-  Flag,
 } from "lucide-react";
 import {
   getPrivateWorkerProfileAction,
@@ -181,32 +177,32 @@ const WorkerProfile = ({
       {/* User Info Bar (Benji Image Style - Name, Handle, Calendar) */}
       <div className={styles.userInfoBar}>
         <div className={styles.userInfo}>
-          <h1 className={styles.workerName}> 
-            {user?.displayName}
-          </h1>
+          <h1 className={styles.workerName}>{user?.displayName}</h1>
           {isWorkerVerified ? (
             <div className={styles.verifiedBadgeContainer}>
               <BadgeCheck size={25} className={styles.verifiedBadgeWorker} />
-              <span className={styles.verifiedText}>Right to work verified</span>
+              <span className={styles.verifiedText}>
+                Right to work verified
+              </span>
             </div>
-          ) : (
-            isSelfView ? (
-              <button
-                type="button"
-                className={styles.verifyRTWButton}
-                onClick={() => setShowRtwPopup(true)}
-              >
+          ) : isSelfView ? (
+            <button
+              type="button"
+              className={styles.verifyRTWButton}
+              onClick={() => setShowRtwPopup(true)}
+            >
               Verify your right to work
             </button>
-            ) :(
-              <span className={styles.verifiedText}>Right to work not verified</span>
-            )
+          ) : (
+            <span className={styles.verifiedText}>
+              Right to work not verified
+            </span>
           )}
         </div>
         <div className={styles.workerInfo}>
           {true && (
             <Link
-              href={workerProfile?.userId || ""}
+              href={"calendar"}
               className={styles.viewCalendarLink}
               aria-label="View calendar"
             >
@@ -220,29 +216,27 @@ const WorkerProfile = ({
       <div className={styles.mainContentWrapper}>
         {/* Statistics Section */}
         <div className={styles.statisticsItemsContainer}>
-          {workerProfile?.responseRateInternal && (
-            <StatisticItemDisplay
-              stat={{
-                id: 1,
-                icon: ThumbsUp,
-                value: workerProfile.responseRateInternal,
-                label: `Would work with ${user?.displayName?.split(" ")[0]} again`,
-                iconColor: "#41a1e8",
-              }}
-            />
-          )}
-          {workerProfile?.averageRating !== null &&
-            workerProfile?.averageRating !== undefined && (
-              <StatisticItemDisplay
-                stat={{
-                  id: 2,
-                  icon: MessageSquare,
-                  value: workerProfile.averageRating,
-                  label: "Response rate",
-                  iconColor: "#41a1e8",
-              }}
-            />
-          )}
+          <StatisticItemDisplay
+            stat={{
+              id: 1,
+              icon: ThumbsUp,
+              value: workerProfile?.responseRateInternal || 0,
+              label: `Would work with ${
+                user?.displayName?.split(" ")?.[0] ?? ""
+              } again`,
+              iconColor: "#41a1e8",
+            }}
+          />
+
+          <StatisticItemDisplay
+            stat={{
+              id: 2,
+              icon: MessageSquare,
+              value: workerProfile?.averageRating || 0,
+              label: "Response rate",
+              iconColor: "#41a1e8",
+            }}
+          />
         </div>
 
         {/* Skills Section (Benji Image Style - Blue Card) */}
@@ -278,7 +272,7 @@ const WorkerProfile = ({
               </div>
             )}
             <div>
-              <h3 className={styles.contentTitle}>Feedbacks:</h3>
+              <h3 className={styles.contentTitle}>Feedback</h3>
               {workerProfile.reviews && workerProfile.reviews.length > 0 ? (
                 workerProfile.reviews.map((review: Review) => (
                   <p key={review.id} className={styles.feedbackText}>
@@ -293,43 +287,50 @@ const WorkerProfile = ({
         )}
 
         {/* Qualifications Section (Benji Image Style) */}
-        {workerProfile.qualifications &&
-          workerProfile.qualifications.length > 0 && (
-            // <ContentCard title="Qualifications:">
-            <div>
-              <h3 className={styles.contentTitle}>Qualifications:</h3>
-              <ul className={styles.listSimple}>
-                {workerProfile.qualifications.map((q, index) => (
+        {
+          <div>
+            <h3 className={styles.contentTitle}>Qualifications:</h3>
+            <ul className={styles.listSimple}>
+              {workerProfile?.qualifications &&
+              workerProfile?.qualifications?.length > 0 ? (
+                workerProfile.qualifications.map((q, index) => (
                   <li key={index}>
                     {q.title}: {q.description}
                   </li>
-                ))}
-              </ul>
-            </div>
-            // </ContentCard>
-          )}
+                ))
+              ) : (
+                <li>No qualifications listed.</li>
+              )}
+            </ul>
+          </div>
+        }
 
-        {/* Equipment Section (Benji Image Style) */}
-        {workerProfile.equipment && workerProfile.equipment.length > 0 && (
+        {/* Equipment Section (User Image Style) */}
+        {
           <div>
             <h3 className={styles.contentTitle}>Equipment:</h3>
             <div className={styles.equipmentListContainer}>
-              {workerProfile.equipment.map((item, index) => (
-                <CheckboxDisplayItem key={index} label={item.name} />
-              ))}
+              {workerProfile?.equipment &&
+              workerProfile?.equipment?.length > 0 ? (
+                workerProfile.equipment.map((item, index) => (
+                  <CheckboxDisplayItem key={index} label={item.name} />
+                ))
+              ) : (
+                <p className={styles.feedbackText}>No equipment listed.</p>
+              )}
             </div>
           </div>
-        )}
+        }
       </div>
       {/* End Main Content Wrapper */}
-       {/* RTW Verification Popup */}
-     
+      {/* RTW Verification Popup */}
 
       {showRtwPopup && (
         <div className={styles.overlay}>
           <div className={styles.popup}>
             <div className={styles.title}>
-              To adhere to UK law, we need to confirm you have the legal right to work.
+              To adhere to UK law, we need to confirm you have the legal right
+              to work.
             </div>
             <div className={styles.title}>Are you a</div>
 
@@ -356,10 +357,7 @@ const WorkerProfile = ({
           </div>
         </div>
       )}
-
     </div>
-
-    
   );
 };
 
