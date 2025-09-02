@@ -9,7 +9,6 @@ import MessageBubble from "@/app/components/onboarding/MessageBubble";
 
 import CalendarPickerBubble from "@/app/components/onboarding/CalendarPickerBubble";
 import VideoRecorderOnboarding from "@/app/components/onboarding/VideoRecorderOnboarding";
-import VideoRecorderOnboarding from "@/app/components/onboarding/VideoRecorderOnboarding";
 import LocationPickerBubble from '@/app/components/onboarding/LocationPickerBubble';
 import ShareLinkBubble from "@/app/components/onboarding/ShareLinkBubble";
 import SanitizedConfirmationBubble from "@/app/components/onboarding/SanitizedConfirmationBubble";
@@ -22,37 +21,32 @@ const TypingIndicator: React.FC = () => (
   <div style={{ 
     display: 'flex', 
     alignItems: 'center', 
-    padding: '12px 16px', 
+    padding: '8px 12px', 
     color: 'var(--primary-color)', 
     fontWeight: 600,
     animation: 'slideIn 0.3s ease-out',
     opacity: 0,
-    animationFillMode: 'forwards'
+    animationFillMode: 'forwards',
+    background: 'rgba(37, 99, 235, 0.1)',
+    borderRadius: '20px',
+    border: '1px solid rgba(37, 99, 235, 0.2)',
+    marginLeft: '8px'
   }}>
-    <div style={{ 
-      display: 'flex', 
-      gap: '4px',
-      background: 'rgba(37, 99, 235, 0.1)',
-      padding: '8px 12px',
-      borderRadius: '20px',
-      border: '1px solid rgba(37, 99, 235, 0.2)'
-    }}>
-      <span className="typing-dot" style={{ 
-        animation: 'typingBounce 1.4s infinite ease-in-out',
-        fontSize: '18px',
-        lineHeight: '1'
-      }}>●</span>
-      <span className="typing-dot" style={{ 
-        animation: 'typingBounce 1.4s infinite ease-in-out 0.2s',
-        fontSize: '18px',
-        lineHeight: '1'
-      }}>●</span>
-      <span className="typing-dot" style={{ 
-        animation: 'typingBounce 1.4s infinite ease-in-out 0.4s',
-        fontSize: '18px',
-        lineHeight: '1'
-      }}>●</span>
-    </div>
+    <span className="typing-dot" style={{ 
+      animation: 'typingBounce 1.4s infinite ease-in-out',
+      fontSize: '16px',
+      lineHeight: '1'
+    }}>●</span>
+    <span className="typing-dot" style={{ 
+      animation: 'typingBounce 1.4s infinite ease-in-out 0.2s',
+      fontSize: '16px',
+      lineHeight: '1'
+    }}>●</span>
+    <span className="typing-dot" style={{ 
+      animation: 'typingBounce 1.4s infinite ease-in-out 0.4s',
+      fontSize: '16px',
+      lineHeight: '1'
+    }}>●</span>
     <style>{`
       @keyframes slideIn {
         from {
@@ -121,14 +115,12 @@ import {
 import { firebaseApp } from "@/lib/firebase/clientApp";
 import { updateVideoUrlProfileAction, saveWorkerProfileFromOnboardingAction, createWorkerProfileAction } from "@/actions/user/gig-worker-profile";
 import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
-import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
 
 // Define required fields and their configs - matching gig creation pattern
 const requiredFields: RequiredField[] = [
   { name: "about", type: "text", placeholder: "Tell us about yourself and your background...", defaultPrompt: "Tell me about yourself and what kind of work you can offer!", rows: 3 },
-  { name: "experience", type: "text", placeholder: "Tell us about your experience...", defaultPrompt: "What experience do you have in your field?", rows: 3 },
+  { name: "experience", type: "text", placeholder: "How many years of experience do you have?", defaultPrompt: "How many years of experience do you have in your field?", rows: 1 },
   { name: "skills", type: "text", placeholder: "List your skills and certifications...", defaultPrompt: "What skills and certifications do you have?", rows: 3 },
-  { name: "equipment", type: "text", placeholder: "List any equipment you have...", defaultPrompt: "What equipment do you have that you can use for your work?", rows: 3 },
   { name: "equipment", type: "text", placeholder: "List any equipment you have...", defaultPrompt: "What equipment do you have that you can use for your work?", rows: 3 },
   { name: "hourlyRate", type: "number", placeholder: "£15", defaultPrompt: "What's your preferred hourly rate?" },
   { name: "location", type: "location", defaultPrompt: "Where are you based? This helps us find gigs near you!" },
@@ -154,7 +146,6 @@ interface FormData {
   about?: string;
   experience?: string;
   skills?: string;
-  equipment?: string;
   equipment?: string;
   hourlyRate?: number;
   location?: { lat: number; lng: number } | string;
@@ -197,9 +188,8 @@ interface FormData {
   matchedTerms?: string[]; // New: Terms that matched for job title
   isAISuggested?: boolean; // New: Whether the job title was AI-suggested
   summaryData?: FormData; // New: Data for profile summary display
+  confirmedChoice?: 'title' | 'original'; // New: Track which button was clicked
 };
-
-
 
 
 
@@ -363,18 +353,14 @@ function isUnrelatedResponse(userInput: string, currentPrompt: string): boolean 
   const unrelatedPhrases = [
     'problem', 'broken', 'not working', 'error',
    'speak to someone', 'talk to human', 'real person',
-    'problem', 'broken', 'not working', 'error',
-   'speak to someone', 'talk to human', 'real person',
-    // Curse words and inappropriate language
-    'fuck', 'shit', 'damn', 'bitch', 'ass', 'asshole', 'bastard', 'crap',
-    'piss', 'dick', 'pussy', 'cunt', 'whore', 'slut', 'fucker',
-    'piss', 'dick', 'pussy', 'cunt', 'whore', 'slut', 'fucker',
-    'motherfucker', 'fucking', 'shitty', 'damned', 'bloody', 'bugger',
-    'wanker', 'twat', 'bellend', 'knob', 'prick', 'tosser', 'arse',
-    'bollocks', 'wank', 'fanny', 'minge', 'gash', 'snatch', 'cooch',
-    'pussy', 'vagina', 'penis', 'dick', 'willy', 'johnson'
-    'pussy', 'vagina', 'penis', 'dick', 'willy', 'johnson'
-  ];
+                  // Curse words and inappropriate language
+              'fuck', 'shit', 'damn', 'bitch', 'ass', 'asshole', 'bastard', 'crap',
+              'piss', 'dick', 'pussy', 'cunt', 'whore', 'slut', 'fucker',
+              'motherfucker', 'fucking', 'shitty', 'damned', 'bloody', 'bugger',
+              'wanker', 'twat', 'bellend', 'knob', 'prick', 'tosser', 'arse',
+              'bollocks', 'wank', 'fanny', 'minge', 'gash', 'snatch', 'cooch',
+              'vagina', 'penis', 'willy', 'johnson'
+            ];
   
   const userLower = userInput.toLowerCase().trim();
   const promptLower = currentPrompt.toLowerCase();
@@ -445,7 +431,6 @@ function isUnrelatedResponse(userInput: string, currentPrompt: string): boolean 
   const isSpecificQuestion = promptAskingFor.jobTitle || promptAskingFor.rate || promptAskingFor.location || promptAskingFor.yesNo;
   
 
-
   
   // Only flag as unrelated if:
   // 1. It contains unrelated phrases, OR
@@ -456,7 +441,6 @@ function isUnrelatedResponse(userInput: string, currentPrompt: string): boolean 
 // Helper: save support case to database
 async function saveSupportCaseToDatabase(userData: any, conversationHistory: any[], reason: string): Promise<string> {
   try {
-
 
     
     // Get user ID from userData
@@ -475,7 +459,6 @@ async function saveSupportCaseToDatabase(userData: any, conversationHistory: any
     });
 
     if (escalationResult.success && escalationResult.issueId) {
-
 
       return escalationResult.issueId;
     } else {
@@ -552,7 +535,6 @@ Create a natural summary that flows well and sounds like a human describing the 
   
   // Fallback to basic summary
   const fallbackSummary = `You are a ${formData.about || 'worker'} with ${formData.experience || 'experience'} with skills including ${formData.skills || 'various skills'}, charging £${formData.hourlyRate || '0'} per hour, stationed in ${formData.location || 'your location'}, and available ${formData.availability ? 'during your specified times' : 'as needed'}.`;
-
 
   return fallbackSummary;
 }
@@ -642,12 +624,28 @@ function formatSummaryValue(value: unknown, field?: string): string {
       return isNaN(numValue as number) ? String(value) : `£${numValue}`;
     }
     
-    if (field === 'equipment') {
-      if (typeof value === 'string') {
-        return value;
-      }
-      if (Array.isArray(value)) {
-        return value.map((item: any) => item.name || item).join(', ');
+    if (field === 'experience') {
+      // Try to parse the experience data if it's in JSON format
+      if (typeof value === 'string' && value.startsWith('{')) {
+        try {
+          const expData = JSON.parse(value);
+          if (expData.years !== undefined) {
+            let display = '';
+            if (expData.years > 0) {
+              display = `${expData.years} year${expData.years !== 1 ? 's' : ''}`;
+            }
+            if (expData.months > 0) {
+              if (display) display += ' and ';
+              display += `${expData.months} month${expData.months !== 1 ? 's' : ''}`;
+            }
+            if (!display) {
+              display = 'Less than 1 year';
+            }
+            return display;
+          }
+        } catch (e) {
+          // If parsing fails, return the original value
+        }
       }
       return String(value);
     }
@@ -695,7 +693,7 @@ async function generateContextAwarePrompt(fieldName: string, aboutInfo: string, 
 Next field to ask about: "${fieldName}"
 
 Field-specific guidance for WORKERS:
-- experience: Ask about their work history, relevant experience, or professional background as a worker
+- experience: Ask about their years of experience in their field (e.g., "How many years have you been working as a [job title]?" or "How long have you been in this line of work?")
 - skills: Ask about their specific skills, certifications, or qualifications they can offer to clients
 - hourlyRate: Ask about their preferred hourly rate for their services in British Pounds (£)
 - location: Ask about their location with context about finding nearby gig opportunities
@@ -861,11 +859,9 @@ export default function OnboardWorkerPage() {
 
       try {
 
-
         const result = await createWorkerProfileAction(user.token);
         
         if (result.success && result.workerProfileId) {
-
 
           setWorkerProfileId(result.workerProfileId);
         } else {
@@ -923,9 +919,6 @@ export default function OnboardWorkerPage() {
           about: formData.about || '',
           experience: formData.experience || '',
           skills: formData.skills || '',
-          equipment: typeof formData.equipment === 'string' && formData.equipment.trim().length > 0
-            ? formData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined }))
-            : [],
           equipment: typeof formData.equipment === 'string' && formData.equipment.trim().length > 0
             ? formData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined }))
             : [],
@@ -1016,8 +1009,9 @@ ENHANCED VALIDATION & SANITIZATION REQUIREMENTS:
    - extractedData: Extract and structure key information as JSON string
 
 3. **Field-Specific Intelligence:**
-   - **experience**: Infer job title from context, extract duration, format naturally
+   - **experience**: Extract years of experience and validate reasonableness
      Example: "25 years of experience" → "Ah, so you have 25 years of experience as a cashier, right?"
+     Validation: Check if years are reasonable (0-50), extract numeric value, format naturally
    - **hourlyRate**: Convert to pounds (£), format properly
      Example: "15" → "Got it, you're charging £15 per hour, correct?"
    - **location**: Extract coordinates, format address naturally
@@ -1092,6 +1086,80 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
           };
         }
         
+        // For experience field, validate years of experience
+        if (field === 'experience') {
+          try {
+            const experienceText = String(value).toLowerCase();
+            // Extract years from common patterns
+            const yearPatterns = [
+              /(\d+)\s*years?/i,
+              /(\d+)\s*\+?\s*years?/i,
+              /(\d+)\s*yr/i,
+              /(\d+)\s*\+?\s*yr/i,
+              /(\d+)\s*months?/i,
+              /(\d+)\s*\+?\s*months?/i,
+              /(\d+)\s*mo/i,
+              /(\d+)\s*\+?\s*mo/i
+            ];
+            
+            let years = 0;
+            let months = 0;
+            
+            for (const pattern of yearPatterns) {
+              const match = experienceText.match(pattern);
+              if (match) {
+                const num = parseInt(match[1]);
+                if (pattern.source.includes('month') || pattern.source.includes('mo')) {
+                  months += num;
+                } else {
+                  years += num;
+                }
+              }
+            }
+            
+            // Convert months to years
+            years += Math.floor(months / 12);
+            months = months % 12;
+            
+            // Validate reasonableness (0-50 years)
+            if (years > 50) {
+              return {
+                sufficient: false,
+                clarificationPrompt: 'That seems like a very long time. Could you please confirm how many years of experience you have? Most people have between 0-30 years of experience.',
+              };
+            }
+            
+            if (years < 0) {
+              return {
+                sufficient: false,
+                clarificationPrompt: 'Please provide a valid number of years of experience (0 or more).',
+              };
+            }
+            
+            // Format the experience nicely
+            let formattedExperience = '';
+            if (years > 0) {
+              formattedExperience = `${years} year${years !== 1 ? 's' : ''}`;
+            }
+            if (months > 0) {
+              if (formattedExperience) formattedExperience += ' and ';
+              formattedExperience += `${months} month${months !== 1 ? 's' : ''}`;
+            }
+            if (!formattedExperience) {
+              formattedExperience = 'Less than 1 year';
+            }
+            
+            return {
+              sufficient: true,
+              sanitized: formattedExperience,
+              naturalSummary: `Got it! You have ${formattedExperience} of experience, correct?`,
+              extractedData: JSON.stringify({ years: years, months: months, totalMonths: years * 12 + months })
+            };
+          } catch (error) {
+            console.error('Experience validation error:', error);
+          }
+        }
+        
         // For date fields, ensure proper date format
         if (field === 'availability') {
           try {
@@ -1144,7 +1212,6 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
 
       if (escalationTrigger.shouldEscalate) {
 
-
         
         const description = generateEscalationDescription(escalationTrigger, 'AI validation failed', {
           userRole: 'worker',
@@ -1179,7 +1246,6 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
         });
 
         if (escalationTrigger.shouldEscalate) {
-
 
           
           const description = generateEscalationDescription(escalationTrigger, valueToUse, {
@@ -1380,11 +1446,6 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
 If you do not have experience you can get a character reference from a friend or someone in your network. 
 
 Share this link to get your reference\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network \n\n`,
-                 content: `You need one reference per skill, from previous managers, colleagues or teachers.
-
-If you do not have experience you can get a character reference from a friend or someone in your network. 
-
-Share this link to get your reference\n\nSend this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network \n\n`,
                  isNew: true,
                }
              ]);
@@ -1411,29 +1472,11 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                 }
               ]);
             }, 1500);
-                   type: "bot",
-                   content: "if your connections make a hire on Able you get £5!",
-                   isNew: true,
-                 }
-               ]);
-             }, 1500);
-             setTimeout(() => {
-              setChatSteps((prev) => [
-                ...prev,
-                {
-                  id: Date.now() + 5,
-                  type: "bot",
-                  content: "Watch out for notifications of your first shift offer! If you don't accept within 90 minutes we will offer the gig to someone else.",
-                  isNew: true,
-                }
-              ]);
-            }, 1500);
 
              setTimeout(() => {
                setChatSteps((prev) => [
                  ...prev,
                  {
-                   id: Date.now() + 6,
                    id: Date.now() + 6,
                    type: "bot",
                    content: "We might offer you gigs outside of your defined skill area, watch out for those opportunities too!",
@@ -1616,9 +1659,9 @@ Share this link to get your reference\n\nSend this link to get your reference: $
       const updatedFormData = { ...formData, jobTitle: suggestedJobTitle, [fieldName]: undefined };
       setFormData(updatedFormData);
       
-      // Mark job title confirmation step as complete (like sanitization)
+      // Mark job title confirmation step as complete and set the confirmed choice
       setChatSteps((prev) => prev.map((step) =>
-        step.type === "jobTitleConfirmation" && step.fieldName === fieldName ? { ...step, isComplete: true } : step
+        step.type === "jobTitleConfirmation" && step.fieldName === fieldName ? { ...step, isComplete: true, confirmedChoice: 'title' } : step
       ));
       
       // Find next required field using updated formData
@@ -1686,9 +1729,9 @@ Share this link to get your reference\n\nSend this link to get your reference: $
       const updatedFormData = { ...formData, [fieldName]: originalValue };
       setFormData(updatedFormData);
       
-      // Mark job title confirmation step as complete (like sanitization)
+      // Mark job title confirmation step as complete and set the confirmed choice
       setChatSteps((prev) => prev.map((step) =>
-        step.type === "jobTitleConfirmation" && step.fieldName === fieldName ? { ...step, isComplete: true } : step
+        step.type === "jobTitleConfirmation" && step.fieldName === fieldName ? { ...step, isComplete: true, confirmedChoice: 'original' } : step
       ));
       
       // Find next required field using updated formData
@@ -1792,7 +1835,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
               id: Date.now() + 2,
               type: "bot",
               content: `You need one reference per skill, from previous managers, colleagues or teachers. If you do not have experience you can get a character reference from a friend or someone in your network. Share this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network \n\n`,
-              content: `You need one reference per skill, from previous managers, colleagues or teachers. If you do not have experience you can get a character reference from a friend or someone in your network. Share this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network \n\n`,
               isNew: true,
             }
           ]);
@@ -1803,30 +1845,16 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                 id: Date.now() + 3,
                 type: "bot",
                 content: "if your connections make a hire on Able you get £5!",
-                content: "if your connections make a hire on Able you get £5!",
                 isNew: true,
               }
             ]);
           }, 1500);
-          
           
           setTimeout(() => {
             setChatSteps((prev) => [
               ...prev,
               {
                 id: Date.now() + 4,
-                type: "bot",
-                content: "Watch out for notifications of your first shift offer! If you don't accept within 90 minutes we will offer the gig to someone else.",
-                isNew: true,
-              }
-            ]);
-          }, 1500);
-
-          setTimeout(() => {
-            setChatSteps((prev) => [
-              ...prev,
-              {
-                id: Date.now() + 5,
                 type: "bot",
                 content: "Watch out for notifications of your first shift offer! If you don't accept within 90 minutes we will offer the gig to someone else.",
                 isNew: true,
@@ -2053,7 +2081,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
           {
             id: Date.now() + 2,
             type: "bot",
-            content: `You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.\n\nShare this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network \n\nif your connections make a hire on Able you get £5!`,
             content: `You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.\n\nShare this link to get your reference: ${recommendationLink}\n\nPlease check out your gigfolio and share with your network \n\nif your connections make a hire on Able you get £5!`,
             isNew: true,
           }
@@ -2355,20 +2382,21 @@ Share this link to get your reference\n\nSend this link to get your reference: $
   useEffect(() => {
     if (user?.uid) {
       setFormData({});
-             setChatSteps([{
-         id: 1,
-         type: "bot",
-         content: ROLE_SPECIFIC_PROMPTS.gigfolioCoach.welcome + " 🎉 I'm here to help you create the perfect worker profile so you can find gig opportunities! You're creating a profile to showcase your skills and availability to potential clients. Tell me about yourself and what kind of work you can offer. What's your background?",
-       }, {
-         id: 2,
-         type: "input",
-         inputConfig: {
-           type: "text",
-           name: "about",
-           placeholder: "Tell us about yourself and your background...",
-         },
-         isComplete: false,
-       }]);
+      setChatSteps([{
+        id: 1,
+        type: "bot",
+        content: ROLE_SPECIFIC_PROMPTS.gigfolioCoach.welcome + " 🎉 I'm here to help you create the perfect worker profile so you can find gig opportunities! You're creating a profile to showcase your skills and availability to potential clients. Tell me about yourself and what kind of work you can offer. What's your background?",
+      }, {
+        id: 2,
+        type: "input",
+        inputConfig: {
+          type: requiredFields[0].type,
+          name: requiredFields[0].name,
+          placeholder: requiredFields[0].placeholder,
+          rows: requiredFields[0].rows,
+        },
+        isComplete: false,
+      }]);
       setError(null);
     }
   }, [user?.uid]);
@@ -2446,7 +2474,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
             {
               id: Date.now() + 2,
               type: "bot",
-              content: "Sure — please provide your updated message.",
               content: "Sure — please provide your updated message.",
               isNew: true,
             },
@@ -2734,9 +2761,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                           equipment: typeof step.summaryData?.equipment === 'string' && step.summaryData.equipment.trim().length > 0
                             ? step.summaryData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined }))
                             : [],
-                          equipment: typeof step.summaryData?.equipment === 'string' && step.summaryData.equipment.trim().length > 0
-                            ? step.summaryData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined }))
-                            : [],
                           hourlyRate: String(step.summaryData?.hourlyRate || ''),
                           location: step.summaryData?.location || '',
                           availability: step.summaryData?.availability || { days: [], startTime: '09:00', endTime: '17:00' },
@@ -2939,7 +2963,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                       }}
                     >
                     {reformulateClicked ? (step.fieldName === 'videoIntro' ? 'Re-shot' : 'Edited') : (isReformulatingThisField ? (step.fieldName === 'videoIntro' ? 'Re-shooting...' : 'Editing...') : (step.fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit message'))}
-                    {reformulateClicked ? (step.fieldName === 'videoIntro' ? 'Re-shot' : 'Edited') : (isReformulatingThisField ? (step.fieldName === 'videoIntro' ? 'Re-shooting...' : 'Editing...') : (step.fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit message'))}
                     </button>
                   </div>
                 </div>
@@ -2953,53 +2976,49 @@ Share this link to get your reference\n\nSend this link to get your reference: $
         
         if (step.type === "typing") {
           return (
-            <div key={key}>
-              {/* AI Avatar - Separated */}
-              <div key={`${key}-avatar`} style={{ 
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.5rem',
-                marginBottom: '0.5rem'
-              }}>
-                <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
+            <div key={key} style={{ 
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.5rem',
+              marginBottom: '0.5rem'
+            }}>
+              {/* AI Avatar */}
+              <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'linear-gradient(135deg, var(--primary-color), var(--primary-darker-color))',
+                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)'
+                }}>
                   <div style={{
-                    width: '32px',
-                    height: '32px',
+                    width: '28px',
+                    height: '28px',
                     borderRadius: '50%',
+                    background: '#000000',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'linear-gradient(135deg, var(--primary-color), var(--primary-darker-color))',
-                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)'
+                    border: '1px solid rgba(255, 255, 255, 0.2)'
                   }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      background: '#000000',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid rgba(255, 255, 255, 0.2)'
-                    }}>
-                      <Image 
-                        src="/images/ableai.png" 
-                        alt="Able AI" 
-                        width={24} 
-                        height={24} 
-                        style={{
-                          borderRadius: '50%',
-                          objectFit: 'cover'
-                        }}
-                      />
-                    </div>
+                    <Image 
+                      src="/images/ableai.png" 
+                      alt="Able AI" 
+                      width={24} 
+                      height={24} 
+                      style={{
+                        borderRadius: '50%',
+                        objectFit: 'cover'
+                      }}
+                    />
                   </div>
                 </div>
               </div>
-              {/* Typing Indicator - Separated */}
-              <div key={`${key}-typing`}>
-                <TypingIndicator />
-              </div>
+              {/* Typing Indicator - Now positioned next to avatar */}
+              <TypingIndicator />
             </div>
           );
         }
@@ -3007,7 +3026,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                  if (step.type === "bot") {
            // Check if this is a reference message or follow-up messages (no AI avatar)
            if (step.content && typeof step.content === 'string' && (
-             step.content.includes("You need one reference per skill") ||
              step.content.includes("You need one reference per skill") ||
              step.content.includes("Watch out for notifications") ||
              step.content.includes("We might offer you gigs")
@@ -3029,7 +3047,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                     borderBottomLeftRadius: '4px'
                   }}>
                                        {/* Make URLs clickable with copy/share functionality for reference messages */}
-                    {step.content.includes("You need one reference per skill") ? (
                     {step.content.includes("You need one reference per skill") ? (
                       (step.content as string).split(/(https?:\/\/[^\s\n]+)/g).map((part, index) => {
                         if (part.match(/(https?:\/\/[^\s\n]+)/g)) {
@@ -3219,7 +3236,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                                  about: summaryData.about || '',
                                  experience: summaryData.experience || '',
                                  skills: summaryData.skills || '',
-                                 equipment: summaryData.equipment ? summaryData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined })) : [],
                                  equipment: summaryData.equipment ? summaryData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined })) : [],
                                  hourlyRate: String(summaryData.hourlyRate || ''),
                                  location: summaryData.location || '',
@@ -3660,7 +3676,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                       <option value="never">Never ends</option>
                       <option value="on_date">Until date</option>
                       <option value="after_occurrences">After number of times</option>
-                      <option value="after_occurrences">After number of times</option>
                     </select>
 
                     {currentAvailability.ends === 'on_date' && (
@@ -4010,44 +4025,58 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                   <button
                     onClick={() => handleJobTitleConfirm(step.fieldName!, step.suggestedJobTitle!, step.originalValue!)}
                     style={{
-                      background: 'var(--primary-color)',
+                      background: step.confirmedChoice === 'title' ? '#555' : 'var(--primary-color)',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
                       padding: '10px 20px',
                       fontWeight: 600,
-                      cursor: 'pointer',
-                      fontSize: '14px'
+                      cursor: step.confirmedChoice ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      opacity: step.confirmedChoice ? 0.7 : 1,
+                      transition: 'all 0.2s ease'
                     }}
+                    disabled={!!step.confirmedChoice}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.background = 'var(--primary-darker-color)';
+                      if (!step.confirmedChoice) {
+                        e.currentTarget.style.background = 'var(--primary-darker-color)';
+                      }
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.background = 'var(--primary-color)';
+                      if (!step.confirmedChoice) {
+                        e.currentTarget.style.background = 'var(--primary-color)';
+                      }
                     }}
                   >
-                    Use This Title
+                    {step.confirmedChoice === 'title' ? 'Title Confirmed' : 'Use This Title'}
                   </button>
                   <button
                     onClick={() => handleJobTitleReject(step.fieldName!, step.originalValue!)}
                     style={{
-                      background: '#444',
+                      background: step.confirmedChoice === 'original' ? '#555' : '#444',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
                       padding: '10px 20px',
                       fontWeight: 600,
-                      cursor: 'pointer',
-                      fontSize: '14px'
+                      cursor: step.confirmedChoice ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      opacity: step.confirmedChoice ? 0.7 : 1,
+                      transition: 'all 0.2s ease'
                     }}
+                    disabled={!!step.confirmedChoice}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.background = '#555';
+                      if (!step.confirmedChoice) {
+                        e.currentTarget.style.background = '#555';
+                      }
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.background = '#444';
+                      if (!step.confirmedChoice) {
+                        e.currentTarget.style.background = '#444';
+                      }
                     }}
                   >
-                    Keep Original
+                    {step.confirmedChoice === 'original' ? 'Original Kept' : 'Keep Original'}
                   </button>
                 </div>
               </div>
@@ -4104,7 +4133,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
               {/* AI-Generated Video Script */}
               <AIVideoScriptDisplay formData={formData} ai={ai} />
 
-              <VideoRecorderOnboarding
               <VideoRecorderOnboarding
                 onVideoRecorded={(file) => handleVideoUpload(file, step.inputConfig?.name, step.id)}
               />
