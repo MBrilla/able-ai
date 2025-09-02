@@ -8,7 +8,6 @@ import InputField from "@/app/components/form/InputField"; // Reusing shared Inp
 import { Send, Loader2 } from "lucide-react"; // Lucide icons
 
 import styles from "./RecommendationPage.module.css";
-import ScreenHeaderWithBack from "@/app/components/layout/ScreenHeaderWithBack";
 import {
   getWorkerForRecommendationAction,
   submitExternalRecommendationAction,
@@ -39,7 +38,6 @@ async function getWorkerDetails(
 export default function PublicRecommendationPage() {
   const params = useParams();
   const workerToRecommendId = params.workerId as string;
-  const router = useRouter();
 
   const [workerDetails, setWorkerDetails] = useState<{
     name: string;
@@ -157,10 +155,6 @@ export default function PublicRecommendationPage() {
 
   return (
     <div className={styles.container}>
-      <ScreenHeaderWithBack
-        title="Recommendation"
-        onBackClick={() => router.back()}
-      />
       <div className={styles.pageWrapper}>
         {/* <header className={styles.title}>
           <Star className={styles.starIcon} />
@@ -213,7 +207,7 @@ export default function PublicRecommendationPage() {
                 value={formData.recommendationText}
                 onChange={handleChange}
                 className={styles.textarea}
-                placeholder={`Enter your recommendation here... eg: What makes ${workerDetails.name} great at ${selectedSkill}`}
+                placeholder={`Enter your recommendation here... eg: What makes ${workerDetails.name} great at ${selectedSkill?.name || ""}`}
                 required
               />
             </div>
@@ -226,7 +220,7 @@ export default function PublicRecommendationPage() {
                 value={formData.relationship}
                 onChange={handleChange}
                 className={styles.textarea}
-                placeholder="Please describe how you know Benji: e.g., Worked together at [Company/Event], Supervised them, Hired them for a gig..."
+                placeholder={`Please describe how you know ${workerDetails.name}: e.g., Worked together at [Company/Event], Supervised them, Hired them for a gig...`}
                 required
               />
             </div>
