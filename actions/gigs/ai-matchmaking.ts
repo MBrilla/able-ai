@@ -153,8 +153,25 @@ export async function findMatchingWorkers(
       additionalRequirements: gig.notesForWorker,
     };
 
-    // Extract gig location coordinates
-    const gigCoords = extractCoordinates(gig.exactLocation || '');
+    // Extract gig location coordinates - try address_json first, then exact_location
+    let gigCoords = null;
+    if (gig.addressJson && typeof gig.addressJson === 'object') {
+      const addressData = gig.addressJson as any;
+      if (addressData.lat && addressData.lng) {
+        gigCoords = { lat: parseFloat(addressData.lat), lng: parseFloat(addressData.lng) };
+        console.log(`Gig coordinates from address_json: ${gigCoords.lat}, ${gigCoords.lng}`);
+      }
+    }
+    
+    // Fallback to extracting from exact_location text
+    if (!gigCoords) {
+      gigCoords = extractCoordinates(gig.exactLocation || '');
+      if (gigCoords) {
+        console.log(`Gig coordinates from exact_location: ${gigCoords.lat}, ${gigCoords.lng}`);
+      } else {
+        console.log(`No gig coordinates found in address_json or exact_location`);
+      }
+    }
     
     // Helper function to check if worker is available during gig time
     const isWorkerAvailable = (worker: any, gigStartTime: string, gigEndTime: string) => {
@@ -193,40 +210,45 @@ export async function findMatchingWorkers(
       // Check availability
       const isAvailable = isWorkerAvailable(worker, gig.startTime?.toString() || '', gig.endTime?.toString() || '');
       
-      // Check location proximity - be more flexible with coordinates
-      let withinRange = true; // Default to true - assume in range if no coordinates
-      if (gigCoords && worker.gigWorkerProfile?.location) {
-        const workerCoords = extractCoordinates(worker.gigWorkerProfile.location);
-        if (workerCoords) {
+      // LOCATION IS MANDATORY - workers must be within 30km to be considered
+      let withinRange = false; // Default to false - must have valid coordinates
+      if (gigCoords && worker.gigWorkerProfile?.latitude && worker.gigWorkerProfile?.longitude) {
+        const workerLat = parseFloat(worker.gigWorkerProfile.latitude.toString());
+        const workerLng = parseFloat(worker.gigWorkerProfile.longitude.toString());
+        
+        if (!isNaN(workerLat) && !isNaN(workerLng)) {
           const distance = calculateDistance(
             gigCoords.lat, 
             gigCoords.lng, 
-            workerCoords.lat, 
-            workerCoords.lng
+            workerLat, 
+            workerLng
           );
-          withinRange = distance <= 30; // 30km radius is required
+          withinRange = distance <= 30; // 30km radius is MANDATORY
           
           console.log(`Worker ${worker.fullName}: Distance ${distance.toFixed(2)}km, Within range: ${withinRange}, Has skills: ${hasSkills}, Available: ${isAvailable}`);
         } else {
-          console.log(`Worker ${worker.fullName}: No worker coordinates, assuming in range`);
+          console.log(`Worker ${worker.fullName}: Invalid worker coordinates (${workerLat}, ${workerLng}), REJECTED - no valid coordinates`);
         }
       } else if (gigCoords) {
-        console.log(`Worker ${worker.fullName}: No worker location data, assuming in range`);
+        console.log(`Worker ${worker.fullName}: No worker coordinates (lat: ${worker.gigWorkerProfile?.latitude}, lng: ${worker.gigWorkerProfile?.longitude}), REJECTED - no coordinates`);
       } else {
-        console.log(`Worker ${worker.fullName}: No gig coordinates, assuming in range`);
+        console.log(`Worker ${worker.fullName}: No gig coordinates, REJECTED - cannot calculate distance`);
       }
       
-      // Basic criteria: must have skills, be available, and be within range
-      const criteria = [hasSkills, isAvailable, withinRange];
-      const metCriteria = criteria.filter(Boolean).length;
+      // HARD FILTER: Must be within 30km to be considered at all
+      if (!withinRange) {
+        console.log(`Worker ${worker.fullName}: REJECTED - outside 30km range`);
+        return false;
+      }
       
-      console.log(`Worker ${worker.fullName}: Met ${metCriteria}/3 basic criteria (skills: ${hasSkills}, available: ${isAvailable}, in range: ${withinRange})`);
+      // If within range, check other criteria for logging purposes
+      console.log(`Worker ${worker.fullName}: ACCEPTED - within 30km range (skills: ${hasSkills}, available: ${isAvailable})`);
       
-      // Accept workers who meet at least 2 out of 3 criteria - AI will determine relevance
-      return metCriteria >= 2;
+      // All workers within 30km are considered - AI will determine final relevance
+      return true;
     });
 
-    console.log(`Filtered ${filteredWorkers.length} workers from ${workers.length} total (meeting at least 2/3 criteria: skills, availability, location within 30km)`);
+    console.log(`Filtered ${filteredWorkers.length} workers from ${workers.length} total (MANDATORY: within 30km range)`);
 
     // Prepare worker data for AI analysis
     const workerData = filteredWorkers.map((worker: any) => {
