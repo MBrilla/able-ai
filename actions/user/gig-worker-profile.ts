@@ -517,11 +517,6 @@ export const saveWorkerProfileFromOnboardingAction = async (
       throw new Error("Token is required");
     }
 
-    // Validate hourly rate minimum
-    const validatedHourlyRate = parseFloat(profileData.hourlyRate || '0');
-    if (validatedHourlyRate < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE) {
-      throw new Error(`Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}`);
-    }
 
     const { uid } = await isUserAuthenticated(token);
     if (!uid) throw ERROR_CODES.UNAUTHORIZED;
@@ -609,7 +604,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
     // Save worker skills data to gig_worker_skills table
     let skillName = '';
     let yearsOfExperience: number | undefined;
-    let hourlyRate: number | undefined;
+    let extractedHourlyRate: number | undefined;
     
     // Add unique call identifier for debugging
     const callId = Math.random().toString(36).substr(2, 9);
@@ -638,12 +633,12 @@ export const saveWorkerProfileFromOnboardingAction = async (
       yearsOfExperience = yearsMatch ? parseFloat(yearsMatch[1]) : undefined;
       
       // Extract hourly rate
-      hourlyRate = profileData.hourlyRate ? parseFloat(profileData.hourlyRate) : undefined;
+      extractedHourlyRate = profileData.hourlyRate ? parseFloat(profileData.hourlyRate) : undefined;
       
       console.log('🔍 Worker Skills Debug:', {
         skillName,
         yearsOfExperience,
-        hourlyRate,
+        hourlyRate: extractedHourlyRate,
         workerProfileId,
         user_id: user.id,
         worker_profile_id: workerProfileId,
@@ -663,7 +658,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
           userId: user.id,
           name: skillName,
           experience: yearsOfExperience ? String(yearsOfExperience) : null,
-          eph: hourlyRate ? String(hourlyRate) : null,
+          eph: extractedHourlyRate ? String(extractedHourlyRate) : null,
         });
         
         // Check if this specific skill already exists for this worker profile to prevent exact duplicates
@@ -685,7 +680,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
               name: skillName,
               experienceMonths: 0,
               experienceYears: yearsOfExperience || 0,
-              agreedRate: String(hourlyRate || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
+              agreedRate: String(extractedHourlyRate || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
               skillVideoUrl: null,
               adminTags: null,
               ableGigs: null,
@@ -701,7 +696,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
               name: skillName,
               experienceMonths: 0,
               experienceYears: yearsOfExperience || 0,
-              agreedRate: String(hourlyRate || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
+              agreedRate: String(extractedHourlyRate || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
             });
             throw insertError;
           }
