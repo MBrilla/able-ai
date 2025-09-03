@@ -20,40 +20,47 @@ function createFallbackMatches(gigContext: any, workerData: any[]): any[] {
     let matchScore = 50; // Base score
     const reasons = [];
 
-    // Skill relevance scoring
-    if (primarySkill) {
-      const skillLower = primarySkill.toLowerCase();
-      // Direct matches (high score)
-      if (gigText.includes('baker') && (skillLower.includes('baker') || skillLower.includes('cake') || skillLower.includes('pastry'))) {
-        matchScore += 30;
-        reasons.push(`Direct ${primarySkill} experience`);
-      } else if (gigText.includes('chef') && (skillLower.includes('chef') || skillLower.includes('cook'))) {
-        matchScore += 30;
-        reasons.push(`Direct ${primarySkill} experience`);
-      } else if (gigText.includes('server') && (skillLower.includes('server') || skillLower.includes('waiter') || skillLower.includes('bartender'))) {
-        matchScore += 30;
-        reasons.push(`Direct ${primarySkill} experience`);
-      } else if (gigText.includes('bartender') && (skillLower.includes('bartender') || skillLower.includes('mixologist'))) {
-        matchScore += 30;
-        reasons.push(`Direct ${primarySkill} experience`);
-      }
-      // Related matches (medium score)
-      else if (gigText.includes('baker') && (skillLower.includes('chef') || skillLower.includes('cook'))) {
-        matchScore += 20;
-        reasons.push(`Related ${primarySkill} experience`);
-      } else if (gigText.includes('server') && (skillLower.includes('chef') || skillLower.includes('cook'))) {
-        matchScore += 15;
-        reasons.push(`Related ${primarySkill} experience`);
-      } else if (gigText.includes('bartender') && (skillLower.includes('server') || skillLower.includes('waiter'))) {
-        matchScore += 20;
-        reasons.push(`Related ${primarySkill} experience`);
-      }
-      // Generic matches (low score)
-      else {
-        matchScore += 10;
-        reasons.push(`Experienced in ${primarySkill}`);
-      }
-    }
+         // Skill relevance scoring - BE STRICT ABOUT RELEVANCE
+     if (primarySkill) {
+       const skillLower = primarySkill.toLowerCase();
+       const gigLower = gigText.toLowerCase();
+       
+       // Direct matches (high score)
+       if (gigLower.includes('baker') && (skillLower.includes('baker') || skillLower.includes('cake') || skillLower.includes('pastry'))) {
+         matchScore += 30;
+         reasons.push(`Direct ${primarySkill} experience`);
+       } else if (gigLower.includes('chef') && (skillLower.includes('chef') || skillLower.includes('cook') || skillLower.includes('culinary'))) {
+         matchScore += 30;
+         reasons.push(`Direct ${primarySkill} experience`);
+       } else if (gigLower.includes('server') && (skillLower.includes('server') || skillLower.includes('waiter') || skillLower.includes('bartender'))) {
+         matchScore += 30;
+         reasons.push(`Direct ${primarySkill} experience`);
+       } else if (gigLower.includes('bartender') && (skillLower.includes('bartender') || skillLower.includes('mixologist'))) {
+         matchScore += 30;
+         reasons.push(`Direct ${primarySkill} experience`);
+       }
+       // Related matches (medium score) - ONLY if genuinely transferable
+       else if (gigLower.includes('baker') && (skillLower.includes('chef') || skillLower.includes('cook'))) {
+         matchScore += 20;
+         reasons.push(`Related ${primarySkill} experience`);
+       } else if (gigLower.includes('bartender') && (skillLower.includes('server') || skillLower.includes('waiter'))) {
+         matchScore += 20;
+         reasons.push(`Related ${primarySkill} experience`);
+       }
+       // UNRELATED SKILLS - PENALIZE HEAVILY
+       else if (gigLower.includes('chef') && (skillLower.includes('cashier') || skillLower.includes('retail') || skillLower.includes('admin') || skillLower.includes('construction'))) {
+         matchScore -= 20; // Heavy penalty for completely unrelated skills
+         reasons.push(`Skills not relevant to cooking role`);
+       } else if (gigLower.includes('server') && (skillLower.includes('cashier') || skillLower.includes('retail') || skillLower.includes('admin') || skillLower.includes('construction'))) {
+         matchScore -= 20; // Heavy penalty for completely unrelated skills
+         reasons.push(`Skills not relevant to service role`);
+       }
+       // Generic matches (low score) - only if no clear mismatch
+       else {
+         matchScore += 5; // Reduced from 10 to be more selective
+         reasons.push(`Experienced in ${primarySkill}`);
+       }
+     }
 
     // Bio relevance scoring
     if (bio) {
@@ -117,16 +124,16 @@ function createFallbackMatches(gigContext: any, workerData: any[]): any[] {
       reasons.push('Available for work', 'Professional service provider');
     }
 
-    return {
-      workerId: worker.workerId,
-      workerName: worker.workerName,
-      matchScore: Math.round(matchScore),
-      matchReasons: reasons.slice(0, 3), // Limit to 3 reasons
-      availability: worker.availability,
-      skills: worker.skills,
-    };
-  });
-}
+         return {
+       workerId: worker.workerId,
+       workerName: worker.workerName,
+       matchScore: Math.round(matchScore),
+       matchReasons: reasons.slice(0, 3), // Limit to 3 reasons
+       availability: worker.availability,
+       skills: worker.skills,
+     };
+   }).filter(worker => worker.matchScore >= 60); // Only return workers with decent relevance scores
+ }
 
 export async function POST(request: NextRequest) {
   try {
@@ -188,10 +195,12 @@ export async function POST(request: NextRequest) {
 
     const prompt = `You are an AI matchmaking assistant for a gig platform. Your job is to intelligently analyze workers and find the best matches for a specific gig.
 
-IMPORTANT: All workers provided have already been pre-filtered to meet these basic requirements:
-- Location: Within 30km of the gig location
-- Skills: Have at least one skill listed
-- Availability: Available during the gig time period
+IMPORTANT: All workers provided have already been pre-filtered with this MANDATORY requirement:
+- Location: MUST be within 30km of the gig location (this is a hard filter - no exceptions)
+
+Additional context (for your analysis, but not filtering):
+- Skills: May or may not have relevant skills
+- Availability: May or may not be available during the gig time period
 
 GIG CONTEXT:
 - Title: ${cleanGigContext.title}
@@ -201,39 +210,40 @@ GIG CONTEXT:
 - Hourly Rate: £${cleanGigContext.hourlyRate}
 - Additional Requirements: ${cleanGigContext.additionalRequirements}
 
-WORKERS TO ANALYZE (all within 30km, have skills, and are available during gig time):
+WORKERS TO ANALYZE (all within 30km - location is mandatory, skills and availability vary):
 ${JSON.stringify(cleanWorkerData, null, 2)}
 
-YOUR TASK: Use your intelligence to determine which workers are good matches for this gig. Consider:
+YOUR TASK: Find the MOST RELEVANT workers for this specific gig. Be highly selective - only recommend workers who are actually suitable for this role.
 
-1. **Skill Relevance & Transferability**: 
-   - Related/transferable skills (e.g., "waiter" for server gigs, "chef" for cooking gigs)
-   - Cross-industry skills that could apply (e.g., customer service skills for hospitality roles)
+CRITICAL REQUIREMENTS:
+1. **Skill Relevance is MANDATORY**: 
+   - Workers MUST have skills that are directly relevant to the gig
+   - A "chef" gig requires cooking/culinary skills - NOT cashier, retail, or unrelated skills
+   - A "server" gig requires hospitality/service skills - NOT construction, admin, or unrelated skills
+   - Only consider transferable skills if they're genuinely applicable (e.g., "waiter" for server gigs)
 
 2. **Experience Level Appropriateness**:
    - Match experience level to gig complexity
-   - Consider if someone with different but related experience could adapt
-   - Entry-level vs senior role requirements
+   - Entry-level gigs can accept entry-level workers
+   - Senior roles require appropriate experience
 
 3. **Rate Compatibility**:
    - Compare worker rates to gig rate
-   - Consider if rate differences are reasonable
-   - Factor in experience level vs rate
    - IMPORTANT: London minimum wage is £12.21/hour - all rates must be at least this amount
 
 4. **Professional Fit**:
-   - Overall profile alignment
-   - Work style compatibility
-   - Specialized requirements
+   - Overall profile alignment with the gig requirements
 
-SCORING RULES:
+SCORING RULES - BE VERY SELECTIVE:
 - Score range: 0-100
-- 90-100: Perfect match (exact skills, ideal experience, great rate fit)
-- 80-89: Excellent match (very relevant skills, good experience, reasonable rate)
-- 70-79: Good match (related skills, adequate experience, acceptable rate)
-- 60-69: Fair match (some relevant skills, could work with training)
-- 50-59: Poor match (minimal relevance, significant gaps)
-- Below 50: Not recommended (not suitable for this gig)
+- 90-100: PERFECT match (exact skills, ideal experience, great rate fit) - HIGHLY RECOMMEND
+- 80-89: Excellent match (very relevant skills, good experience, reasonable rate) - RECOMMEND
+- 70-79: Good match (related skills, adequate experience, acceptable rate) - CONSIDER
+- 60-69: Fair match (some relevant skills, could work with training) - ONLY if no better options
+- 50-59: Poor match (minimal relevance, significant gaps) - AVOID
+- Below 50: Not suitable - DO NOT RECOMMEND
+
+IMPORTANT: Only return workers with scores of 70+ unless there are very few options. Focus on finding the absolute best candidates who are actually relevant to this specific gig.
 
 For each worker, provide:
 1. matchScore: A number between 0-100

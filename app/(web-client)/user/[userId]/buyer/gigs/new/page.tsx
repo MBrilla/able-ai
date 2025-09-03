@@ -336,7 +336,7 @@ Respond as a single message, as if you are the bot in a chat.`;
 
 type ChatStep = {
   id: number;
-  type: "bot" | "user" | "input" | "sanitized" | "typing" | "calendar" | "location" | "confirm" | "jobTitleConfirmation" | "summary" | "matchmaking" | "promoCode";
+  type: "bot" | "user" | "input" | "sanitized" | "typing" | "calendar" | "location" | "confirm" | "jobTitleConfirmation" | "summary" | "matchmaking" | "discountCode";
   content?: string;
   inputConfig?: StepInputConfig;
   isComplete?: boolean;
@@ -717,9 +717,17 @@ export default function OnboardBuyerPage() {
 
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [discountCode, setDiscountCode] = useState<string | null>();
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmedSteps, setConfirmedSteps] = useState<Set<number>>(new Set());
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+
+  // Retrieve referral code from sessionStorage on component mount
+  useEffect(() => {
+    const storedReferralCode = sessionStorage.getItem('referralCode');
+    if (storedReferralCode) {
+      setReferralCode(storedReferralCode);
+    }
+  }, []);
   const [currentFocusedInputName, setCurrentFocusedInputName] = useState<string | null>(null);
   const [chatSteps, setChatSteps] = useState<ChatStep[]>([{
     id: 1,
@@ -773,7 +781,7 @@ export default function OnboardBuyerPage() {
   // Check if a special component is currently active (location, calendar, promo code, etc.)
   const isSpecialComponentActive = useMemo(() => {
     const currentStep = chatSteps.find(step => 
-      (step.type === "calendar" || step.type === "location" || step.type === "promoCode") && !step.isComplete
+      (step.type === "calendar" || step.type === "location" || step.type === "discountCode") && !step.isComplete
     );
     return !!currentStep;
   }, [chatSteps]);
@@ -1319,7 +1327,7 @@ Make the conversation feel natural and build on what they've already told you.`;
       ));
       
       // Set promo code as asked and proceed to summary
-      setFormData(prev => ({ ...prev, promoCodeAsked: true }));
+      setFormData(prev => ({ ...prev, discountCodeAsked: true }));
       
       // Add acknowledgment and proceed to AI summary
       setChatSteps((prev) => [
@@ -1338,7 +1346,7 @@ Make the conversation feel natural and build on what they've already told you.`;
       ]);
       
       setTimeout(async () => {
-        const updatedFormData = { ...formData, promoCodeAsked: true };
+        const updatedFormData = { ...formData, discountCodeAsked: true };
         const aiSummary = await generateAIGigSummary(updatedFormData, ai);
         setChatSteps((prev) => {
           // Remove typing indicator and add AI-powered summary with confirm button
@@ -1380,7 +1388,7 @@ Make the conversation feel natural and build on what they've already told you.`;
       setFormData(prev => ({ 
         ...prev, 
         [inputName]: valueToUse || '', 
-        promoCodeAsked: true 
+        discountCodeAsked: true 
       }));
       
       // Add acknowledgment message
@@ -1396,7 +1404,7 @@ Make the conversation feel natural and build on what they've already told you.`;
       
       // Proceed to AI summary after a brief delay
       setTimeout(async () => {
-        const updatedFormData = { ...formData, [inputName]: valueToUse || '', promoCodeAsked: true };
+        const updatedFormData = { ...formData, [inputName]: valueToUse || '', discountCodeAsked: true };
         const aiSummary = await generateAIGigSummary(updatedFormData, ai);
         
         setChatSteps((prev) => [
@@ -1556,20 +1564,19 @@ Make the conversation feel natural and build on what they've already told you.`;
               isNew: true,
             },
           ]);
-        } else if (!updatedFormData.promoCodeAsked) {
-          // All required fields collected, ask about promo code before summary
-          setSelectedPromoCodeOption(null); // Reset selection for new promo code step
+        } else if (!updatedFormData.discountCodeAsked) {
+          // All required fields collected, ask about discount code before summary
           setChatSteps((prev) => [
             ...prev,
             {
               id: Date.now() + 3,
               type: "bot",
-              content: "Do you have a promo code or discount code you'd like to apply?",
+              content: "Do you have a discount code you'd like to apply?",
               isNew: true,
             },
             {
               id: Date.now() + 4,
-              type: "promoCode",
+              type: "discountCode",
               isComplete: false,
               isNew: true,
             },
@@ -1704,20 +1711,20 @@ Make the conversation feel natural and build on what they've already told you.`;
             isNew: true,
           },
         ]);
-      } else if (!updatedFormData.promoCodeAsked) {
-        // All required fields collected, ask about promo code before summary
-        setSelectedPromoCodeOption(null); // Reset selection for new promo code step
+      } else if (!updatedFormData.discountCodeAsked) {
+        // All required fields collected, ask about discount code before summary
+        
         setChatSteps((prev) => [
           ...prev,
           {
             id: Date.now() + 2,
             type: "bot",
-            content: "Do you have a promo code or discount code you'd like to apply?",
+            content: "Do you have a discount code you'd like to apply?",
             isNew: true,
           },
           {
             id: Date.now() + 3,
-            type: "promoCode",
+            type: "discountCode",
             isComplete: false,
             isNew: true,
           },
@@ -1824,20 +1831,20 @@ Make the conversation feel natural and build on what they've already told you.`;
             isNew: true,
           },
         ]);
-      } else if (!updatedFormData.promoCodeAsked) {
-        // All required fields collected, ask about promo code before summary
-        setSelectedPromoCodeOption(null); // Reset selection for new promo code step
+      } else if (!updatedFormData.discountCodeAsked) {
+        // All required fields collected, ask about discount code before summary
+        
         setChatSteps((prev) => [
           ...prev,
           {
             id: Date.now() + 2,
             type: "bot",
-            content: "Do you have a promo code or discount code you'd like to apply?",
+            content: "Do you have a discount code you'd like to apply?",
             isNew: true,
           },
           {
             id: Date.now() + 3,
-            type: "promoCode",
+            type: "discountCode",
             isComplete: false,
             isNew: true,
           },
@@ -1923,20 +1930,20 @@ Make the conversation feel natural and build on what they've already told you.`;
             isNew: true,
           },
         ]);
-      } else if (!updatedFormData.promoCodeAsked) {
-        // All required fields collected, ask about promo code before summary
-        setSelectedPromoCodeOption(null); // Reset selection for new promo code step
+      } else if (!updatedFormData.discountCodeAsked) {
+        // All required fields collected, ask about discount code before summary
+        
         setChatSteps((prev) => [
           ...prev,
           {
             id: Date.now() + 2,
             type: "bot",
-            content: "Do you have a promo code or discount code you'd like to apply?",
+            content: "Do you have a discount code you'd like to apply?",
             isNew: true,
           },
           {
             id: Date.now() + 3,
-            type: "promoCode",
+            type: "discountCode",
             isComplete: false,
             isNew: true,
           },
@@ -1999,123 +2006,65 @@ Make the conversation feel natural and build on what they've already told you.`;
     }
   }, [formData, getNextRequiredField, ai]);
 
-  // Handle job title confirmation
-  const handleJobTitleConfirm = useCallback(async (fieldName: string, suggestedJobTitle: string, originalValue: string) => {
+  // Handle discount code confirmation
+  const handleDiscountCodeConfirm = useCallback(async (stepId: number, code: string | null) => {
     try {
-      // Update formData with both the original value and the suggested job title
-      const updatedFormData = { ...formData, [fieldName]: originalValue, jobTitle: suggestedJobTitle };
+      // Update formData with the discount code
+      const updatedFormData = { ...formData, discountCode: code || undefined };
       setFormData(updatedFormData);
       
-      // Mark job title confirmation step as complete
+      // Mark discount code step as complete
       setChatSteps((prev) => prev.map((step) =>
-        step.type === "jobTitleConfirmation" && step.fieldName === fieldName ? { ...step, isComplete: true } : step
+        step.id === stepId ? { ...step, isComplete: true } : step
       ));
       
-      // Find next required field using updated formData
-      const nextField = getNextRequiredField(updatedFormData);
+      // Show AI-generated summary
+      setChatSteps((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 2,
+          type: "bot",
+          content: "Perfect! Let me create a summary of your gig...",
+          isNew: true,
+        },
+        {
+          id: Date.now() + 3,
+          type: "typing",
+          isNew: true,
+        },
+      ]);
       
-      if (nextField) {
-        // Generate context-aware prompt
-        const contextAwarePrompt = await generateContextAwarePrompt(nextField.name, updatedFormData.gigDescription || '', ai);
-        
-        // Determine the step type based on the field
-        let stepType: "input" | "calendar" | "location" = "input";
-        if (nextField.name === "gigDate") {
-          stepType = "calendar";
-        } else if (nextField.name === "gigLocation") {
-          stepType = "location";
-        }
-        
-        const newInputConfig = {
-          type: nextField.type as FormInputType,
-          name: nextField.name,
-          placeholder: nextField.placeholder || nextField.defaultPrompt,
-          ...(nextField.rows && { rows: nextField.rows }),
-        };
-        
-        setChatSteps((prev) => [
-          ...prev,
-          {
-            id: Date.now() + 2,
-            type: "bot",
-            content: contextAwarePrompt,
-            isNew: true,
-          },
-          {
-            id: Date.now() + 3,
-            type: stepType,
-            inputConfig: newInputConfig,
-            isComplete: false,
-            isNew: true,
-          },
-        ]);
-      } else if (!updatedFormData.promoCodeAsked) {
-        // All required fields collected, ask about promo code before summary
-        setSelectedPromoCodeOption(null); // Reset selection for new promo code step
-        setChatSteps((prev) => [
-          ...prev,
-          {
-            id: Date.now() + 2,
-            type: "bot",
-            content: "Do you have a promo code or discount code you'd like to apply?",
-            isNew: true,
-          },
-          {
-            id: Date.now() + 3,
-            type: "promoCode",
-            isComplete: false,
-            isNew: true,
-          },
-        ]);
-      } else {
-        // All fields collected, show AI-generated summary
-        setChatSteps((prev) => [
-          ...prev,
-          {
-            id: Date.now() + 2,
-            type: "bot",
-            content: "Perfect! Let me create a summary of your gig...",
-            isNew: true,
-          },
-          {
-            id: Date.now() + 3,
-            type: "typing",
-            isNew: true,
-          },
-        ]);
-        
-        setTimeout(async () => {
-          const aiSummary = await generateAIGigSummary(updatedFormData, ai);
-          setChatSteps((prev) => {
-            // Remove typing indicator and add AI-powered summary with confirm button
-            const filtered = prev.filter(s => s.type !== 'typing');
-            return [
-              ...filtered,
-              {
-                id: Date.now() + 4,
-                type: "bot",
-                content: `Perfect! ${aiSummary}`,
-                isNew: true,
+      setTimeout(async () => {
+        const aiSummary = await generateAIGigSummary(updatedFormData, ai);
+        setChatSteps((prev) => {
+          // Remove typing indicator and add AI-powered summary with confirm button
+          const filtered = prev.filter(s => s.type !== 'typing');
+          return [
+            ...filtered,
+            {
+              id: Date.now() + 4,
+              type: "bot",
+              content: `Perfect! ${aiSummary}`,
+              isNew: true,
+            },
+            {
+              id: Date.now() + 5,
+              type: "input",
+              inputConfig: {
+                type: "button",
+                name: "confirmGig",
+                placeholder: "Confirm & Find Workers",
               },
-              {
-                id: Date.now() + 5,
-                type: "input",
-                inputConfig: {
-                  type: "button",
-                  name: "confirmGig",
-                  placeholder: "Confirm & Find Workers",
-                },
-                isNew: true,
-              },
-            ];
-          });
-        }, 700);
-      }
+              isNew: true,
+            },
+          ];
+        });
+      }, 700);
     } catch (error) {
-      console.error('Error in job title confirmation:', error);
-      setError('Failed to process job title confirmation. Please try again.');
+      console.error('Error in discount code confirmation:', error);
+      setError('Failed to process discount code confirmation. Please try again.');
     }
-  }, [formData, getNextRequiredField, ai]);
+  }, [formData, ai]);
 
   const handleSanitizedReformulate = (fieldName: string) => {
     if (isReformulating) return; // Prevent multiple clicks
@@ -2295,10 +2244,9 @@ Make the conversation feel natural and build on what they've already told you.`;
         additionalInstructions: formData.additionalInstructions ? String(formData.additionalInstructions) : undefined,
         hourlyRate: formData.hourlyRate ?? 0,
         gigLocation: formData.gigLocation, // Send the original location object to preserve coordinates
-        discountCode: formData.discountCode,
+        discountCode: formData.discountCode ? String(formData.discountCode).trim() : undefined,
         gigDate: String(formData.gigDate || "").slice(0, 10),
         gigTime: formData.gigTime ? String(formData.gigTime) : undefined,
-        promoCode: formData.discountCode ? String(formData.discountCode).trim() : undefined,
       };
 
       const result = await createGig(payload);
@@ -2531,12 +2479,12 @@ Make the conversation feel natural and build on what they've already told you.`;
           
           // Find current input step (any type that needs user input)
           const currentInputStep = chatSteps.find(step => 
-            (step.type === "input" || step.type === "calendar" || step.type === "location" || step.type === "promoCode") && !step.isComplete
+            (step.type === "input" || step.type === "calendar" || step.type === "location" || step.type === "discountCode") && !step.isComplete
           );
           
           if (currentInputStep) {
             // Handle promo code step (no inputConfig needed)
-            if (currentInputStep.type === "promoCode") {
+            if (currentInputStep.type === "discountCode") {
               // Don't process chat input for promo code step - user should use buttons
               return;
             }
@@ -3144,77 +3092,16 @@ Make the conversation feel natural and build on what they've already told you.`;
             return null;
           }
 
-
           if (step.type === "discountCode" && !step.isComplete) {
             return (
               <DiscountCodeBubble
                 key={key}
-                sessionCode={discountCode ?? null} // Pass the session code from state
+                sessionCode={referralCode}
                 onConfirm={(code) => {
                   void handleDiscountCodeConfirm(step.id, code);
                 }}
                 role={"BUYER"}
               />
-            );
-          }
-          
-
-          
-          // Handle promo code step
-          if (step.type === "promoCode") {
-            return (
-              <div key={key} style={{ 
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.5rem',
-                marginBottom: '0.5rem'
-              }}>
-                {/* AI Avatar */}
-                <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'linear-gradient(135deg, var(--secondary-color), var(--secondary-darker-color))',
-                    boxShadow: '0 2px 8px rgba(34, 211, 238, 0.3)'
-                  }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      background: '#000000',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid rgba(255, 255, 255, 0.2)'
-                    }}>
-                      <Image 
-                        src="/images/ableai.png" 
-                        alt="Able AI" 
-                        width={24} 
-                        height={24} 
-                        style={{
-                          borderRadius: '50%',
-                          objectFit: 'cover'
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Promo Code Component */}
-                <div style={{ flex: 1, marginTop: '0.25rem' }}>
-                  <PromoCodeStep
-                    onHaveCode={() => handleInputSubmit(step.id, "havePromoCode")}
-                    onDontHaveCode={() => handleInputSubmit(step.id, "noPromoCode")}
-                    disabled={selectedPromoCodeOption !== null}
-                    selectedOption={selectedPromoCodeOption}
-                  />
-                </div>
-              </div>
             );
           }
 

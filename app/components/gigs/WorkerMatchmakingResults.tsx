@@ -125,7 +125,7 @@ export default function WorkerMatchmakingResults({
                   {/* Skip Selection Button */}
          <div className="text-center">
            <div style={{ 
-             background: '#f0fdfd',
+             
              border: '2px solid #7eeef9',
              borderRadius: 12,
              padding: '16px 20px',
@@ -146,21 +146,19 @@ export default function WorkerMatchmakingResults({
                  justifyContent: 'center',
                  marginRight: '8px'
                }}>
-                 <svg width="12" height="12" fill="white" viewBox="0 0 24 24">
-                   <path d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-                 </svg>
+                 
                </div>
                <span style={{ 
                  fontSize: '14px', 
                  fontWeight: 600, 
-                 color: '#0f766e' 
+                 color: 'White' 
                }}>
                  No Perfect Match?
                </span>
              </div>
              <p style={{ 
                fontSize: '12px', 
-               color: '#0d9488', 
+               color: 'White', 
                margin: '0 0 12px 0',
                lineHeight: '1.4'
              }}>
@@ -171,7 +169,7 @@ export default function WorkerMatchmakingResults({
                disabled={isSkipping || isSelecting}
                style={{ 
                  background: '#7eeef9', 
-                 color: '#fff', 
+                 color: 'black', 
                  border: 'none', 
                  borderRadius: 8, 
                  padding: '12px 20px', 
