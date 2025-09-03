@@ -12,7 +12,7 @@ type CreateGigInput = {
   gigLocation?: string | { lat?: number; lng?: number; formatted_address?: string; address?: string; [key: string]: any };
   gigDate: string; // YYYY-MM-DD
   gigTime?: string; // HH:mm (24h) or time range like "12:00-14:30"
-  discountCode?: string;
+  promoCode?: string; // Promo/discount code
 };
 
 type CreateGigResult = {
@@ -89,7 +89,7 @@ function buildDateTime(gigDate: string, gigTime?: string): { startTime: Date; en
 
 export async function createGig(input: CreateGigInput): Promise<CreateGigResult> {
   try {
-    const { userId, gigDescription, additionalInstructions, hourlyRate, gigLocation, gigDate, gigTime, discountCode} = input;
+    const { userId, gigDescription, additionalInstructions, hourlyRate, gigLocation, gigDate, gigTime, promoCode } = input;
 
     if (!userId) return { status: 400, error: "Missing userId" };
     if (!gigDescription) return { status: 400, error: "Missing gigDescription" };
@@ -182,7 +182,7 @@ export async function createGig(input: CreateGigInput): Promise<CreateGigResult>
       expiresAt: sql`NOW() + interval '12 hours'`,
       agreedRate: rate.toString(), // Convert to string as expected by the schema
       estimatedHours: duration.toString(), // Convert to string as expected by the schema
-      promoCodeApplied: discountCode || null, // Add discount code if provided
+      promoCodeApplied: promoCode || null, // Add promo code if provided
       // Explicit status values to avoid NULL constraint violations
       statusInternal: gigStatusEnum.enumValues[0], // "PENDING_WORKER_ACCEPTANCE"
       moderationStatus: moderationStatusEnum.enumValues[0], // "PENDING"
@@ -195,14 +195,29 @@ export async function createGig(input: CreateGigInput): Promise<CreateGigResult>
         .values(insertData)
         .returning({ id: GigsTable.id });
 
+    try {
+      const [inserted] = await db
+        .insert(GigsTable)
+        .values(insertData)
+        .returning({ id: GigsTable.id });
+
+      console.log('CreateGig debug - inserted result:', inserted);
+
       if (!inserted?.id) return { status: 500, error: "Failed to create gig" };
 
       return { status: 200, gigId: inserted.id };
     } catch (dbError: any) {
       console.error('CreateGig database error:', dbError);
+      console.error('CreateGig database error details:', {
+        message: dbError.message,
+        code: dbError.code,
+        detail: dbError.detail,
+        hint: dbError.hint,
+        constraint: dbError.constraint
+      });
       return { status: 500, error: `Database error: ${dbError.message}` };
     }
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error("Error creating gig:", error);
     return {
       status: 500,

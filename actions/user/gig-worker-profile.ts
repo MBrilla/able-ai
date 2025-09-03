@@ -16,7 +16,7 @@ import {
   UsersTable,
   WorkerAvailabilityTable,
 } from "@/lib/drizzle/schema";
-import { gigWorkerSkills } from "@/drizzle/schema";
+
 import { ERROR_CODES } from "@/lib/responses/errors";
 import { isUserAuthenticated } from "@/lib/user.server";
 import { and, eq, sql } from "drizzle-orm";
@@ -629,8 +629,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
     console.log(`🚀 [${callId}] Call stack:`, new Error().stack?.split('\n').slice(1, 4).join('\n'));
     
     try {
-      // Extract skill name from about field (job title if available, otherwise about)
-      skillName = profileData.jobTitle || profileData.about || '';
+      // Extract skill name from skills field first, then job title, then about
+      skillName = profileData.skills || profileData.jobTitle || profileData.about || '';
       
       // Extract years of experience from experience field
       const experienceText = profileData.experience || '';
@@ -649,7 +649,12 @@ export const saveWorkerProfileFromOnboardingAction = async (
         worker_profile_id: workerProfileId,
         profileData_keys: Object.keys(profileData),
         profileData_values: Object.values(profileData),
-        hasSkillName: !!skillName
+        hasSkillName: !!skillName,
+        skills_field: profileData.skills,
+        jobTitle_field: profileData.jobTitle,
+        about_field: profileData.about,
+        experience_field: profileData.experience,
+        hourlyRate_field: profileData.hourlyRate
       });
       
       if (skillName) {
@@ -661,22 +666,49 @@ export const saveWorkerProfileFromOnboardingAction = async (
           eph: hourlyRate ? String(hourlyRate) : null,
         });
         
-        // Check if skills already exist for this worker profile to prevent duplicates
-        const existingSkills = await db.select().from(gigWorkerSkills).where(eq(gigWorkerSkills.userId, workerProfileId));
+        // Check if this specific skill already exists for this worker profile to prevent exact duplicates
+        const existingSkills = await db.query.SkillsTable.findMany({
+          where: eq(SkillsTable.workerProfileId, workerProfileId),
+        });
         console.log('🔍 Existing skills for worker profile:', existingSkills);
         
-        if (existingSkills.length === 0) {
-          // No existing skills, safe to insert
-          const skillResult = await db.insert(gigWorkerSkills).values({
-            userId: workerProfileId, // This should be the worker profile ID for proper relationship
-            name: skillName,
-            experience: yearsOfExperience ? String(yearsOfExperience) : null,
-            eph: hourlyRate ? String(hourlyRate) : null,
-          });
-          console.log('✅ Worker skills saved successfully:', skillResult);
+        // Check if this exact skill name already exists
+        const skillExists = existingSkills.some(skill => 
+          skill.name.toLowerCase().trim() === skillName.toLowerCase().trim()
+        );
+        
+        if (!skillExists) {
+          // Skill doesn't exist, safe to insert
+          try {
+            const skillResult = await db.insert(SkillsTable).values({
+              workerProfileId: workerProfileId,
+              name: skillName,
+              experienceMonths: 0,
+              experienceYears: yearsOfExperience || 0,
+              agreedRate: String(hourlyRate || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
+              skillVideoUrl: null,
+              adminTags: null,
+              ableGigs: null,
+              images: [],
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+            console.log('✅ New worker skill saved successfully:', skillResult);
+          } catch (insertError) {
+            console.error('❌ Error inserting skill into SkillsTable:', insertError);
+            console.error('❌ Insert data that failed:', {
+              workerProfileId,
+              name: skillName,
+              experienceMonths: 0,
+              experienceYears: yearsOfExperience || 0,
+              agreedRate: String(hourlyRate || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
+            });
+            throw insertError;
+          }
         } else {
-          console.log('⚠️ Skills already exist for this worker profile, skipping insert to prevent duplicates');
-          console.log('📋 Existing skills:', existingSkills.map(s => ({ name: s.name, experience: s.experience, eph: s.eph })));
+          console.log('⚠️ Skill already exists for this worker profile, skipping insert to prevent exact duplicates');
+          console.log('📋 Existing skills:', existingSkills.map(s => ({ name: s.name, experienceYears: s.experienceYears, agreedRate: s.agreedRate })));
+          console.log('🔍 Attempted to add skill:', skillName);
         }
       } else {
         console.log('⚠️ No skill name found, skipping worker skills save');
@@ -729,21 +761,45 @@ export const saveWorkerProfileFromOnboardingAction = async (
       // No equipment provided
     }
 
-    // Save job title as a skill if provided
+    // Save job title as a skill if provided (check for duplicates first)
     if (profileData.jobTitle) {
-      await db.insert(SkillsTable).values({
-        workerProfileId: workerProfileId,
-        name: profileData.jobTitle,
-        experienceMonths: 0,
-        experienceYears: 0,
-        agreedRate: String(parseFloat(profileData.hourlyRate) || 0),
-        skillVideoUrl: null,
-        adminTags: null,
-        ableGigs: null,
-        images: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
+      // Check if this job title already exists as a skill for this worker profile
+      const existingJobTitleSkills = await db.query.SkillsTable.findMany({
+        where: eq(SkillsTable.workerProfileId, workerProfileId),
       });
+      
+      const jobTitleExists = existingJobTitleSkills.some(skill => 
+        skill.name.toLowerCase().trim() === (profileData.jobTitle || '').toLowerCase().trim()
+      );
+      
+      if (!jobTitleExists) {
+        try {
+          await db.insert(SkillsTable).values({
+            workerProfileId: workerProfileId,
+            name: profileData.jobTitle,
+            experienceMonths: 0,
+            experienceYears: 0,
+            agreedRate: String(parseFloat(profileData.hourlyRate) || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
+            skillVideoUrl: null,
+            adminTags: null,
+            ableGigs: null,
+            images: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          console.log('✅ Job title saved as new skill:', profileData.jobTitle);
+        } catch (insertError) {
+          console.error('❌ Error inserting job title as skill:', insertError);
+          console.error('❌ Job title insert data that failed:', {
+            workerProfileId,
+            name: profileData.jobTitle,
+            agreedRate: String(parseFloat(profileData.hourlyRate) || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
+          });
+          throw insertError;
+        }
+      } else {
+        console.log('⚠️ Job title already exists as skill, skipping insert:', profileData.jobTitle);
+      }
     }
 
     // Save worker skills data to gig_worker_skills table
