@@ -94,7 +94,7 @@ function buildDateTime(gigDate: string, gigTime?: string): { startTime: Date; en
 
 export async function createGig(input: CreateGigInput): Promise<CreateGigResult> {
   try {
-    const { userId, gigDescription, additionalInstructions, hourlyRate, gigLocation, gigDate, gigTime, promoCode } = input;
+    const { userId, gigDescription, additionalInstructions, hourlyRate, gigLocation, gigDate, gigTime, discountCode} = input;
 
     if (!userId) return { status: 400, error: "Missing userId" };
     if (!gigDescription) return { status: 400, error: "Missing gigDescription" };
@@ -205,7 +205,7 @@ export async function createGig(input: CreateGigInput): Promise<CreateGigResult>
       endTime,
       agreedRate: rate.toString(), // Convert to string as expected by the schema
       estimatedHours: duration.toString(), // Convert to string as expected by the schema
-      promoCodeApplied: promoCode || null, // Add promo code if provided
+      promoCodeApplied: discountCode || null, // Add discount code if provided
       // Explicit status values to avoid NULL constraint violations
       statusInternal: gigStatusEnum.enumValues[0], // "PENDING_WORKER_ACCEPTANCE"
       moderationStatus: moderationStatusEnum.enumValues[0], // "PENDING"
