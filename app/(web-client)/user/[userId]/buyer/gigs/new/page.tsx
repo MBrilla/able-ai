@@ -9,6 +9,7 @@ import MessageBubble from "@/app/components/onboarding/MessageBubble";
 import WorkerCard, { WorkerData } from "@/app/components/onboarding/WorkerCard"; // Import shared WorkerCard and WorkerData
 import LocationPickerBubble from "@/app/components/onboarding/LocationPickerBubble";
 import CalendarPickerBubble from "@/app/components/onboarding/CalendarPickerBubble";
+import DiscountCodeBubble from "@/app/components/onboarding/DiscountCodeBubble";
 
 import Loader from "@/app/components/shared/Loader";
 
@@ -214,6 +215,7 @@ const requiredFields: RequiredField[] = [
   { name: "gigLocation", type: "location", defaultPrompt: "Where is the gig located?" },
   { name: "gigDate", type: "date", defaultPrompt: "What date is the gig?" },
   { name: "gigTime", type: "time", defaultPrompt: "What time does the gig start?" },
+  { name: "discountCode", type: "text", placeholder: "e.g., ABLE20", defaultPrompt: "Great! Just one last thing. Do you have a discount code to apply? 🎟️ If not, no worries!" },
 ];
 
 // Currency note for users
@@ -715,6 +717,7 @@ export default function OnboardBuyerPage() {
 
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [discountCode, setDiscountCode] = useState<string | null>();
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmedSteps, setConfirmedSteps] = useState<Set<number>>(new Set());
   const [currentFocusedInputName, setCurrentFocusedInputName] = useState<string | null>(null);
@@ -1096,6 +1099,7 @@ Special handling:
 - For dates: Accept any valid date format
 - For location fields: Accept coordinates, addresses, venue names, or any location information
 - For time fields: Accept single times (12:00, 2:30 PM) or time ranges (12:00-14:30, 12:00 PM - 2:30 PM)
+- For discountCode: This is optional. If the user provides a code, sanitize it (e.g., uppercase, remove spaces). If they say "no", "none", "skip", or leave it empty, that is PERFECTLY SUFFICIENT. The sanitizedValue should be an empty string in that case.
 
 If validation passes, respond with:
 - isAppropriate: true
@@ -1628,6 +1632,13 @@ Make the conversation feel natural and build on what they've already told you.`;
     }
   }
 
+  const getStepTypeForField = (fieldName: string): "input" | "calendar" | "location" | "discountCode" => {
+    if (fieldName === "gigDate") return "calendar";
+    if (fieldName === "gigLocation") return "location";
+    if (fieldName === "discountCode") return "discountCode";
+    return "input";
+  }
+
   // Simple function to handle calendar and location confirmations without AI validation
   async function handlePickerConfirm(stepId: number, inputName: string) {
     const value = formData[inputName];
@@ -1668,12 +1679,7 @@ Make the conversation feel natural and build on what they've already told you.`;
         const contextAwarePrompt = await generateContextAwarePrompt(nextField.name, updatedFormData.gigDescription || '', ai);
         
         // Determine the step type based on the field
-        let stepType: "input" | "calendar" | "location" = "input";
-        if (nextField.name === "gigDate") {
-          stepType = "calendar";
-        } else if (nextField.name === "gigLocation") {
-          stepType = "location";
-        }
+        const stepType = getStepTypeForField(nextField.name)
         
         const newInputConfig = {
           type: nextField.type as FormInputType,
@@ -1793,6 +1799,99 @@ Make the conversation feel natural and build on what they've already told you.`;
         // Generate context-aware prompt
         const contextAwarePrompt = await generateContextAwarePrompt(nextField.name, updatedFormData.gigDescription || '', ai);
         
+        const stepType = getStepTypeForField(nextField.name)
+        
+        const newInputConfig = {
+          type: nextField.type as FormInputType,
+          name: nextField.name,
+          placeholder: nextField.placeholder || nextField.defaultPrompt,
+          ...(nextField.rows && { rows: nextField.rows }),
+        };
+        
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: contextAwarePrompt,
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: stepType,
+            inputConfig: newInputConfig,
+            isComplete: false,
+            isNew: true,
+          },
+        ]);
+      } else if (!updatedFormData.promoCodeAsked) {
+        // All required fields collected, ask about promo code before summary
+        setSelectedPromoCodeOption(null); // Reset selection for new promo code step
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: "Do you have a promo code or discount code you'd like to apply?",
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: "promoCode",
+            isComplete: false,
+            isNew: true,
+          },
+        ]);
+      } else {
+        // All fields completed, generate AI summary and show confirmation
+        const aiSummary = await generateAIGigSummary(updatedFormData, ai);
+        
+        console.log('Adding AI summary and confirm button to chat steps');
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: `Perfect! ${aiSummary}`,
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: "input",
+            inputConfig: {
+              type: "button",
+              name: "confirmGig",
+              placeholder: "Confirm & Find Workers",
+            },
+            isNew: true,
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error('Error in sanitized confirmation:', error);
+      setError('Failed to process confirmation. Please try again.');
+    }
+  }, [formData, getNextRequiredField, ai]);
+
+  // Handle job title confirmation
+  const handleJobTitleConfirm = useCallback(async (fieldName: string, suggestedJobTitle: string, originalValue: string) => {
+    try {
+      // Update formData with both the original value and the suggested job title
+      const updatedFormData = { ...formData, [fieldName]: originalValue, jobTitle: suggestedJobTitle };
+      setFormData(updatedFormData);
+      
+      // Mark job title confirmation step as complete
+      setChatSteps((prev) => prev.map((step) =>
+        step.type === "jobTitleConfirmation" && step.fieldName === fieldName ? { ...step, isComplete: true } : step
+      ));
+      
+      // Find next required field using updated formData
+      const nextField = getNextRequiredField(updatedFormData);
+      
+      if (nextField) {
+        // Generate context-aware prompt
+        const contextAwarePrompt = await generateContextAwarePrompt(nextField.name, updatedFormData.gigDescription || '', ai);
+        
         // Determine the step type based on the field
         let stepType: "input" | "calendar" | "location" = "input";
         if (nextField.name === "gigDate") {
@@ -1866,10 +1965,37 @@ Make the conversation feel natural and build on what they've already told you.`;
             isNew: true,
           },
         ]);
+        
+        setTimeout(async () => {
+          const aiSummary = await generateAIGigSummary(updatedFormData, ai);
+          setChatSteps((prev) => {
+            // Remove typing indicator and add AI-powered summary with confirm button
+            const filtered = prev.filter(s => s.type !== 'typing');
+            return [
+              ...filtered,
+              {
+                id: Date.now() + 4,
+                type: "bot",
+                content: `Perfect! ${aiSummary}`,
+                isNew: true,
+              },
+              {
+                id: Date.now() + 5,
+                type: "input",
+                inputConfig: {
+                  type: "button",
+                  name: "confirmGig",
+                  placeholder: "Confirm & Find Workers",
+                },
+                isNew: true,
+              },
+            ];
+          });
+        }, 700);
       }
     } catch (error) {
-      console.error('Error in sanitized confirmation:', error);
-      setError('Failed to process confirmation. Please try again.');
+      console.error('Error in job title confirmation:', error);
+      setError('Failed to process job title confirmation. Please try again.');
     }
   }, [formData, getNextRequiredField, ai]);
 
@@ -2169,6 +2295,7 @@ Make the conversation feel natural and build on what they've already told you.`;
         additionalInstructions: formData.additionalInstructions ? String(formData.additionalInstructions) : undefined,
         hourlyRate: formData.hourlyRate ?? 0,
         gigLocation: formData.gigLocation, // Send the original location object to preserve coordinates
+        discountCode: formData.discountCode,
         gigDate: String(formData.gigDate || "").slice(0, 10),
         gigTime: formData.gigTime ? String(formData.gigTime) : undefined,
         promoCode: formData.discountCode ? String(formData.discountCode).trim() : undefined,
@@ -3017,6 +3144,22 @@ Make the conversation feel natural and build on what they've already told you.`;
             return null;
           }
 
+
+          if (step.type === "discountCode" && !step.isComplete) {
+            return (
+              <DiscountCodeBubble
+                key={key}
+                sessionCode={discountCode ?? null} // Pass the session code from state
+                onConfirm={(code) => {
+                  void handleDiscountCodeConfirm(step.id, code);
+                }}
+                role={"BUYER"}
+              />
+            );
+          }
+          
+
+          
           // Handle promo code step
           if (step.type === "promoCode") {
             return (
