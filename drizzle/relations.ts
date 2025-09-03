@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { users, adminLogs, aiPrompts, buyerProfiles, gigs, chatMessages, discountCodes, gigWorkerProfiles, equipment, escalatedIssues, gigSkillsRequired, skills, mockPayments, notificationPreferences, passwordRecoveryRequests, payments, qualifications, recommendations, reviews, teamMembers, userAiUsage, userBadgesLink, badgeDefinitions } from "./schema";
+import { users, adminLogs, aiPrompts, buyerProfiles, gigs, chatMessages, discountCodes, gigWorkerProfiles, equipment, escalatedIssues, gigSkillsRequired, skills, mockPayments, notificationPreferences, passwordRecoveryRequests, payments, qualifications, recommendations, reviews, teamMembers, userAiUsage, userBadgesLink, badgeDefinitions, gigWorkerSkills } from "./schema";
 
 export const adminLogsRelations = relations(adminLogs, ({one}) => ({
 	user: one(users, {

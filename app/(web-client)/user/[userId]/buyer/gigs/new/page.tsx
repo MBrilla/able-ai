@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -15,10 +15,35 @@ import Loader from "@/app/components/shared/Loader";
 import pageStyles from "./page.module.css";
 import { useAuth } from "@/context/AuthContext";
 import { createGig } from "@/actions/gigs/create-gig";
+import { findMatchingWorkers } from "@/actions/gigs/ai-matchmaking";
 import { StepInputConfig, FormInputType } from "@/app/types/form";
+import WorkerMatchmakingResults from "@/app/components/gigs/WorkerMatchmakingResults";
+import { WorkerMatch } from "@/app/components/gigs/WorkerMatchCard";
+import PromoCodeStep from "@/app/components/gigs/PromoCodeStep";
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { useFirebase } from '@/context/FirebaseContext';
 import { Schema } from '@firebase/ai';
+
+// Import ChatAI system for advanced AI functionality
+import {
+  buildContextPrompt,
+  buildRolePrompt,
+  buildSpecializedPrompt,
+  CONTEXT_PROMPTS,
+  SPECIALIZED_PROMPTS,
+  ROLE_SPECIFIC_PROMPTS,
+  GIGFOLIO_COACH_CONTENT,
+  GIGFOLIO_COACH_BEHAVIOR,
+  ONBOARDING_STEPS,
+  COACHING_TECHNIQUES
+} from '@/app/components/shared/ChatAI';
+
+// Import job title sanitization functionality
+import {
+  findClosestJobTitle,
+  findStandardizedJobTitleWithAIFallback,
+  ALL_JOB_TITLES
+} from '@/app/components/shared/ChatAI/roles/JobTitles';
 
 interface OnboardingStep {
   id: number;
@@ -82,7 +107,7 @@ const baseInitialSteps: OnboardingStep[] = [
     id: 5,
     type: "botMessage",
     content:
-      "How much you would like to pay per hour? We suggest £15 plus tips to keep a motivated and happy team!",
+      "How much you would like to pay per hour? We suggest £15 plus tips to keep a motivated and happy team! 💷\n\n💡 Rate guidance by role:\n• Bartending: £12.21-£20/hour\n• Food Service (servers, waiters): £12.21-£18/hour\n• Cooking/Chef: £12.21-£25/hour\n• Baking: £12.21-£22/hour\n• Cleaning: £12.21-£16/hour\n• Retail: £12.21-£15/hour\n• Delivery: £12.21-£18/hour\n\n⚠️ Minimum rate: £12.21/hour (London minimum wage)",
     dependsOn: 3,
   },
   {
@@ -185,7 +210,7 @@ const baseInitialSteps: OnboardingStep[] = [
 const requiredFields: RequiredField[] = [
   { name: "gigDescription", type: "text", placeholder: "e.g., Bartender for a wedding reception", defaultPrompt: "Tell me about yourself and what gig or gigs you need filling!", rows: 3 },
   { name: "additionalInstructions", type: "text", placeholder: "e.g., Cocktail making experience would be ideal", defaultPrompt: "Do you need any special skills or do you have instructions for your hire?", rows: 3 },
-  { name: "hourlyRate", type: "number", placeholder: "£15", defaultPrompt: "How much would you like to pay per hour?" },
+  { name: "hourlyRate", type: "number", placeholder: "£15", defaultPrompt: "How much would you like to pay per hour? 💷\n\n💡 Rate guidance by role:\n• Bartending: £12.21-£20/hour\n• Food Service: £12.21-£18/hour\n• Cooking/Chef: £12.21-£25/hour\n• Baking: £12.21-£22/hour\n• Cleaning: £12.21-£16/hour\n• Retail: £12.21-£15/hour\n• Delivery: £12.21-£18/hour\n\n⚠️ Minimum: £12.21/hour (London minimum wage)" },
   { name: "gigLocation", type: "location", defaultPrompt: "Where is the gig located?" },
   { name: "gigDate", type: "date", defaultPrompt: "What date is the gig?" },
   { name: "gigTime", type: "time", defaultPrompt: "What time does the gig start?" },
@@ -232,7 +257,7 @@ Generate a friendly, contextual prompt for the next question. The prompt should:
 
 Field-specific guidance:
 - additionalInstructions: Ask about specific skills, requirements, or preferences for the job
-- hourlyRate: Ask about budget with relevant pricing guidance for hiring someone in British Pounds (£)
+- hourlyRate: Ask about budget with relevant pricing guidance for hiring someone in British Pounds (£). Provide rate guidance by role and mention London minimum wage of £12.21/hour
 - gigLocation: Ask about location with context about finding nearby workers
 - gigDate: Ask about timing with context about availability
 - gigTime: Ask about the specific start time of the gig
@@ -309,7 +334,7 @@ Respond as a single message, as if you are the bot in a chat.`;
 
 type ChatStep = {
   id: number;
-  type: "bot" | "user" | "input" | "sanitized" | "typing" | "calendar" | "location" | "confirm";
+  type: "bot" | "user" | "input" | "sanitized" | "typing" | "calendar" | "location" | "confirm" | "jobTitleConfirmation" | "summary" | "matchmaking" | "promoCode";
   content?: string;
   inputConfig?: StepInputConfig;
   isComplete?: boolean;
@@ -317,7 +342,178 @@ type ChatStep = {
   originalValue?: string | any; // Allow objects for coordinates
   fieldName?: string;
   isNew?: boolean; // Track if this step is new for animation purposes
+  // Job title confirmation fields
+  suggestedJobTitle?: string;
+  matchedTerms?: string[];
+  isAISuggested?: boolean;
+  confidence?: number;
+  // AI summary fields
+  summaryData?: any;
+  naturalSummary?: string;
+  extractedData?: string;
+  // Matchmaking fields
+  gigId?: string;
+  matches?: WorkerMatch[];
 };
+
+// Helper function to interpret job title from gig description
+async function interpretJobTitle(gigDescription: string, ai: any): Promise<{ jobTitle: string; confidence: number; matchedTerms: string[]; isAISuggested: boolean } | null> {
+  try {
+    if (!gigDescription || !ai) return null;
+    
+    const result = await findStandardizedJobTitleWithAIFallback(gigDescription, ai);
+    
+    if (result && result.confidence >= 50) {
+      return {
+        jobTitle: result.jobTitle.title,
+        confidence: result.confidence,
+        matchedTerms: result.matchedTerms,
+        isAISuggested: result.isAISuggested
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Job title interpretation failed:', error);
+    return null;
+  }
+}
+
+
+
+  // Helper function to generate AI summary for individual field
+  async function generateAIFieldSummary(fieldName: string, originalValue: any, sanitizedValue: any, ai: any): Promise<string> {
+  try {
+    if (!ai) {
+      // Fallback to sanitized value if AI is not available
+      return typeof sanitizedValue === 'string' ? sanitizedValue : JSON.stringify(sanitizedValue);
+    }
+
+    // Build structured prompt using ChatAI components
+    const rolePrompt = buildRolePrompt('gigfolioCoach', 'gigCreation', 'Generate a natural field summary');
+    const contextPrompt = buildContextPrompt('gigCreation', 'Field summary generation');
+    const specializedPrompt = buildSpecializedPrompt('gigCreation', 'Field summary creation', 'Create a conversational field summary');
+    
+    const summaryPrompt = `${rolePrompt}
+
+${contextPrompt}
+
+${specializedPrompt}
+
+Based on the following field information, create a natural summary that explains what the user wants:
+
+Field: ${fieldName}
+Original Input: ${typeof originalValue === 'string' ? originalValue : JSON.stringify(originalValue)}
+Sanitized Value: ${typeof sanitizedValue === 'string' ? sanitizedValue : JSON.stringify(sanitizedValue)}
+
+Rules:
+1. Be conversational and natural - like explaining to a friend
+2. Clean up and interpret the user's input intelligently
+3. Make it sound professional but friendly
+4. If it's a location, describe it naturally (e.g., "in London" or "at your location")
+5. If it's a date, format it nicely (e.g., "on Monday, January 15th")
+6. If it's a time, make it readable (e.g., "from 9 AM to 5 PM")
+7. If it's a rate, format with £ symbol
+8. Keep it concise but clear
+9. Don't just repeat the sanitized value - interpret and explain it
+
+Create a natural summary that explains what the user wants for this field.`;
+
+    const result = await geminiAIAgent(
+      "gemini-2.0-flash",
+      {
+        prompt: summaryPrompt,
+        responseSchema: Schema.object({
+          properties: {
+            summary: Schema.string(),
+          },
+        }),
+        isStream: false,
+      },
+      ai
+    );
+
+    if (result.ok && result.data) {
+      return (result.data as { summary: string }).summary;
+    } else {
+      console.error('AI field summary generation failed:', result);
+    }
+  } catch (error) {
+    console.error('AI field summary generation failed:', error);
+  }
+
+  // Fallback to sanitized value
+  return typeof sanitizedValue === 'string' ? sanitizedValue : JSON.stringify(sanitizedValue);
+}
+
+// Helper function to generate AI-powered gig summary
+async function generateAIGigSummary(formData: any, ai: any): Promise<string> {
+  try {
+    if (!ai) {
+      // Fallback to basic summary if AI is not available
+      const fallbackSummary = `You need a ${formData.gigDescription || 'worker'} for ${formData.additionalInstructions ? 'with specific requirements: ' + formData.additionalInstructions : 'general work'}, paying £${formData.hourlyRate || '0'} per hour, at ${formData.gigLocation || 'your location'} on ${formData.gigDate || 'your chosen date'}${formData.gigTime ? ' at ' + formData.gigTime : ''}.`;
+      return fallbackSummary;
+    }
+
+    // Build structured prompt using ChatAI components
+    const rolePrompt = buildRolePrompt('gigfolioCoach', 'gigCreation', 'Generate a natural gig summary');
+    const contextPrompt = buildContextPrompt('gigCreation', 'Gig summary generation');
+    const specializedPrompt = buildSpecializedPrompt('gigCreation', 'Gig summary creation', 'Create a conversational gig summary');
+    
+    const summaryPrompt = `${rolePrompt}
+
+${contextPrompt}
+
+${specializedPrompt}
+
+Based on the following gig data, create a natural summary in this format:
+"You need a [job title/role] for [description] paying [hourly rate] at [location] on [date] at [time]..."
+
+Gig Data:
+${JSON.stringify(formData, null, 2)}
+
+Rules:
+1. Be conversational and natural - like talking to a friend
+2. Infer job titles from gig descriptions if not explicitly stated
+3. Format rates with £ symbol (e.g., "£15 per hour")
+4. Make location sound natural (e.g., "London" instead of coordinates)
+5. Format dates naturally (e.g., "Monday, July 30th")
+6. Format times naturally (e.g., "2:00 PM to 6:00 PM")
+7. Keep it concise but comprehensive
+8. Make it sound professional but friendly
+9. Focus on what the buyer needs, not what they're offering
+
+Create a natural summary that flows well and sounds like a human describing the gig they need filled.`;
+
+    const result = await geminiAIAgent(
+      "gemini-2.0-flash",
+      {
+        prompt: summaryPrompt,
+        responseSchema: Schema.object({
+          properties: {
+            summary: Schema.string(),
+          },
+        }),
+        isStream: false,
+      },
+      ai
+    );
+
+    if (result.ok && result.data) {
+      const data = result.data as { summary: string };
+      return data.summary;
+    } else {
+      console.error('AI gig summary generation failed:', result);
+    }
+  } catch (error) {
+    console.error('AI gig summary generation failed:', error);
+  }
+  
+  // Fallback to basic summary
+  const fallbackSummary = `You need a ${formData.gigDescription || 'worker'} for ${formData.additionalInstructions ? 'with specific requirements: ' + formData.additionalInstructions : 'general work'}, paying £${formData.hourlyRate || '0'} per hour, at ${formData.gigLocation || 'your location'} on ${formData.gigDate || 'your chosen date'}${formData.gigTime ? ' at ' + formData.gigTime : ''}.`;
+
+  return fallbackSummary;
+}
 
 // Define the onboarding steps statically, following the original order and messages
 const staticOnboardingSteps: ChatStep[] = [
@@ -356,7 +552,7 @@ const staticOnboardingSteps: ChatStep[] = [
   {
     id: 5,
     type: "bot",
-    content: "How much you would like to pay per hour? We suggest £15 plus tips to keep a motivated and happy team!",
+    content: "How much you would like to pay per hour? We suggest £15 plus tips to keep a motivated and happy team! 💷\n\n💡 Rate guidance by role:\n• Bartending: £12.21-£20/hour\n• Food Service (servers, waiters): £12.21-£18/hour\n• Cooking/Chef: £12.21-£25/hour\n• Baking: £12.21-£22/hour\n• Cleaning: £12.21-£16/hour\n• Retail: £12.21-£15/hour\n• Delivery: £12.21-£18/hour\n\n⚠️ Minimum rate: £12.21/hour (London minimum wage)",
   },
   {
     id: 6,
@@ -524,16 +720,8 @@ export default function OnboardBuyerPage() {
   const [currentFocusedInputName, setCurrentFocusedInputName] = useState<string | null>(null);
   const [chatSteps, setChatSteps] = useState<ChatStep[]>([{
     id: 1,
-    type: "bot",
-    content: "Hi! Tell me about yourself and what gig or gigs you need filling - we can assemble a team if you need one!",
-  }, {
-    id: 2,
-    type: "input",
-    inputConfig: {
-      type: "text",
-      name: "gigDescription",
-    },
-    isComplete: false,
+    type: "typing",
+    isNew: true,
   }]);
   // Expanded state for summary fields
   const [expandedSummaryFields, setExpandedSummaryFields] = useState<Record<string, boolean>>({});
@@ -545,6 +733,47 @@ export default function OnboardBuyerPage() {
   const [clickedSanitizedButtons, setClickedSanitizedButtons] = useState<Set<string>>(new Set());
   // Add error state
   const [error, setError] = useState<string | null>(null);
+  // Add state for AI field summaries
+  const [aiFieldSummaries, setAiFieldSummaries] = useState<Record<string, string>>({});
+
+  // Helper function to add typing indicator before AI response
+  const addTypingIndicator = useCallback(() => {
+    const typingId = Date.now() + Math.random();
+    setChatSteps((prev: ChatStep[]) => [
+      ...prev,
+      {
+        id: typingId,
+        type: "typing",
+        isNew: true,
+      },
+    ]);
+    return typingId;
+  }, []);
+
+  // Helper function to remove typing indicator and add AI response
+  const replaceTypingWithResponse = useCallback((typingId: number, response: ChatStep) => {
+    setChatSteps((prev: ChatStep[]) => {
+      const filtered = prev.filter((s: ChatStep) => s.id !== typingId);
+      return [...filtered, response];
+    });
+  }, []);
+  
+  // Matchmaking state
+  const [isMatchmaking, setIsMatchmaking] = useState(false);
+  const [workerMatches, setWorkerMatches] = useState<WorkerMatch[]>([]);
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+  const [isSelectingWorker, setIsSelectingWorker] = useState(false);
+  const [isSkippingSelection, setIsSkippingSelection] = useState(false);
+  const [totalWorkersAnalyzed, setTotalWorkersAnalyzed] = useState(0);
+  const [selectedPromoCodeOption, setSelectedPromoCodeOption] = useState<'haveCode' | 'noCode' | null>(null);
+  
+  // Check if a special component is currently active (location, calendar, promo code, etc.)
+  const isSpecialComponentActive = useMemo(() => {
+    const currentStep = chatSteps.find(step => 
+      (step.type === "calendar" || step.type === "location" || step.type === "promoCode") && !step.isComplete
+    );
+    return !!currentStep;
+  }, [chatSteps]);
 
 
   // Helper to get next required field not in formData
@@ -805,6 +1034,18 @@ export default function OnboardBuyerPage() {
 
     const trimmedValue = String(value).trim();
     
+    // Debug logging for hourly rate validation
+    if (field === 'hourlyRate') {
+      console.log('🔍 Hourly Rate Validation Debug:', {
+        field,
+        value,
+        trimmedValue,
+        type,
+        parsedValue: parseFloat(trimmedValue),
+        isAboveMinimum: parseFloat(trimmedValue) >= 12.21
+      });
+    }
+    
     // Use AI for all validation
     try {
       const validationSchema = Schema.object({
@@ -832,6 +1073,7 @@ Validation criteria:
 1. isAppropriate: Check if the content is appropriate for a professional gig platform (no offensive language, profanity, or inappropriate content)
 2. isGigRelated: Check if the content is related to gig work, events, services, or job requirements (be lenient - most gig descriptions are broad)
 3. isSufficient: Check if the content provides basic information (at least 3 characters for text, valid numbers for rates, coordinates for locations)
+   - For hourlyRate: MUST be at least £12.21 (London minimum wage). If less than £12.21, mark as insufficient.
 
 IMPORTANT: For location fields (gigLocation), coordinate objects with lat/lng properties are ALWAYS valid and sufficient. Do not ask for additional location details if coordinates are provided.
 
@@ -849,7 +1091,7 @@ SPECIAL TIME HANDLING: For time fields (gigTime), if the user provides a time ra
 Special handling:
 - For coordinates (lat/lng): Accept any valid coordinate format like "Lat: 14.7127059, Lng: 120.9341704" or coordinate objects
 - For location objects: If the input is an object with lat/lng properties, accept it as valid location data
-- For numbers (hourlyRate): Accept reasonable rates (£5-500 per hour)
+- For numbers (hourlyRate): CRITICAL - Must be at least £12.21 per hour (London minimum wage). Accept rates from £12.21-500 per hour. If user enters less than £12.21, mark as insufficient and ask them to increase the rate to meet legal requirements.
 - For text: Be lenient and accept most gig-related content
 - For dates: Accept any valid date format
 - For location fields: Accept coordinates, addresses, venue names, or any location information
@@ -867,6 +1109,7 @@ If validation fails, respond with:
 - isGigRelated: boolean
 - isSufficient: boolean
 - clarificationPrompt: string (provide a friendly, contextual response that references what they've already shared and guides them naturally)
+  - For hourlyRate below £12.21: "I understand you want to keep costs down, but we need to ensure all gigs meet the London minimum wage of £12.21 per hour. This is a legal requirement to protect workers. Could you please increase the hourly rate to at least £12.21?"
 - sanitizedValue: string
 
 GIG CREATION CONTEXT: Remember, this user is creating a job posting to hire someone. They are the employer/buyer. Keep responses focused on gig creation only.
@@ -888,6 +1131,15 @@ Make the conversation feel natural and build on what they've already told you.`;
         ai
       );
 
+      // Debug logging for AI response
+      if (field === 'hourlyRate') {
+        console.log('🤖 AI Validation Response:', {
+          field,
+          result: result.ok ? result.data : result.error,
+          isSufficient: result.ok ? (result.data as any)?.isSufficient : false
+        });
+      }
+
       if (result.ok) {
         const validation = result.data as {
           isAppropriate: boolean;
@@ -897,6 +1149,19 @@ Make the conversation feel natural and build on what they've already told you.`;
           sanitizedValue: string;
         };
         
+        // Fallback validation for hourly rate - if AI incorrectly rejects a valid rate
+        if (field === 'hourlyRate' && !validation.isSufficient) {
+          const rate = parseFloat(trimmedValue);
+          if (!isNaN(rate) && rate >= 12.21 && rate <= 500) {
+            console.log('🛡️ Fallback validation: AI incorrectly rejected valid rate, overriding');
+            return {
+              sufficient: true,
+              clarificationPrompt: "",
+              sanitized: trimmedValue
+            };
+          }
+        }
+
         if (!validation.isAppropriate || !validation.isGigRelated || !validation.isSufficient) {
           return {
             sufficient: false,
@@ -970,12 +1235,189 @@ Make the conversation feel natural and build on what they've already told you.`;
 
   // Update handleInputSubmit to use AI validation
   async function handleInputSubmit(stepId: number, inputName: string, inputValue?: string) {
+    console.log('handleInputSubmit called', { stepId, inputName, inputValue, formData });
     const valueToUse = inputValue || formData[inputName];
-    if (!valueToUse) return;
+    if (!valueToUse && inputName !== "confirmGig" && inputName !== "havePromoCode" && inputName !== "noPromoCode" && inputName !== "goToDashboard") return;
     
     // Find the current step to get its type
     const currentStep = chatSteps.find(s => s.id === stepId);
     const inputType = currentStep?.inputConfig?.type || 'text';
+    
+    // Handle confirm gig button click
+    if (inputName === "confirmGig") {
+      console.log('Confirm gig button clicked, calling handleFinalSubmit');
+      // Mark the button step as complete
+      setChatSteps((prev) => prev.map((step) =>
+        step.id === stepId ? { ...step, isComplete: true } : step
+      ));
+      
+      // Call handleFinalSubmit to create gig and find workers
+      await handleFinalSubmit();
+      return;
+    }
+    
+    // Handle go to dashboard button click
+    if (inputName === "goToDashboard") {
+      console.log('Go to dashboard button clicked');
+      // Mark the button step as complete
+      setChatSteps((prev) => prev.map((step) =>
+        step.id === stepId ? { ...step, isComplete: true } : step
+      ));
+      
+      // Navigate to dashboard
+      if (user) {
+        router.push(`/user/${user.uid}/buyer`);
+      }
+      return;
+    }
+    
+    // Handle promo code "I Have a Code" button click
+    if (inputName === "havePromoCode") {
+      console.log('Have promo code button clicked');
+      setSelectedPromoCodeOption('haveCode');
+      // Mark the promo code step as complete
+      setChatSteps((prev) => prev.map((step) =>
+        step.id === stepId ? { ...step, isComplete: true } : step
+      ));
+      
+      // Add text input for promo code
+      setChatSteps((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          type: "bot",
+          content: "Great! Please enter your promo code:",
+          isNew: true,
+        },
+        {
+          id: Date.now() + 2,
+          type: "input",
+          inputConfig: {
+            type: "text",
+            name: "discountCode",
+            placeholder: "Enter your promo code",
+            label: "Promo Code:",
+          },
+          isComplete: false,
+          isNew: true,
+        },
+      ]);
+      return;
+    }
+    
+    // Handle promo code "No Code" button click
+    if (inputName === "noPromoCode") {
+      console.log('No promo code button clicked');
+      setSelectedPromoCodeOption('noCode');
+      // Mark the promo code step as complete
+      setChatSteps((prev) => prev.map((step) =>
+        step.id === stepId ? { ...step, isComplete: true } : step
+      ));
+      
+      // Set promo code as asked and proceed to summary
+      setFormData(prev => ({ ...prev, promoCodeAsked: true }));
+      
+      // Add acknowledgment and proceed to AI summary
+      setChatSteps((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          type: "bot",
+          content: "No problem! Let me create a summary of your gig...",
+          isNew: true,
+        },
+        {
+          id: Date.now() + 2,
+          type: "typing",
+          isNew: true,
+        },
+      ]);
+      
+      setTimeout(async () => {
+        const updatedFormData = { ...formData, promoCodeAsked: true };
+        const aiSummary = await generateAIGigSummary(updatedFormData, ai);
+        setChatSteps((prev) => {
+          // Remove typing indicator and add AI-powered summary with confirm button
+          const filtered = prev.filter(s => s.type !== 'typing');
+          return [
+            ...filtered,
+            {
+              id: Date.now() + 3,
+              type: "bot",
+              content: `Perfect! ${aiSummary}`,
+              isNew: true,
+            },
+            {
+              id: Date.now() + 4,
+              type: "input",
+              inputConfig: {
+                type: "button",
+                name: "confirmGig",
+                placeholder: "Confirm & Find Workers",
+              },
+              isNew: true,
+            },
+          ];
+        });
+      }, 1000);
+      return;
+    }
+    
+    // Handle promo code input - no AI validation needed, just store and proceed to summary
+    if (inputName === "discountCode") {
+      console.log('Promo code submitted:', valueToUse);
+      
+      // Mark the current step as complete
+      setChatSteps((prev) => prev.map((step) =>
+        step.id === stepId ? { ...step, isComplete: true } : step
+      ));
+      
+      // Store the promo code and mark as asked
+      setFormData(prev => ({ 
+        ...prev, 
+        [inputName]: valueToUse || '', 
+        promoCodeAsked: true 
+      }));
+      
+      // Add acknowledgment message
+      setChatSteps((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          type: "bot",
+          content: valueToUse ? `Thank you! We'll apply your promo code "${valueToUse}".` : "No problem! Let me create a summary of your gig...",
+          isNew: true,
+        },
+      ]);
+      
+      // Proceed to AI summary after a brief delay
+      setTimeout(async () => {
+        const updatedFormData = { ...formData, [inputName]: valueToUse || '', promoCodeAsked: true };
+        const aiSummary = await generateAIGigSummary(updatedFormData, ai);
+        
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: `Perfect! ${aiSummary}`,
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: "input",
+            inputConfig: {
+              type: "button",
+              name: "confirmGig",
+              placeholder: "Confirm & Find Workers",
+            },
+            isNew: true,
+          },
+        ]);
+      }, 1000);
+      
+      return;
+    }
     
     // Remove reformulation check - now handled directly for insufficient answers
     
@@ -1037,6 +1479,30 @@ Make the conversation feel natural and build on what they've already told you.`;
       // Check if this is a reformulation
       const isReformulation = reformulateField === inputName;
       
+      // Check for job title interpretation for gig description
+      if (inputName === 'gigDescription' && !formData.jobTitle) {
+        const jobTitleResult = await interpretJobTitle(valueToUse, ai);
+        
+        if (jobTitleResult && jobTitleResult.confidence >= 50) {
+          // Show job title confirmation step
+          setChatSteps((prev) => [
+            ...prev,
+            { 
+              id: Date.now() + 3, 
+              type: "jobTitleConfirmation",
+              fieldName: inputName,
+              originalValue: valueToUse,
+              suggestedJobTitle: jobTitleResult.jobTitle,
+              confidence: jobTitleResult.confidence,
+              matchedTerms: jobTitleResult.matchedTerms,
+              isAISuggested: jobTitleResult.isAISuggested,
+              isNew: true,
+            },
+          ]);
+          return;
+        }
+      }
+      
       if (isReformulation) {
         // If this is a reformulation, update the form data and proceed to next field
         // instead of showing sanitized confirmation again
@@ -1086,6 +1552,24 @@ Make the conversation feel natural and build on what they've already told you.`;
               isNew: true,
             },
           ]);
+        } else if (!updatedFormData.promoCodeAsked) {
+          // All required fields collected, ask about promo code before summary
+          setSelectedPromoCodeOption(null); // Reset selection for new promo code step
+          setChatSteps((prev) => [
+            ...prev,
+            {
+              id: Date.now() + 3,
+              type: "bot",
+              content: "Do you have a promo code or discount code you'd like to apply?",
+              isNew: true,
+            },
+            {
+              id: Date.now() + 4,
+              type: "promoCode",
+              isComplete: false,
+              isNew: true,
+            },
+          ]);
         } else {
           // All fields collected, show summary
           setChatSteps((prev) => [
@@ -1099,6 +1583,12 @@ Make the conversation feel natural and build on what they've already told you.`;
           ]);
         }
       } else {
+        // Generate AI summary for the field
+        const aiSummary = await generateAIFieldSummary(inputName, valueToUse, aiResult.sanitized!, ai);
+        
+        // Store the AI summary
+        setAiFieldSummaries(prev => ({ ...prev, [inputName]: aiSummary }));
+        
         // Show sanitized confirmation step for regular inputs (not reformulations)
         setChatSteps((prev) => [
           ...prev,
@@ -1208,17 +1698,63 @@ Make the conversation feel natural and build on what they've already told you.`;
             isNew: true,
           },
         ]);
-      } else {
-        // All fields collected, show summary
+      } else if (!updatedFormData.promoCodeAsked) {
+        // All required fields collected, ask about promo code before summary
+        setSelectedPromoCodeOption(null); // Reset selection for new promo code step
         setChatSteps((prev) => [
           ...prev,
           {
             id: Date.now() + 2,
             type: "bot",
-            content: `Thank you! Here is a summary of your gig:\n${JSON.stringify(updatedFormData, null, 2)}`,
+            content: "Do you have a promo code or discount code you'd like to apply?",
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: "promoCode",
+            isComplete: false,
             isNew: true,
           },
         ]);
+      } else {
+        // All fields collected, show AI-generated summary
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: "Perfect! Let me create a summary of your gig...",
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: "typing",
+            isNew: true,
+          },
+        ]);
+        
+        setTimeout(async () => {
+          const aiSummary = await generateAIGigSummary(updatedFormData, ai);
+          setChatSteps((prev) => {
+            // Remove typing indicator and add AI-powered summary
+            const filtered = prev.filter(s => s.type !== 'typing');
+            return [
+              ...filtered,
+              {
+                id: Date.now() + 4,
+                type: "bot",
+                content: `Perfect! ${aiSummary}`,
+                isNew: true,
+              },
+              {
+                id: Date.now() + 5,
+                type: "summary",
+                summaryData: updatedFormData,
+                isNew: true,
+              },
+            ];
+          });
+        }, 700);
       }
     }, 700);
     
@@ -1288,14 +1824,45 @@ Make the conversation feel natural and build on what they've already told you.`;
             isNew: true,
           },
         ]);
-      } else {
-        // All fields completed, show summary
+      } else if (!updatedFormData.promoCodeAsked) {
+        // All required fields collected, ask about promo code before summary
+        setSelectedPromoCodeOption(null); // Reset selection for new promo code step
         setChatSteps((prev) => [
           ...prev,
           {
             id: Date.now() + 2,
             type: "bot",
-            content: `Thank you! Here is a summary of your gig:\n${JSON.stringify(updatedFormData, null, 2)}`,
+            content: "Do you have a promo code or discount code you'd like to apply?",
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: "promoCode",
+            isComplete: false,
+            isNew: true,
+          },
+        ]);
+      } else {
+        // All fields completed, generate AI summary and show confirmation
+        const aiSummary = await generateAIGigSummary(updatedFormData, ai);
+        
+        console.log('Adding AI summary and confirm button to chat steps');
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: `Perfect! ${aiSummary}`,
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: "input",
+            inputConfig: {
+              type: "button",
+              name: "confirmGig",
+              placeholder: "Confirm & Find Workers",
+            },
             isNew: true,
           },
         ]);
@@ -1306,10 +1873,190 @@ Make the conversation feel natural and build on what they've already told you.`;
     }
   }, [formData, getNextRequiredField, ai]);
 
+  // Handle job title confirmation
+  const handleJobTitleConfirm = useCallback(async (fieldName: string, suggestedJobTitle: string, originalValue: string) => {
+    try {
+      // Update formData with both the original value and the suggested job title
+      const updatedFormData = { ...formData, [fieldName]: originalValue, jobTitle: suggestedJobTitle };
+      setFormData(updatedFormData);
+      
+      // Mark job title confirmation step as complete
+      setChatSteps((prev) => prev.map((step) =>
+        step.type === "jobTitleConfirmation" && step.fieldName === fieldName ? { ...step, isComplete: true } : step
+      ));
+      
+      // Find next required field using updated formData
+      const nextField = getNextRequiredField(updatedFormData);
+      
+      if (nextField) {
+        // Generate context-aware prompt
+        const contextAwarePrompt = await generateContextAwarePrompt(nextField.name, updatedFormData.gigDescription || '', ai);
+        
+        // Determine the step type based on the field
+        let stepType: "input" | "calendar" | "location" = "input";
+        if (nextField.name === "gigDate") {
+          stepType = "calendar";
+        } else if (nextField.name === "gigLocation") {
+          stepType = "location";
+        }
+        
+        const newInputConfig = {
+          type: nextField.type as FormInputType,
+          name: nextField.name,
+          placeholder: nextField.placeholder || nextField.defaultPrompt,
+          ...(nextField.rows && { rows: nextField.rows }),
+        };
+        
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: contextAwarePrompt,
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: stepType,
+            inputConfig: newInputConfig,
+            isComplete: false,
+            isNew: true,
+          },
+        ]);
+      } else if (!updatedFormData.promoCodeAsked) {
+        // All required fields collected, ask about promo code before summary
+        setSelectedPromoCodeOption(null); // Reset selection for new promo code step
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: "Do you have a promo code or discount code you'd like to apply?",
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: "promoCode",
+            isComplete: false,
+            isNew: true,
+          },
+        ]);
+      } else {
+        // All fields collected, show AI-generated summary
+        setChatSteps((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: "Perfect! Let me create a summary of your gig...",
+            isNew: true,
+          },
+          {
+            id: Date.now() + 3,
+            type: "typing",
+            isNew: true,
+          },
+        ]);
+        
+        setTimeout(async () => {
+          const aiSummary = await generateAIGigSummary(updatedFormData, ai);
+          setChatSteps((prev) => {
+            // Remove typing indicator and add AI-powered summary with confirm button
+            const filtered = prev.filter(s => s.type !== 'typing');
+            return [
+              ...filtered,
+              {
+                id: Date.now() + 4,
+                type: "bot",
+                content: `Perfect! ${aiSummary}`,
+                isNew: true,
+              },
+              {
+                id: Date.now() + 5,
+                type: "input",
+                inputConfig: {
+                  type: "button",
+                  name: "confirmGig",
+                  placeholder: "Confirm & Find Workers",
+                },
+                isNew: true,
+              },
+            ];
+          });
+        }, 700);
+      }
+    } catch (error) {
+      console.error('Error in job title confirmation:', error);
+      setError('Failed to process job title confirmation. Please try again.');
+    }
+  }, [formData, getNextRequiredField, ai]);
+
   const handleSanitizedReformulate = (fieldName: string) => {
     if (isReformulating) return; // Prevent multiple clicks
     setReformulateField(fieldName);
     setClickedSanitizedButtons(prev => new Set([...prev, `${fieldName}-reformulate`]));
+  };
+
+  // Handle worker selection
+  const handleSelectWorker = async (workerId: string) => {
+    setIsSelectingWorker(true);
+    try {
+      // Here you would typically update the gig with the selected worker
+      // For now, we'll just update the UI state
+      setSelectedWorkerId(workerId);
+      
+      // Show success message
+      setChatSteps((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          type: "bot",
+          content: `Great choice! You've selected a worker for your gig. They'll be notified and can accept or decline the offer.`,
+          isNew: true,
+        },
+      ]);
+      
+      // Navigate to buyer dashboard after a delay
+      setTimeout(() => {
+        router.push(`/user/${user?.uid}/buyer`);
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Error selecting worker:', error);
+      setError('Failed to select worker. Please try again.');
+    } finally {
+      setIsSelectingWorker(false);
+    }
+  };
+
+
+
+  // Handle skipping worker selection
+  const handleSkipSelection = async () => {
+    setIsSkippingSelection(true);
+    try {
+      // Show success message
+      setChatSteps((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          type: "bot",
+          content: "Perfect! Your gig is now live and workers can apply directly. You'll be notified when workers show interest in your gig.",
+          isNew: true,
+        },
+      ]);
+      
+      // Navigate to buyer dashboard after a delay
+      setTimeout(() => {
+        router.push(`/user/${user?.uid}/buyer`);
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Error skipping selection:', error);
+      setError('Failed to proceed. Please try again.');
+    } finally {
+      setIsSkippingSelection(false);
+    }
   };
 
   // After the last input, show a summary message (optionally call AI for summary)
@@ -1378,6 +2125,7 @@ Make the conversation feel natural and build on what they've already told you.`;
   };
 
   const handleFinalSubmit = async () => {
+    console.log('handleFinalSubmit called', { user: !!user, formData });
     if (!user) return; // Disable submission if not logged in
     setIsSubmitting(true);
 
@@ -1423,21 +2171,89 @@ Make the conversation feel natural and build on what they've already told you.`;
         gigLocation: formData.gigLocation, // Send the original location object to preserve coordinates
         gigDate: String(formData.gigDate || "").slice(0, 10),
         gigTime: formData.gigTime ? String(formData.gigTime) : undefined,
+        promoCode: formData.discountCode ? String(formData.discountCode).trim() : undefined,
       };
 
       const result = await createGig(payload);
 
       if (result.status === 200 && result.gigId) {
-        const successMessageStep: ChatStep = {
+        // Add a brief delay before starting matchmaking
+        setTimeout(async () => {
+          const matchmakingMessageStep: ChatStep = {
           id: Date.now() + 1,
           type: "bot",
-          content: "Thanks! Your gig has been created.",
-        };
-        setChatSteps((prev) => [...prev, successMessageStep]);
-        // Navigate back to buyer dashboard per design
-        setTimeout(() => {
-          router.push(`/user/${user.uid}/buyer`);
-        }, 700);
+            content: "Now let me find the perfect workers for you...",
+          };
+          setChatSteps((prev) => [...prev, matchmakingMessageStep]);
+          
+          // Start matchmaking process
+          setIsMatchmaking(true);
+          
+          try {
+            const matchmakingResult = await findMatchingWorkers(result.gigId!);
+            
+            if (matchmakingResult.success && matchmakingResult.matches) {
+              setWorkerMatches(matchmakingResult.matches);
+              setTotalWorkersAnalyzed(matchmakingResult.totalWorkersAnalyzed || 0);
+              
+              // Add matchmaking results step
+              const matchmakingStep: ChatStep = {
+                id: Date.now() + 2,
+                type: "matchmaking",
+                gigId: result.gigId,
+                matches: matchmakingResult.matches,
+                isNew: true,
+              };
+              setChatSteps((prev) => [...prev, matchmakingStep]);
+            } else {
+              // No matches found or error
+              const noMatchesStep: ChatStep = {
+                id: Date.now() + 2,
+                type: "bot",
+                content: "No workers found that match your gig requirements right now. Your gig is still active and workers can apply directly.",
+                isNew: true,
+              };
+              setChatSteps((prev) => [...prev, noMatchesStep]);
+              
+              // Add a button step for going to dashboard
+              const goToDashboardStep: ChatStep = {
+                id: Date.now() + 3,
+                type: "input",
+                inputConfig: {
+                  type: "button",
+                  name: "goToDashboard",
+                  placeholder: "Go to Dashboard",
+                },
+                isNew: true,
+              };
+              setChatSteps((prev) => [...prev, goToDashboardStep]);
+            }
+          } catch (matchmakingError) {
+            console.error('Matchmaking failed:', matchmakingError);
+            const errorStep: ChatStep = {
+              id: Date.now() + 2,
+              type: "bot",
+              content: "Your gig was created successfully! While we couldn't find immediate matches, your gig is active and workers can apply directly.",
+              isNew: true,
+            };
+            setChatSteps((prev) => [...prev, errorStep]);
+            
+            // Add a button step for going to dashboard
+            const goToDashboardStep: ChatStep = {
+              id: Date.now() + 3,
+              type: "input",
+              inputConfig: {
+                type: "button",
+                name: "goToDashboard",
+                placeholder: "Go to Dashboard",
+              },
+              isNew: true,
+            };
+            setChatSteps((prev) => [...prev, goToDashboardStep]);
+          } finally {
+            setIsMatchmaking(false);
+          }
+        }, 1000); // 1 second delay before starting matchmaking
       } else {
         const errorMessage = result.error || "Failed to create gig. Please try again.";
         const errorStep: ChatStep = {
@@ -1543,7 +2359,9 @@ Make the conversation feel natural and build on what they've already told you.`;
 
   // Initialize chat with AI greeting
   useEffect(() => {
-    if (chatSteps.length === 0) {
+    if (chatSteps.length === 1 && chatSteps[0].type === "typing") {
+      // Replace typing indicator with initial message and input after a delay
+      setTimeout(() => {
       const firstField = requiredFields[0];
       setChatSteps([
         {
@@ -1563,6 +2381,7 @@ Make the conversation feel natural and build on what they've already told you.`;
           isComplete: false,
         },
       ]);
+      }, 1500); // 1.5 second delay to show typing indicator
     }
   }, []);
 
@@ -1579,16 +2398,24 @@ Make the conversation feel natural and build on what they've already told you.`;
         className={pageStyles.container}
         role="BUYER"
         showChatInput={true}
+        disableChatInput={isSpecialComponentActive}
         onSendMessage={async (message) => {
           console.log('ChatInput received:', message);
           
           // Find current input step (any type that needs user input)
           const currentInputStep = chatSteps.find(step => 
-            (step.type === "input" || step.type === "calendar" || step.type === "location") && !step.isComplete
+            (step.type === "input" || step.type === "calendar" || step.type === "location" || step.type === "promoCode") && !step.isComplete
           );
           
-          if (currentInputStep && currentInputStep.inputConfig) {
-            const fieldName = currentInputStep.inputConfig.name;
+          if (currentInputStep) {
+            // Handle promo code step (no inputConfig needed)
+            if (currentInputStep.type === "promoCode") {
+              // Don't process chat input for promo code step - user should use buttons
+              return;
+            }
+            
+            if (currentInputStep.inputConfig) {
+              const fieldName = currentInputStep.inputConfig.name;
             
             // Always add user message to chat for all input types
             const userStep: ChatStep = {
@@ -1605,6 +2432,7 @@ Make the conversation feel natural and build on what they've already told you.`;
             
             // Pass the message value directly to handleInputSubmit
             await handleInputSubmit(currentInputStep.id, fieldName, message);
+            }
           }
         }}
       >
@@ -1632,8 +2460,8 @@ Make the conversation feel natural and build on what they've already told you.`;
             const sanitizedValue = step.sanitizedValue;
             const originalValue = step.originalValue;
             
-            // Format the display value
-            const displayValue = (() => {
+            // Use AI summary if available, otherwise fallback to sanitized value
+            const displayValue = aiFieldSummaries[step.fieldName] || (() => {
               if (typeof sanitizedValue === 'string') {
                 return sanitizedValue;
               }
@@ -1727,6 +2555,101 @@ Make the conversation feel natural and build on what they've already told you.`;
                 role="BUYER"
                 showAvatar={true}
               />
+            );
+          }
+
+          // Job title confirmation step
+          if (step.type === "jobTitleConfirmation" && step.fieldName) {
+            const suggestedJobTitle = step.suggestedJobTitle;
+            const originalValue = step.originalValue;
+            const confidence = step.confidence || 0;
+            const matchedTerms = step.matchedTerms || [];
+            const isAISuggested = step.isAISuggested || false;
+            const isCompleted = step.isComplete;
+            
+            return (
+              <MessageBubble
+                key={key}
+                text={
+                  <div>
+                    <div style={{ marginBottom: 8, color: 'var(--secondary-color)', fontWeight: 600, fontSize: '14px' }}>
+                      I think you're looking for a <strong>{suggestedJobTitle}</strong>?
+                    </div>
+                    <div style={{ marginBottom: 12, fontSize: '13px', color: '#ccc' }}>
+                      {isAISuggested && (
+                        <span style={{ color: '#4ade80' }}>AI Suggested</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <button
+                        style={{ 
+                          background: isCompleted ? '#555' : 'var(--secondary-color)', 
+                          color: isCompleted ? '#fff' : '#000', 
+                          border: 'none', 
+                          borderRadius: 8, 
+                          padding: '8px 16px', 
+                          fontWeight: 600, 
+                          fontSize: '14px', 
+                          cursor: isCompleted ? 'not-allowed' : 'pointer', 
+                          transition: 'background-color 0.2s',
+                          opacity: isCompleted ? 0.7 : 1
+                        }}
+                        onClick={isCompleted ? undefined : () => handleJobTitleConfirm(step.fieldName!, suggestedJobTitle!, originalValue!)}
+                        disabled={isCompleted}
+                      >
+                        {isCompleted ? 'Confirmed' : 'Yes, that\'s right'}
+                      </button>
+                      <button
+                        style={{ 
+                          background: isCompleted ? '#555' : 'transparent', 
+                          color: isCompleted ? '#999' : 'var(--secondary-color)', 
+                          border: '1px solid var(--secondary-color)', 
+                          borderRadius: 8, 
+                          padding: '8px 16px', 
+                          fontWeight: 600, 
+                          fontSize: '14px', 
+                          cursor: isCompleted ? 'not-allowed' : 'pointer', 
+                          transition: 'all 0.2s',
+                          opacity: isCompleted ? 0.7 : 1
+                        }}
+                        onClick={isCompleted ? undefined : () => {
+                          // Skip job title confirmation and proceed with original value
+                          setFormData(prev => ({ ...prev, [step.fieldName!]: originalValue }));
+                          setChatSteps(prev => prev.map(s => 
+                            s.id === step.id ? { ...s, isComplete: true } : s
+                          ));
+                        }}
+                        disabled={isCompleted}
+                      >
+                        {isCompleted ? 'Skipped' : 'Skip'}
+                      </button>
+                    </div>
+                  </div>
+                }
+                senderType="bot"
+                role="BUYER"
+                showAvatar={true}
+              />
+            );
+          }
+
+
+
+          // Matchmaking step
+          if (step.type === "matchmaking" && step.matches) {
+            return (
+              <div key={key} className="w-full">
+                <WorkerMatchmakingResults
+                  matches={step.matches}
+                  isLoading={isMatchmaking}
+                  onSelectWorker={handleSelectWorker}
+                  onSkipSelection={handleSkipSelection}
+                  selectedWorkerId={selectedWorkerId || undefined}
+                  isSelecting={isSelectingWorker}
+                  isSkipping={isSkippingSelection}
+                  totalWorkersAnalyzed={totalWorkersAnalyzed}
+                />
+              </div>
             );
           }
           
@@ -1881,14 +2804,66 @@ Make the conversation feel natural and build on what they've already told you.`;
           }
           if (step.type === "typing") {
             return (
-              <div key={key}>
-                {/* AI Avatar - Separated */}
-                <div key={`${key}-avatar`} style={{ 
+              <div key={key} style={{ 
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: '0.5rem',
                   marginBottom: '0.5rem'
                 }}>
+                {/* AI Avatar */}
+                  <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'linear-gradient(135deg, var(--secondary-color), var(--secondary-darker-color))',
+                      boxShadow: '0 2px 8px rgba(34, 211, 238, 0.3)'
+                    }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: '#000000',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1px solid rgba(255, 255, 255, 0.2)'
+                      }}>
+                        <Image 
+                          src="/images/ableai.png" 
+                          alt="Able AI" 
+                          width={24} 
+                          height={24} 
+                          style={{
+                            borderRadius: '50%',
+                            objectFit: 'cover'
+                          }}
+                        />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Typing Indicator - Next to Avatar */}
+                <div style={{ flex: 1, marginTop: '0.25rem' }}>
+                  <TypingIndicator />
+                </div>
+              </div>
+            );
+          }
+          if (step.type === "input") {
+            // Special handling for button inputs (like confirm button)
+            if (step.inputConfig?.type === "button") {
+              return (
+                <div key={key} style={{ 
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  marginBottom: '0.5rem'
+                }}>
+                  {/* AI Avatar */}
                   <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
                     <div style={{
                       width: '32px',
@@ -1923,25 +2898,183 @@ Make the conversation feel natural and build on what they've already told you.`;
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Typing Indicator - Separated */}
-                <div key={`${key}-typing`}>
-                  <TypingIndicator />
+                  {/* Button */}
+                  <div style={{ flex: 1, marginTop: '0.25rem' }}>
+                    {step.inputConfig?.name === 'goToDashboard' ? (
+                      // Special styling for Go to Dashboard button
+                      <div style={{ 
+                        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                        border: '2px solid #0ea5e9',
+                        borderRadius: 12,
+                        padding: '16px 20px',
+                        marginBottom: '8px'
+                      }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          marginBottom: '8px' 
+                        }}>
+                          <div style={{
+                            width: '24px',
+                            height: '24px',
+                            background: '#0ea5e9',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: '8px'
+                          }}>
+                            <svg width="12" height="12" fill="white" viewBox="0 0 24 24">
+                              <path d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                            </svg>
+                          </div>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            fontWeight: 600, 
+                            color: '#0c4a6e' 
+                          }}>
+                            Ready to go?
+                          </span>
+                        </div>
+                        <p style={{ 
+                          fontSize: '12px', 
+                          color: '#0369a1', 
+                          margin: '0 0 12px 0',
+                          lineHeight: '1.4'
+                        }}>
+                          Your gig is live! Head to your dashboard to manage applications and track progress.
+                        </p>
+                        <button
+                          style={{ 
+                            background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: 8, 
+                            padding: '12px 20px', 
+                            fontWeight: 600, 
+                            fontSize: '14px', 
+                            cursor: 'pointer', 
+                            transition: 'all 0.2s',
+                            boxShadow: '0 2px 4px rgba(14, 165, 233, 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '100%'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)';
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(14, 165, 233, 0.4)';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(14, 165, 233, 0.3)';
+                          }}
+                          onClick={() => {
+                            console.log('Go to Dashboard button clicked', { stepId: step.id, inputName: step.inputConfig!.name });
+                            handleInputSubmit(step.id, step.inputConfig!.name);
+                          }}
+                          disabled={isSubmitting}
+                        >
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style={{ marginRight: '8px' }}>
+                            <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+                          </svg>
+                          Go to Dashboard
+                        </button>
+                      </div>
+                    ) : (
+                      // Default styling for other buttons (like Confirm)
+                      <button
+                        style={{ 
+                          background: 'var(--primary-color)', 
+                          color: '#fff', 
+                          border: 'none', 
+                          borderRadius: 8, 
+                          padding: '12px 24px', 
+                          fontWeight: 600, 
+                          fontSize: '16px', 
+                          cursor: 'pointer', 
+                          transition: 'background-color 0.2s'
+                        }}
+                        onClick={() => {
+                          console.log('Confirm button clicked', { stepId: step.id, inputName: step.inputConfig!.name });
+                          handleInputSubmit(step.id, step.inputConfig!.name);
+                        }}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? 'Creating Gig...' : step.inputConfig?.placeholder || 'Confirm'}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          }
-          if (step.type === "input") {
-            // For incomplete inputs, don't show anything - let the user use the chat input
+              );
+            }
+            
+            // For other incomplete inputs, don't show anything - let the user use the chat input
             // For completed inputs, don't show anything since user messages are handled separately
             return null;
           }
 
+          // Handle promo code step
+          if (step.type === "promoCode") {
+            return (
+              <div key={key} style={{ 
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                marginBottom: '0.5rem'
+              }}>
+                {/* AI Avatar */}
+                <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(135deg, var(--secondary-color), var(--secondary-darker-color))',
+                    boxShadow: '0 2px 8px rgba(34, 211, 238, 0.3)'
+                  }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: '#000000',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255, 255, 255, 0.2)'
+                    }}>
+                      <Image 
+                        src="/images/ableai.png" 
+                        alt="Able AI" 
+                        width={24} 
+                        height={24} 
+                        style={{
+                          borderRadius: '50%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-          
+                {/* Promo Code Component */}
+                <div style={{ flex: 1, marginTop: '0.25rem' }}>
+                  <PromoCodeStep
+                    onHaveCode={() => handleInputSubmit(step.id, "havePromoCode")}
+                    onDontHaveCode={() => handleInputSubmit(step.id, "noPromoCode")}
+                    disabled={selectedPromoCodeOption !== null}
+                    selectedOption={selectedPromoCodeOption}
+                  />
+                </div>
+              </div>
+            );
+          }
 
-          
           // Handle calendar picker step
           if (step.type === "calendar") {
             return (

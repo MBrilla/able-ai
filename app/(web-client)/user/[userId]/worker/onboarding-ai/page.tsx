@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -695,7 +695,7 @@ Next field to ask about: "${fieldName}"
 Field-specific guidance for WORKERS:
 - experience: Ask about their years of experience in their field (e.g., "How many years have you been working as a [job title]?" or "How long have you been in this line of work?")
 - skills: Ask about their specific skills, certifications, or qualifications they can offer to clients
-- hourlyRate: Ask about their preferred hourly rate for their services in British Pounds (£)
+- hourlyRate: Ask about their preferred hourly rate for their services in British Pounds (£). Note: London minimum wage is £12.21 per hour.
 - location: Ask about their location with context about finding nearby gig opportunities
 - availability: Ask about when they are available to work for clients
 - videoIntro: Ask about recording a video introduction to help clients get to know them
@@ -846,6 +846,14 @@ export default function OnboardWorkerPage() {
   const [showSetupChoice, setShowSetupChoice] = useState(true);
   const [setupMode, setSetupMode] = useState<'ai' | 'manual' | null>(null);
   const [manualFormData, setManualFormData] = useState<any>({});
+  
+  // Check if a special component is currently active (location, calendar, video recording, etc.)
+  const isSpecialComponentActive = useMemo(() => {
+    const currentStep = chatSteps.find(step => 
+      (step.type === "calendar" || step.type === "location" || step.type === "video") && !step.isComplete
+    );
+    return !!currentStep;
+  }, [chatSteps]);
   
   // Worker profile ID for recommendation URL
   const [workerProfileId, setWorkerProfileId] = useState<string | null>(null);
@@ -1012,8 +1020,9 @@ ENHANCED VALIDATION & SANITIZATION REQUIREMENTS:
    - **experience**: Extract years of experience and validate reasonableness
      Example: "25 years of experience" → "Ah, so you have 25 years of experience as a cashier, right?"
      Validation: Check if years are reasonable (0-50), extract numeric value, format naturally
-   - **hourlyRate**: Convert to pounds (£), format properly
+   - **hourlyRate**: Convert to pounds (£), format properly, ensure minimum £12.21 (London minimum wage)
      Example: "15" → "Got it, you're charging £15 per hour, correct?"
+     Validation: Must be at least £12.21 per hour. If below, mark as insufficient and ask to increase.
    - **location**: Extract coordinates, format address naturally
    - **availability**: Extract days, times, format as natural schedule
    - **skills**: Extract skill names, categorize, format naturally
@@ -1048,6 +1057,7 @@ If validation fails, respond with:
 - isWorkerRelated: boolean
 - isSufficient: boolean
 - clarificationPrompt: string (friendly guidance)
+  - For hourlyRate below £12.21: "I understand you want to be competitive, but we need to ensure all workers meet the London minimum wage of £12.21 per hour. This protects you and ensures fair compensation. Could you please set your rate to at least £12.21?"
 - sanitizedValue: string
 - naturalSummary: string
 - extractedData: string
@@ -2619,6 +2629,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
       className={pageStyles.container} 
       role="GIG_WORKER"
       showChatInput={true}
+      disableChatInput={isSpecialComponentActive}
       onSendMessage={onSendMessage}
       showOnboardingOptions={true}
       onSwitchToManual={() => {
