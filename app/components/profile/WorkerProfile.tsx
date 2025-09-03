@@ -32,6 +32,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import ProfileMedia from "./ProfileMedia";
 import CancelButton from "../shared/CancelButton";
+import { BadgeIcon } from "./GetBadgeIcon";
 import Qualifications from "./Qualifications";
 import Equipments from "./Equipments";
 
@@ -115,48 +116,6 @@ const WorkerProfile = ({
     [user]
   );
 
-  // const getIconFromAwardName = (awardName: string) => {
-  //   switch (awardName) {
-  //     case "Alpha Gigee":
-  //     case "Gig Pioneer":
-  //       return Flag;
-  //     case "First gig complete":
-  //       return ;
-  //     case "Golden Vibes":
-  //     case "Fairy Play":
-  //     case "Heart Mode":
-  //       return Flame;
-  //     case "Host with the most":
-  //       return Users;
-  //     case "Foam-Art Phenom":
-  //       return Coffee;
-  //     case "First impressions pro":
-  //       return ClipboardCheck;
-  //     case "Event setup hero":
-  //       return Briefcase;
-  //     case "Cash & till stylin'":
-  //       return DollarSign;
-  //     case "Customer Favourite":
-  //       return ShoppingBag;
-  //     case "Squad Recruiter":
-  //       return UserCheck;
-  //     case "Safe-guard GOAT":
-  //       return Shield;
-  //     case "Sparkle Mode":
-  //       return Sparkles;
-  //     case "Mixology Master":
-  //       return Martini;
-  //     case "Start Bartender":
-  //       return Beer;
-  //     case "Tray Jedi":
-  //       return Handshake;
-  //     case "Top Chef":
-  //       return Utensils;
-  //     default:
-  //       return undefined; // ✅ safe fallback
-  //   }
-  // };
-
   useEffect(() => {
     if (workerProfile && workerProfile.id) {
       setWorkerLink(
@@ -230,28 +189,31 @@ const WorkerProfile = ({
       {/* Main content wrapper */}
       <div className={styles.mainContentWrapper}>
         {/* Statistics Section */}
-        <div className={styles.statisticsItemsContainer}>
-          <StatisticItemDisplay
-            stat={{
-              id: 1,
-              icon: ThumbsUp,
-              value: workerProfile?.responseRateInternal || 0,
-              label: `Would work with ${
-                user?.displayName?.split(" ")?.[0] ?? ""
-              } again`,
-              iconColor: "#41a1e8",
-            }}
-          />
+        <div>
+          <h3 className={styles.contentTitle}>Statistics</h3>
+          <div className={styles.statisticsItemsContainer}>
+            <StatisticItemDisplay
+              stat={{
+                id: 1,
+                icon: ThumbsUp,
+                value: workerProfile?.responseRateInternal || 0,
+                label: `Would work with ${
+                  workerProfile?.user?.fullName?.split(" ")?.[0] ?? ""
+                } again`,
+                iconColor: "#41a1e8",
+              }}
+            />
 
-          <StatisticItemDisplay
-            stat={{
-              id: 2,
-              icon: MessageSquare,
-              value: workerProfile?.averageRating || 0,
-              label: "Response rate",
-              iconColor: "#41a1e8",
-            }}
-          />
+            <StatisticItemDisplay
+              stat={{
+                id: 2,
+                icon: MessageSquare,
+                value: workerProfile?.averageRating || 0,
+                label: "Response rate",
+                iconColor: "#41a1e8",
+              }}
+            />
+          </div>
         </div>
 
         {/* Skills Section (Benji Image Style - Blue Card) */}
@@ -276,11 +238,11 @@ const WorkerProfile = ({
                 <div className={styles.awardsContainer}>
                   {workerProfile.awards.map((award) => (
                     <AwardDisplayBadge
-                      // icon={getIconFromAwardName(award.badgeId)}
+                      icon={award.icon as BadgeIcon}
                       key={award.id}
-                      textLines={award.notes || ""}
-                      color="#eab308"
-                      border="3px solid #eab308"
+                      title={award.name}
+                      role="worker"
+                      type={award.type}
                     />
                   ))}
                 </div>

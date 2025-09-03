@@ -1,7 +1,6 @@
 "use server";
 
 import PublicWorkerProfile, {
-  Availability,
   SemanticProfile,
 } from "@/app/types/workerProfileTypes";
 import { db } from "@/lib/drizzle/db";
@@ -21,6 +20,7 @@ import { ERROR_CODES } from "@/lib/responses/errors";
 import { isUserAuthenticated } from "@/lib/user.server";
 import { and, eq, sql } from "drizzle-orm";
 import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
+import { BadgeIcon } from "@/app/components/profile/GetBadgeIcon";
 
 export const getPublicWorkerProfileAction = async (workerId: string) => {
   if (!workerId) throw "Worker ID is required";
@@ -52,7 +52,7 @@ export const getPrivateWorkerProfileAction = async (token: string) => {
 
   const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
     where: eq(GigWorkerProfilesTable.userId, user.id),
-    with: { user: {columns: { rtwStatus: true }} },
+    with: { user: { columns: { fullName: true, rtwStatus: true } } },
   });
 
   const data = await getGigWorkerProfile(workerProfile);
@@ -60,7 +60,11 @@ export const getPrivateWorkerProfileAction = async (token: string) => {
   return data;
 };
 export const getGigWorkerProfile = async (
-  workerProfile: typeof GigWorkerProfilesTable.$inferSelect | undefined,
+  workerProfile:
+    | (typeof GigWorkerProfilesTable.$inferSelect & {
+        user?: { fullName: string, rtwStatus: string | null};
+      })
+    | undefined
 ): Promise<{ success: true; data: PublicWorkerProfile }> => {
   try {
     if (!workerProfile) throw "Getting worker profile error";
@@ -77,21 +81,48 @@ export const getGigWorkerProfile = async (
       where: eq(QualificationsTable.workerProfileId, workerProfile.id),
     });
 
-    const awards = await db.query.UserBadgesLinkTable.findMany({
-      where: eq(UserBadgesLinkTable.userId, workerProfile.userId),
-    });
+    const badges = await db
+      .select({
+        id: UserBadgesLinkTable.id,
+        awardedAt: UserBadgesLinkTable.awardedAt,
+        awardedBySystem: UserBadgesLinkTable.awardedBySystem,
+        notes: UserBadgesLinkTable.notes,
+        badge: {
+          id: BadgeDefinitionsTable.id,
+          name: BadgeDefinitionsTable.name,
+          description: BadgeDefinitionsTable.description,
+          icon: BadgeDefinitionsTable.iconUrlOrLucideName,
+          type: BadgeDefinitionsTable.type,
+        },
+      })
+      .from(UserBadgesLinkTable)
+      .innerJoin(
+        BadgeDefinitionsTable,
+        eq(UserBadgesLinkTable.badgeId, BadgeDefinitionsTable.id)
+      )
+      .where(eq(UserBadgesLinkTable.userId, workerProfile?.userId || ""));
+
+    const badgeDetails = badges?.map((badge) => ({
+      id: badge.id,
+      name: badge.badge.name,
+      description: badge.badge.description,
+      icon: (badge.badge.icon ?? "goldenVibes") as BadgeIcon,
+      type: badge.badge.type,
+      awardedAt: badge.awardedAt,
+      awardedBySystem: badge.awardedBySystem,
+    }));
 
     const reviews = await db.query.ReviewsTable.findMany({
       where: and(
         eq(ReviewsTable.targetUserId, workerProfile.userId),
-        eq(ReviewsTable.type, "INTERNAL_PLATFORM"),
+        eq(ReviewsTable.type, "INTERNAL_PLATFORM")
       ),
     });
 
     const recommendations = await db.query.ReviewsTable.findMany({
       where: and(
         eq(ReviewsTable.targetUserId, workerProfile.userId),
-        eq(ReviewsTable.type, "EXTERNAL_REQUESTED"),
+        eq(ReviewsTable.type, "EXTERNAL_REQUESTED")
       ),
     });
 
@@ -113,17 +144,17 @@ export const getGigWorkerProfile = async (
       semanticProfileJson:
         workerProfile?.semanticProfileJson as SemanticProfile,
       averageRating,
-      awards,
+      awards: badgeDetails,
       equipment,
       skills,
       reviews,
       recommendations,
       qualifications,
+      user: { fullName: workerProfile?.user?.fullName || "" },
     };
 
     return { success: true, data };
   } catch (error) {
-    
     throw error;
   }
 };
@@ -161,9 +192,19 @@ export const getSkillDetailsWorker = async (id: string) => {
       .from(UserBadgesLinkTable)
       .innerJoin(
         BadgeDefinitionsTable,
-        eq(UserBadgesLinkTable.badgeId, BadgeDefinitionsTable.id),
+        eq(UserBadgesLinkTable.badgeId, BadgeDefinitionsTable.id)
       )
       .where(eq(UserBadgesLinkTable.userId, workerProfile?.userId || ""));
+
+    const badgeDetails = badges?.map((badge) => ({
+      id: badge.id,
+      name: badge.badge.name,
+      description: badge.badge.description,
+      icon: badge.badge.icon,
+      type: badge.badge.type,
+      awardedAt: badge.awardedAt,
+      awardedBySystem: badge.awardedBySystem,
+    }));
 
     const qualifications = await db.query.QualificationsTable.findMany({
       where: eq(QualificationsTable.workerProfileId, workerProfile?.id || ""),
@@ -172,7 +213,7 @@ export const getSkillDetailsWorker = async (id: string) => {
     const reviews = await db.query.ReviewsTable.findMany({
       where: and(
         eq(ReviewsTable.targetUserId, workerProfile?.userId || ""),
-        eq(ReviewsTable.type, "INTERNAL_PLATFORM"),
+        eq(ReviewsTable.type, "INTERNAL_PLATFORM")
       ),
     });
 
@@ -180,7 +221,7 @@ export const getSkillDetailsWorker = async (id: string) => {
       where: and(
         eq(ReviewsTable.targetUserId, workerProfile?.userId || ""),
         eq(ReviewsTable.type, "EXTERNAL_REQUESTED"),
-        eq(ReviewsTable.skillId, skill.id),
+        eq(ReviewsTable.skillId, skill.id)
       ),
     });
 
@@ -203,7 +244,7 @@ export const getSkillDetailsWorker = async (id: string) => {
           date: review.createdAt,
           text: review.comment,
         };
-      }),
+      })
     );
 
     const recommendationsData = await Promise.all(
@@ -213,7 +254,7 @@ export const getSkillDetailsWorker = async (id: string) => {
           date: recommendation.createdAt,
           text: recommendation.comment,
         };
-      }),
+      })
     );
 
     const skillProfile = {
@@ -238,7 +279,7 @@ export const getSkillDetailsWorker = async (id: string) => {
         tipsReceived: "£767",
       },
       supportingImages: skill.images ?? [],
-      badges,
+      badges: badgeDetails,
       qualifications,
       buyerReviews: reviewsData,
       recommendations: recommendationsData,
@@ -246,7 +287,6 @@ export const getSkillDetailsWorker = async (id: string) => {
 
     return { success: true, data: skillProfile };
   } catch (error) {
-
     return { success: false, data: null, error };
   }
 };
@@ -267,7 +307,7 @@ export const createSkillWorker = async (
     skillVideoUrl?: string;
     adminTags?: string[];
     images?: string[];
-  },
+  }
 ) => {
   try {
     if (!token) throw new Error("Token is required");
@@ -277,7 +317,9 @@ export const createSkillWorker = async (
     // Validate hourly rate minimum
     const hourlyRate = parseFloat(String(agreedRate));
     if (hourlyRate < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE) {
-      throw new Error(`Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}`);
+      throw new Error(
+        `Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}`
+      );
     }
 
     const user = await db.query.UsersTable.findFirst({
@@ -315,14 +357,13 @@ export const createSkillWorker = async (
 
     return { success: true, data: newSkill };
   } catch (error) {
-
     return { success: false, data: null, error };
   }
 };
 
 export const updateVideoUrlProfileAction = async (
   videoUrl: string,
-  token?: string | undefined,
+  token?: string | undefined
 ) => {
   try {
     if (!token) {
@@ -348,7 +389,6 @@ export const updateVideoUrlProfileAction = async (
 
     return { success: true, data: "Url video updated successfully" };
   } catch (error) {
-
     return { success: false, data: "Url video updated successfully", error };
   }
 };
@@ -356,7 +396,7 @@ export const updateVideoUrlProfileAction = async (
 export const updateProfileImageAction = async (
   token: string,
   id: string,
-  newImage: string,
+  newImage: string
 ) => {
   try {
     if (!token) throw new Error("User ID is required");
@@ -381,7 +421,6 @@ export const updateProfileImageAction = async (
 
     return { success: true, data: updatedImages };
   } catch (error) {
-
     return { success: false, data: null, error };
   }
 };
@@ -389,7 +428,7 @@ export const updateProfileImageAction = async (
 export const deleteImageAction = async (
   token: string,
   skillId: string,
-  imageUrl: string,
+  imageUrl: string
 ) => {
   try {
     if (!token) throw new Error("User ID is required");
@@ -416,66 +455,64 @@ export const deleteImageAction = async (
 
     return { success: true, data: updatedImages };
   } catch (error) {
-
     return { success: false, data: null, error };
   }
 };
 
 export const createWorkerProfileAction = async (token: string) => {
   try {
-
-    
     // Test database connection
 
     try {
       const testQuery = await db.execute(sql`SELECT 1 as test`);
-
     } catch (dbError) {
-
       throw new Error(`Database connection failed: ${dbError}`);
     }
-    
+
     if (!token) {
       throw new Error("Token is required");
     }
 
     const { uid } = await isUserAuthenticated(token);
- 
-    if (!uid) throw ERROR_CODES.UNAUTHORIZED;
 
+    if (!uid) throw ERROR_CODES.UNAUTHORIZED;
 
     const user = await db.query.UsersTable.findFirst({
       where: eq(UsersTable.firebaseUid, uid),
     });
 
-
     if (!user) throw "User not found";
 
     // Check if worker profile already exists
 
-    const existingWorkerProfile = await db.query.GigWorkerProfilesTable.findFirst({
-      where: eq(GigWorkerProfilesTable.userId, user.id),
-    });
-
+    const existingWorkerProfile =
+      await db.query.GigWorkerProfilesTable.findFirst({
+        where: eq(GigWorkerProfilesTable.userId, user.id),
+      });
 
     if (existingWorkerProfile) {
-
-      return { success: true, data: "Worker profile already exists", workerProfileId: existingWorkerProfile.id };
+      return {
+        success: true,
+        data: "Worker profile already exists",
+        workerProfileId: existingWorkerProfile.id,
+      };
     }
 
     // Create new worker profile
 
-    const newProfile = await db.insert(GigWorkerProfilesTable).values({
-      userId: user.id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }).returning();
-    
+    const newProfile = await db
+      .insert(GigWorkerProfilesTable)
+      .values({
+        userId: user.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
 
     const workerProfileId = newProfile[0].id;
 
     // Update user table to mark as gig worker
- 
+
     await db
       .update(UsersTable)
       .set({
@@ -485,11 +522,17 @@ export const createWorkerProfileAction = async (token: string) => {
       })
       .where(eq(UsersTable.id, user.id));
 
-
-    return { success: true, data: "Worker profile created successfully", workerProfileId };
+    return {
+      success: true,
+      data: "Worker profile created successfully",
+      workerProfileId,
+    };
   } catch (error) {
-
-    return { success: false, data: null, error: error instanceof Error ? error.message : "Unknown error" };
+    return {
+      success: false,
+      data: null,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
 };
 
@@ -516,13 +559,20 @@ export const saveWorkerProfileFromOnboardingAction = async (
     jobTitle?: string; // Add job title field
     equipment?: { name: string; description?: string }[]; // Add equipment field
   },
-  token: string,
+  token: string
 ) => {
   try {
-
-    
     if (!token) {
       throw new Error("Token is required");
+    }
+
+
+    // Validate hourly rate minimum
+    const hourlyRate = parseFloat(profileData.hourlyRate || "0");
+    if (hourlyRate < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE) {
+      throw new Error(
+        `Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}`
+      );
     }
 
     const { uid } = await isUserAuthenticated(token);
@@ -578,7 +628,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
     };
 
     let workerProfileId: string;
-    
+
     if (workerProfile) {
       // Update existing profile
       await db
@@ -588,11 +638,14 @@ export const saveWorkerProfileFromOnboardingAction = async (
       workerProfileId = workerProfile.id;
     } else {
       // Create new profile
-      const newProfile = await db.insert(GigWorkerProfilesTable).values({
-        userId: user.id,
-        ...profileUpdateData,
-        createdAt: new Date(),
-      }).returning();
+      const newProfile = await db
+        .insert(GigWorkerProfilesTable)
+        .values({
+          userId: user.id,
+          ...profileUpdateData,
+          createdAt: new Date(),
+        })
+        .returning();
       workerProfileId = newProfile[0].id;
     }
 
@@ -760,7 +813,9 @@ export const saveWorkerProfileFromOnboardingAction = async (
     }
 
     // Debug: Log the equipment data received
+
     
+
     // Save equipment data if provided
     if (profileData.equipment && profileData.equipment.length > 0) {
       try {
@@ -770,10 +825,12 @@ export const saveWorkerProfileFromOnboardingAction = async (
           await tx
             .delete(EquipmentTable)
             .where(eq(EquipmentTable.workerProfileId, workerProfileId));
-          
+
           // Insert new equipment
           const insertResult = await tx.insert(EquipmentTable).values(
-            (profileData.equipment as NonNullable<typeof profileData.equipment>).map(equipment => ({
+            (
+              profileData.equipment as NonNullable<typeof profileData.equipment>
+            ).map((equipment) => ({
               workerProfileId: workerProfileId,
               name: equipment.name,
               description: equipment.description || null,
@@ -787,6 +844,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
         throw dbError;
       }
     } else {
+
       // No equipment provided
     }
 
@@ -829,6 +887,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
       } else {
         console.log('⚠️ Job title already exists as skill, skipping insert:', profileData.jobTitle);
       }
+
     }
 
     // Update user table to mark as gig worker
@@ -841,9 +900,12 @@ export const saveWorkerProfileFromOnboardingAction = async (
       })
       .where(eq(UsersTable.id, user.id));
 
-    return { success: true, data: "Worker profile saved successfully", workerProfileId };
+    return {
+      success: true,
+      data: "Worker profile saved successfully",
+      workerProfileId,
+    };
   } catch (error) {
-
     return {
       success: false,
       data: null,
