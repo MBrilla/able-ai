@@ -14,6 +14,7 @@ import DiscountCodeBubble from "@/app/components/onboarding/DiscountCodeBubble";
 import Loader from "@/app/components/shared/Loader";
 
 import pageStyles from "./page.module.css";
+import styles from "./NewGig.module.css";
 import { useAuth } from "@/context/AuthContext";
 import { createGig } from "@/actions/gigs/create-gig";
 import { findMatchingWorkers } from "@/actions/gigs/ai-matchmaking";
@@ -2465,902 +2466,636 @@ Make the conversation feel natural and build on what they've already told you.`;
   }
 
   return (
-    <>
-      <ChatBotLayout
-        ref={chatContainerRef}
-        onScroll={() => {}}
-        onHomeClick={() => router.push(`/user/${user?.uid || "this_user"}/buyer`)}
-        className={pageStyles.container}
-        role="BUYER"
-        showChatInput={true}
-        disableChatInput={isSpecialComponentActive}
-        onSendMessage={async (message) => {
-          console.log('ChatInput received:', message);
+    <ChatBotLayout
+      ref={chatContainerRef}
+      onScroll={() => {}}
+      onHomeClick={() => router.push(`/user/${user?.uid || "this_user"}/buyer`)}
+      className={pageStyles.container}
+      role="BUYER"
+      showChatInput={true}
+      disableChatInput={isSpecialComponentActive}
+      onSendMessage={async (message) => {
+        console.log('ChatInput received:', message);
+        
+        // Find current input step (any type that needs user input)
+        const currentInputStep = chatSteps.find(step => 
+          (step.type === "input" || step.type === "calendar" || step.type === "location" || step.type === "discountCode") && !step.isComplete
+        );
+        
+        if (currentInputStep) {
+          // Handle promo code step (no inputConfig needed)
+          if (currentInputStep.type === "discountCode") {
+            // Don't process chat input for promo code step - user should use buttons
+            return;
+          }
           
-          // Find current input step (any type that needs user input)
-          const currentInputStep = chatSteps.find(step => 
-            (step.type === "input" || step.type === "calendar" || step.type === "location" || step.type === "discountCode") && !step.isComplete
+          if (currentInputStep.inputConfig) {
+            const fieldName = currentInputStep.inputConfig.name;
+          
+          // Always add user message to chat for all input types
+          const userStep: ChatStep = {
+            id: Date.now(),
+            type: "user",
+            content: message,
+            isNew: true
+          };
+          
+          setChatSteps(prev => [...prev, userStep]);
+          
+          // Update form data
+          handleInputChange(fieldName, message);
+          
+          // Pass the message value directly to handleInputSubmit
+          await handleInputSubmit(currentInputStep.id, fieldName, message);
+          }
+        }
+      }}
+    >
+
+
+
+      {chatSteps.map((step, idx) => {
+        const key = `step-${step.id}-${idx}`;
+        
+        // User message
+        if (step.type === "user") {
+          return (
+            <MessageBubble
+              key={key}
+              text={step.content}
+              senderType="user"
+              role="BUYER"
+              showAvatar={false}
+            />
           );
+        }
+        
+        // Sanitized confirmation step
+        if (step.type === "sanitized" && step.fieldName) {
+          const sanitizedValue = step.sanitizedValue;
+          const originalValue = step.originalValue;
           
-          if (currentInputStep) {
-            // Handle promo code step (no inputConfig needed)
-            if (currentInputStep.type === "discountCode") {
-              // Don't process chat input for promo code step - user should use buttons
-              return;
+          // Use AI summary if available, otherwise fallback to sanitized value
+          const displayValue = aiFieldSummaries[step.fieldName] || (() => {
+            if (typeof sanitizedValue === 'string') {
+              return sanitizedValue;
             }
             
-            if (currentInputStep.inputConfig) {
-              const fieldName = currentInputStep.inputConfig.name;
-            
-            // Always add user message to chat for all input types
-            const userStep: ChatStep = {
-              id: Date.now(),
-              type: "user",
-              content: message,
-              isNew: true
-            };
-            
-            setChatSteps(prev => [...prev, userStep]);
-            
-            // Update form data
-            handleInputChange(fieldName, message);
-            
-            // Pass the message value directly to handleInputSubmit
-            await handleInputSubmit(currentInputStep.id, fieldName, message);
+            if (typeof sanitizedValue === 'object') {
+              return JSON.stringify(sanitizedValue);
             }
-          }
-        }}
-      >
-
-
-
-        {chatSteps.map((step, idx) => {
-          const key = `step-${step.id}-${idx}`;
+            
+            // Handle other types
+            return String(sanitizedValue || '');
+          })();
           
-          // User message
-          if (step.type === "user") {
-            return (
-              <MessageBubble
-                key={key}
-                text={step.content}
-                senderType="user"
-                role="BUYER"
-                showAvatar={false}
-              />
-            );
-          }
+          // Check button states
+          const confirmClicked = clickedSanitizedButtons.has(`${step.fieldName}-confirm`);
+          const reformulateClicked = clickedSanitizedButtons.has(`${step.fieldName}-reformulate`);
+          const isReformulatingThisField = reformulateField === step.fieldName;
+          const isCompleted = step.isComplete || confirmClicked || reformulateClicked;
           
-          // Sanitized confirmation step
-          if (step.type === "sanitized" && step.fieldName) {
-            const sanitizedValue = step.sanitizedValue;
-            const originalValue = step.originalValue;
-            
-            // Use AI summary if available, otherwise fallback to sanitized value
-            const displayValue = aiFieldSummaries[step.fieldName] || (() => {
-              if (typeof sanitizedValue === 'string') {
-                return sanitizedValue;
-              }
-              
-              if (typeof sanitizedValue === 'object') {
-                return JSON.stringify(sanitizedValue);
-              }
-              
-              // Handle other types
-              return String(sanitizedValue || '');
-            })();
-            
-            // Check button states
-            const confirmClicked = clickedSanitizedButtons.has(`${step.fieldName}-confirm`);
-            const reformulateClicked = clickedSanitizedButtons.has(`${step.fieldName}-reformulate`);
-            const isReformulatingThisField = reformulateField === step.fieldName;
-            const isCompleted = step.isComplete || confirmClicked || reformulateClicked;
-            
-            return (
-              <MessageBubble
-                key={key}
-                text={
-                  <div>
-                    <div style={{ marginBottom: 8, color: 'var(--secondary-color)', fontWeight: 600, fontSize: '14px' }}>This is what you wanted?</div>
-                    {typeof displayValue === 'string' ? (
-                      <div style={{ marginBottom: 16, fontStyle: 'italic', color: '#e5e5e5', fontSize: '15px', lineHeight: '1.4' }}>{displayValue}</div>
-                    ) : (
-                      displayValue
-                    )}
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <button
-                        style={{ 
-                          background: isCompleted ? '#555' : 'var(--secondary-color)', 
-                          color: isCompleted ? '#fff' : '#000', 
-                          border: 'none', 
-                          borderRadius: 8, 
-                          padding: '8px 16px', 
-                          fontWeight: 600, 
-                          fontSize: '14px', 
-                          cursor: isCompleted ? 'not-allowed' : 'pointer', 
-                          transition: 'background-color 0.2s',
-                          opacity: isCompleted ? 0.7 : 1
-                        }}
-                        onClick={isCompleted ? undefined : () => handleSanitizedConfirm(step.fieldName!, step.sanitizedValue!)}
-                        disabled={isCompleted}
-                        onMouseOver={(e) => {
-                          if (!isCompleted) {
-                            e.currentTarget.style.background = 'var(--secondary-darker-color)';
-                            e.currentTarget.style.color = '#000';
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.background = isCompleted ? '#555' : 'var(--secondary-color)';
-                          e.currentTarget.style.color = isCompleted ? '#fff' : '#000';
-                        }}
-                      >
-                        {confirmClicked ? 'Confirmed' : 'Confirm'}
-                      </button>
-                      <button
-                        style={{ 
-                          background: isCompleted ? '#555' : 'transparent', 
-                          color: isCompleted ? '#999' : 'var(--secondary-color)', 
-                          border: '1px solid var(--secondary-color)', 
-                          borderRadius: 8, 
-                          padding: '8px 16px', 
-                          fontWeight: 600, 
-                          fontSize: '14px', 
-                          cursor: isCompleted ? 'not-allowed' : 'pointer', 
-                          transition: 'all 0.2s',
-                          opacity: isCompleted ? 0.7 : 1
-                        }}
-                        onClick={isCompleted ? undefined : () => handleSanitizedReformulate(step.fieldName!)}
-                        disabled={isCompleted}
-                        onMouseOver={(e) => { 
-                          if (!isCompleted) {
-                            e.currentTarget.style.background = 'var(--secondary-color)'; 
-                            e.currentTarget.style.color = '#fff'; 
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.background = 'transparent'; 
-                          e.currentTarget.style.color = 'var(--secondary-color)'; 
-                        }}
-                      >
-                     {reformulateClicked ? (step.fieldName === 'videoIntro' ? 'Re-shot' : 'Edited') : (isReformulatingThisField ? (step.fieldName === 'videoIntro' ? 'Re-shooting...' : 'Editing...') : (step.fieldName === 'videoIntro' ? 'Re-shoot' : 'Edit message'))}
-                      </button>
-                    </div>
+          return (
+            <MessageBubble
+              key={key}
+              text={
+                <div>
+                  <div className={styles.container}>This is what you wanted?</div>
+
+                  {typeof displayValue === "string" ? (
+                    <div className={styles.displayValue}>{displayValue}</div>
+                  ) : (
+                    displayValue
+                  )}
+
+                  <div className={styles.buttonGroup}>
+                    <button
+                      className={`${styles.confirmButton} ${isCompleted ? styles.completed : ""}`}
+                      onClick={
+                        isCompleted ? undefined : () => handleSanitizedConfirm(step.fieldName!, step.sanitizedValue!)
+                      }
+                      disabled={isCompleted}
+                    >
+                      {confirmClicked ? "Confirmed" : "Confirm"}
+                    </button>
+
+                    <button
+                      className={`${styles.reformulateButton} ${isCompleted ? styles.completed : ""}`}
+                      onClick={
+                        isCompleted ? undefined : () => handleSanitizedReformulate(step.fieldName!)
+                      }
+                      disabled={isCompleted}
+                    >
+                      {reformulateClicked
+                        ? step.fieldName === "videoIntro"
+                          ? "Re-shot"
+                          : "Edited"
+                        : isReformulatingThisField
+                        ? step.fieldName === "videoIntro"
+                          ? "Re-shooting..."
+                          : "Editing..."
+                        : step.fieldName === "videoIntro"
+                        ? "Re-shoot"
+                        : "Edit message"}
+                    </button>
                   </div>
-                }
-                senderType="bot"
-                role="BUYER"
-                showAvatar={true}
-              />
-            );
-          }
-
-          // Job title confirmation step
-          if (step.type === "jobTitleConfirmation" && step.fieldName) {
-            const suggestedJobTitle = step.suggestedJobTitle;
-            const originalValue = step.originalValue;
-            const confidence = step.confidence || 0;
-            const matchedTerms = step.matchedTerms || [];
-            const isAISuggested = step.isAISuggested || false;
-            const isCompleted = step.isComplete;
-            
-            return (
-              <MessageBubble
-                key={key}
-                text={
-                  <div>
-                    <div style={{ marginBottom: 8, color: 'var(--secondary-color)', fontWeight: 600, fontSize: '14px' }}>
-                      I think you're looking for a <strong>{suggestedJobTitle}</strong>?
-                    </div>
-                    <div style={{ marginBottom: 12, fontSize: '13px', color: '#ccc' }}>
-                      {isAISuggested && (
-                        <span style={{ color: '#4ade80' }}>AI Suggested</span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <button
-                        style={{ 
-                          background: isCompleted ? '#555' : 'var(--secondary-color)', 
-                          color: isCompleted ? '#fff' : '#000', 
-                          border: 'none', 
-                          borderRadius: 8, 
-                          padding: '8px 16px', 
-                          fontWeight: 600, 
-                          fontSize: '14px', 
-                          cursor: isCompleted ? 'not-allowed' : 'pointer', 
-                          transition: 'background-color 0.2s',
-                          opacity: isCompleted ? 0.7 : 1
-                        }}
-                        onClick={isCompleted ? undefined : () => handleJobTitleConfirm(step.fieldName!, suggestedJobTitle!, originalValue!)}
-                        disabled={isCompleted}
-                      >
-                        {isCompleted ? 'Confirmed' : 'Yes, that\'s right'}
-                      </button>
-                      <button
-                        style={{ 
-                          background: isCompleted ? '#555' : 'transparent', 
-                          color: isCompleted ? '#999' : 'var(--secondary-color)', 
-                          border: '1px solid var(--secondary-color)', 
-                          borderRadius: 8, 
-                          padding: '8px 16px', 
-                          fontWeight: 600, 
-                          fontSize: '14px', 
-                          cursor: isCompleted ? 'not-allowed' : 'pointer', 
-                          transition: 'all 0.2s',
-                          opacity: isCompleted ? 0.7 : 1
-                        }}
-                        onClick={isCompleted ? undefined : () => {
-                          // Skip job title confirmation and proceed with original value
-                          setFormData(prev => ({ ...prev, [step.fieldName!]: originalValue }));
-                          setChatSteps(prev => prev.map(s => 
-                            s.id === step.id ? { ...s, isComplete: true } : s
-                          ));
-                        }}
-                        disabled={isCompleted}
-                      >
-                        {isCompleted ? 'Skipped' : 'Skip'}
-                      </button>
-                    </div>
-                  </div>
-                }
-                senderType="bot"
-                role="BUYER"
-                showAvatar={true}
-              />
-            );
-          }
-
-
-
-          // Matchmaking step
-          if (step.type === "matchmaking" && step.matches) {
-            return (
-              <div key={key} className="w-full">
-                <WorkerMatchmakingResults
-                  matches={step.matches}
-                  isLoading={isMatchmaking}
-                  onSelectWorker={handleSelectWorker}
-                  onSkipSelection={handleSkipSelection}
-                  selectedWorkerId={selectedWorkerId || undefined}
-                  isSelecting={isSelectingWorker}
-                  isSkipping={isSkippingSelection}
-                  totalWorkersAnalyzed={totalWorkersAnalyzed}
-                />
-              </div>
-            );
-          }
-          
-          if (step.type === "bot" && typeof step.content === "string" && step.content.startsWith("Thank you! Here is a summary of your gig:")) {
-            // Try to extract and parse the JSON
-            const match = step.content.match(/Thank you! Here is a summary of your gig:\n([\s\S]*)/);
-            let summaryData = null;
-            if (match) {
-              try {
-                summaryData = JSON.parse(match[1]);
-              } catch (e) {
-                summaryData = null;
+                </div>
               }
-            }
-            if (summaryData) {
-              return (
-                <MessageBubble
-                  key={key}
-                  text={
-                    <div style={{ background: '#222', color: '#fff', borderRadius: 8, padding: 16, margin: '16px 0', boxShadow: '0 2px 8px #0002' }}>
-                      <h3 style={{ marginTop: 0 }}>Gig Summary</h3>
-                      <ul style={{ listStyle: 'none', padding: 0 }}>
-                        {Object.entries(summaryData).map(([field, value]) => {
-                          if (field === 'gigLocation' && typeof value === 'string' && value.length > 40) {
-                            return (
-                              <li key={field} style={{ marginBottom: 8 }}>
-                                <strong style={{ textTransform: 'capitalize' }}>{field.replace(/([A-Z])/g, ' $1')}: </strong>
-                                <span
-                                  style={{
-                                    cursor: 'pointer',
-                                    wordBreak: 'break-all',
-                                    display: 'inline-block',
-                                    maxWidth: expandedSummaryFields[field] ? '100%' : 220,
-                                    whiteSpace: expandedSummaryFields[field] ? 'normal' : 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: expandedSummaryFields[field] ? 'clip' : 'ellipsis',
-                                    verticalAlign: 'bottom',
-                                  }}
-                                  title={expandedSummaryFields[field] ? 'Click to collapse' : 'Click to expand'}
-                                  onClick={() =>
-                                    setExpandedSummaryFields(prev => ({
-                                      ...prev,
-                                      [field]: !prev[field]
-                                    }))
-                                  }
-                                >
-                                  {expandedSummaryFields[field] ? value : value.slice(0, 37) + '...'}
-                                </span>
-                              </li>
+              senderType="bot"
+              role="BUYER"
+              showAvatar={true}
+            />
+          );
+        }
+
+        // Job title confirmation step
+        if (step.type === "jobTitleConfirmation" && step.fieldName) {
+          const suggestedJobTitle = step.suggestedJobTitle;
+          const originalValue = step.originalValue;
+          const confidence = step.confidence || 0;
+          const matchedTerms = step.matchedTerms || [];
+          const isAISuggested = step.isAISuggested || false;
+          const isCompleted = step.isComplete;
+          
+          return (
+            <MessageBubble
+              key={key}
+              text={
+              <div>
+                <div className={styles.jobTitleConfirmWrapper}>
+                  I think you're looking for a <strong>{suggestedJobTitle}</strong>?
+                </div>
+
+                <div className={styles.jobTitleConfirmNote}>
+                  {isAISuggested && (
+                    <span className={styles.jobTitleConfirmAISuggested}>AI Suggested</span>
+                  )}
+                </div>
+
+                <div className={styles.jobTitleConfirmButtonGroup}>
+                  <button
+                    className={`${styles.jobTitleConfirmButton} ${
+                      isCompleted
+                        ? styles.jobTitleConfirmYesCompleted
+                        : styles.jobTitleConfirmYes
+                    }`}
+                    onClick={
+                      isCompleted
+                        ? undefined
+                        : () =>
+                            handleJobTitleConfirm(
+                              step.fieldName!,
+                              suggestedJobTitle!,
+                              originalValue!
+                            )
+                    }
+                    disabled={isCompleted}
+                  >
+                    {isCompleted ? "Confirmed" : "Yes, that's right"}
+                  </button>
+
+                  <button
+                    className={`${styles.jobTitleConfirmButton} ${
+                      isCompleted
+                        ? styles.jobTitleConfirmSkipCompleted
+                        : styles.jobTitleConfirmSkip
+                    }`}
+                    onClick={
+                      isCompleted
+                        ? undefined
+                        : () => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              [step.fieldName!]: originalValue,
+                            }));
+                            setChatSteps((prev) =>
+                              prev.map((s) =>
+                                s.id === step.id ? { ...s, isComplete: true } : s
+                              )
                             );
                           }
+                    }
+                    disabled={isCompleted}
+                  >
+                    {isCompleted ? "Skipped" : "Skip"}
+                  </button>
+                </div>
+              </div>
+              }
+              senderType="bot"
+              role="BUYER"
+              showAvatar={true}
+            />
+          );
+        }
+
+
+
+        // Matchmaking step
+        if (step.type === "matchmaking" && step.matches) {
+          return (
+            <div key={key} className="w-full">
+              <WorkerMatchmakingResults
+                matches={step.matches}
+                isLoading={isMatchmaking}
+                onSelectWorker={handleSelectWorker}
+                onSkipSelection={handleSkipSelection}
+                selectedWorkerId={selectedWorkerId || undefined}
+                isSelecting={isSelectingWorker}
+                isSkipping={isSkippingSelection}
+                totalWorkersAnalyzed={totalWorkersAnalyzed}
+              />
+            </div>
+          );
+        }
+        
+        if (step.type === "bot" && typeof step.content === "string" && step.content.startsWith("Thank you! Here is a summary of your gig:")) {
+          // Try to extract and parse the JSON
+          const match = step.content.match(/Thank you! Here is a summary of your gig:\n([\s\S]*)/);
+          let summaryData = null;
+          if (match) {
+            try {
+              summaryData = JSON.parse(match[1]);
+            } catch (e) {
+              summaryData = null;
+            }
+          }
+          if (summaryData) {
+            return (
+              <MessageBubble
+                key={key}
+                text={
+                  <div className={styles.gigSummaryContainer}>
+                    <h3 className={styles.gigSummaryTitle}>Gig Summary</h3>
+                    <ul className={styles.gigSummaryList}>
+                      {Object.entries(summaryData).map(([field, value]) => {
+                        if (field === "gigLocation" && typeof value === "string" && value.length > 40) {
                           return (
-                            <li key={field} style={{ marginBottom: 8 }}>
-                              <strong style={{ textTransform: 'capitalize' }}>{field.replace(/([A-Z])/g, ' $1')}: </strong>
-                              <span>
-                                {field === 'hourlyRate' && typeof value === 'number'
-                                  ? `£${value.toFixed(2)}`
-                                  : value && typeof value === 'object' && 'lat' in value && 'lng' in value
-                                    ? (value as any).formatted_address || `Coordinates: ${(value as any).lat.toFixed(6)}, ${(value as any).lng.toFixed(6)}`
-                                    : field === 'gigDate'
-                                      ? formatDateForDisplay(value)
-                                      : field === 'gigTime'
-                                        ? formatTimeForDisplay(value)
-                                        : typeof value === 'object'
-                                          ? JSON.stringify(value)
-                                          : String(value)}
+                            <li key={field} className={styles.gigSummaryListItem}>
+                              <strong className={styles.gigSummaryField}>
+                                {field.replace(/([A-Z])/g, " $1")}:{" "}
+                              </strong>
+                              <span
+                                className={`${styles.gigSummaryExpandable} ${
+                                  expandedSummaryFields[field] ? styles.gigSummaryExpanded : ""
+                                }`}
+                                title={
+                                  expandedSummaryFields[field]
+                                    ? "Click to collapse"
+                                    : "Click to expand"
+                                }
+                                onClick={() =>
+                                  setExpandedSummaryFields((prev) => ({
+                                    ...prev,
+                                    [field]: !prev[field],
+                                  }))
+                                }
+                              >
+                                {expandedSummaryFields[field]
+                                  ? value
+                                  : value.slice(0, 37) + "..."}
                               </span>
                             </li>
                           );
-                        })}
-                      </ul>
-                      <button
-                        style={{ 
-                          marginTop: 16, 
-                          background: "var(--secondary-color)", 
-                          color: "#fff", 
-                          border: "none", 
-                          borderRadius: 8, 
-                          padding: "8px 16px", 
-                          fontWeight: 600,
-                          transition: 'all 0.3s ease',
-                          transform: 'scale(1)',
-                          animation: 'pulse 2s infinite'
-                        }}
-                        onClick={() => {
-                          if (!isSubmitting) {
-                            void handleFinalSubmit();
-                          }
-                        }}
-                        disabled={isSubmitting}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                          e.currentTarget.style.background = 'var(--secondary-darker-color)';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.background = 'var(--secondary-color)';
-                        }}
-                      >
-                        <style>{`
-                          @keyframes pulse {
-                            0% {
-                              box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7);
-                            }
-                            70% {
-                              box-shadow: 0 0 0 10px rgba(34, 211, 238, 0);
-                            }
-                            100% {
-                              box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
-                            }
-                          }
-                        `}</style>
-                        {isSubmitting ? 'Creating...' : 'Confirm & Go to Dashboard'}
-                      </button>
-                    </div>
-                  }
-                  senderType="bot"
-                  role="BUYER"
-                />
-              );
-            }
-            // Fallback to raw message if parsing fails
-            return (
-              <MessageBubble
-                key={key}
-                text={step.content as string}
-                senderType="bot"
-                role="BUYER"
-              />
-            );
-          }
-          if (step.type === "bot") {
-            return (
-              <MessageBubble
-                key={key}
-                text={step.content as string}
-                senderType="bot"
-                role="BUYER"
-              />
-            );
-          }
-          if (step.type === "user" as any) {
-            return (
-              <MessageBubble
-                key={key}
-                text={typeof step.content === 'object' ? JSON.stringify(step.content) : String(step.content)}
-                senderType="user"
-                showAvatar={false}
-                role="BUYER"
-              />
-            );
-          }
-          if (step.type === "typing") {
-            return (
-              <div key={key} style={{ 
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  marginBottom: '0.5rem'
-                }}>
-                {/* AI Avatar */}
-                  <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'linear-gradient(135deg, var(--secondary-color), var(--secondary-darker-color))',
-                      boxShadow: '0 2px 8px rgba(34, 211, 238, 0.3)'
-                    }}>
-                      <div style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '50%',
-                        background: '#000000',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '1px solid rgba(255, 255, 255, 0.2)'
-                      }}>
-                        <Image 
-                          src="/images/ableai.png" 
-                          alt="Able AI" 
-                          width={24} 
-                          height={24} 
-                          style={{
-                            borderRadius: '50%',
-                            objectFit: 'cover'
-                          }}
-                        />
-                    </div>
+                        }
+                        return (
+                          <li key={field} className={styles.gigSummaryListItem}>
+                            <strong className={styles.gigSummaryField}>
+                              {field.replace(/([A-Z])/g, " $1")}:{" "}
+                            </strong>
+                            <span>
+                              {field === "hourlyRate" && typeof value === "number"
+                                ? `£${value.toFixed(2)}`
+                                : value && typeof value === "object" && "lat" in value && "lng" in value
+                                ? (value as any).formatted_address ||
+                                  `Coordinates: ${(value as any).lat.toFixed(
+                                    6
+                                  )}, ${(value as any).lng.toFixed(6)}`
+                                : field === "gigDate"
+                                ? formatDateForDisplay(value)
+                                : field === "gigTime"
+                                ? formatTimeForDisplay(value)
+                                : typeof value === "object"
+                                ? JSON.stringify(value)
+                                : String(value)}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <button
+                      className={styles.gigSummaryButton}
+                      onClick={() => {
+                        if (!isSubmitting) {
+                          void handleFinalSubmit();
+                        }
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? "Creating..." : "Confirm & Go to Dashboard"}
+                    </button>
                   </div>
-                </div>
-
-                {/* Typing Indicator - Next to Avatar */}
-                <div style={{ flex: 1, marginTop: '0.25rem' }}>
-                  <TypingIndicator />
+                }
+                senderType="bot"
+                role="BUYER"
+              />
+            );
+          }
+          // Fallback to raw message if parsing fails
+          return (
+            <MessageBubble
+              key={key}
+              text={step.content as string}
+              senderType="bot"
+              role="BUYER"
+            />
+          );
+        }
+        if (step.type === "bot") {
+          return (
+            <MessageBubble
+              key={key}
+              text={step.content as string}
+              senderType="bot"
+              role="BUYER"
+            />
+          );
+        }
+        if (step.type === "user" as any) {
+          return (
+            <MessageBubble
+              key={key}
+              text={typeof step.content === 'object' ? JSON.stringify(step.content) : String(step.content)}
+              senderType="user"
+              showAvatar={false}
+              role="BUYER"
+            />
+          );
+        }
+        if (step.type === "typing") {
+          return (
+           <div key={key} className={styles.typingStepContainer}>
+              {/* AI Avatar */}
+              <div className={styles.typingStepAvatarWrapper}>
+                <div className={styles.typingStepAvatarOuter}>
+                  <div className={styles.typingStepAvatarInner}>
+                    <Image
+                      src="/images/ableai.png"
+                      alt="Able AI"
+                      width={24}
+                      height={24}
+                      className={styles.typingStepAvatarImage}
+                    />
+                  </div>
                 </div>
               </div>
-            );
-          }
-          if (step.type === "input") {
-            // Special handling for button inputs (like confirm button)
-            if (step.inputConfig?.type === "button") {
-              return (
-                <div key={key} style={{ 
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  marginBottom: '0.5rem'
-                }}>
-                  {/* AI Avatar */}
-                  <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'linear-gradient(135deg, var(--secondary-color), var(--secondary-darker-color))',
-                      boxShadow: '0 2px 8px rgba(34, 211, 238, 0.3)'
-                    }}>
-                      <div style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '50%',
-                        background: '#000000',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '1px solid rgba(255, 255, 255, 0.2)'
-                      }}>
-                        <Image 
-                          src="/images/ableai.png" 
-                          alt="Able AI" 
-                          width={24} 
-                          height={24} 
-                          style={{
-                            borderRadius: '50%',
-                            objectFit: 'cover'
-                          }}
-                        />
-                      </div>
+              {/* Typing Indicator - Next to Avatar */}
+              <div className={styles.typingStepIndicator}>
+                <TypingIndicator />
+              </div>
+            </div>
+          );
+        }
+        if (step.type === "input") {
+          // Special handling for button inputs (like confirm button)
+          if (step.inputConfig?.type === "button") {
+            return (
+              <div key={key} className={styles.inputStepContainer}>
+                {/* AI Avatar */}
+                <div className={styles.inputStepAvatarWrapper}>
+                  <div className={styles.inputStepAvatarOuter}>
+                    <div className={styles.inputStepAvatarInner}>
+                      <Image
+                        src="/images/ableai.png"
+                        alt="Able AI"
+                        width={24}
+                        height={24}
+                        className={styles.inputStepAvatarImage}
+                      />
                     </div>
                   </div>
+                </div>
 
-                  {/* Button */}
-                  <div style={{ flex: 1, marginTop: '0.25rem' }}>
-                    {step.inputConfig?.name === 'goToDashboard' ? (
-                      // Special styling for Go to Dashboard button
-                      <div style={{ 
-                        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-                        border: '2px solid #0ea5e9',
-                        borderRadius: 12,
-                        padding: '16px 20px',
-                        marginBottom: '8px'
-                      }}>
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          marginBottom: '8px' 
-                        }}>
-                          <div style={{
-                            width: '24px',
-                            height: '24px',
-                            background: '#0ea5e9',
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginRight: '8px'
-                          }}>
-                            <svg width="12" height="12" fill="white" viewBox="0 0 24 24">
-                              <path d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-                            </svg>
-                          </div>
-                          <span style={{ 
-                            fontSize: '14px', 
-                            fontWeight: 600, 
-                            color: '#0c4a6e' 
-                          }}>
-                            Ready to go?
-                          </span>
-                        </div>
-                        <p style={{ 
-                          fontSize: '12px', 
-                          color: '#0369a1', 
-                          margin: '0 0 12px 0',
-                          lineHeight: '1.4'
-                        }}>
-                          Your gig is live! Head to your dashboard to manage applications and track progress.
-                        </p>
-                        <button
-                          style={{ 
-                            background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', 
-                            color: '#fff', 
-                            border: 'none', 
-                            borderRadius: 8, 
-                            padding: '12px 20px', 
-                            fontWeight: 600, 
-                            fontSize: '14px', 
-                            cursor: 'pointer', 
-                            transition: 'all 0.2s',
-                            boxShadow: '0 2px 4px rgba(14, 165, 233, 0.3)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '100%'
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(14, 165, 233, 0.4)';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(14, 165, 233, 0.3)';
-                          }}
-                          onClick={() => {
-                            console.log('Go to Dashboard button clicked', { stepId: step.id, inputName: step.inputConfig!.name });
-                            handleInputSubmit(step.id, step.inputConfig!.name);
-                          }}
-                          disabled={isSubmitting}
-                        >
-                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style={{ marginRight: '8px' }}>
-                            <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+                {/* Button content */}
+                <div className={styles.inputStepContent}>
+                  {step.inputConfig?.name === "goToDashboard" ? (
+                    <div className={styles.inputStepDashboardCard}>
+                      <div className={styles.inputStepDashboardHeader}>
+                        <div className={styles.inputStepDashboardIcon}>
+                          <svg width="12" height="12" fill="white" viewBox="0 0 24 24">
+                            <path d="M13 7l5 5m0 0l-5 5m5-5H6" />
                           </svg>
-                          Go to Dashboard
-                        </button>
+                        </div>
+                        <span className={styles.inputStepDashboardTitle}>Ready to go?</span>
                       </div>
-                    ) : (
-                      // Default styling for other buttons (like Confirm)
+                      <p className={styles.inputStepDashboardText}>
+                        Your gig is live! Head to your dashboard to manage applications and
+                        track progress.
+                      </p>
                       <button
-                        style={{ 
-                          background: 'var(--primary-color)', 
-                          color: '#fff', 
-                          border: 'none', 
-                          borderRadius: 8, 
-                          padding: '12px 24px', 
-                          fontWeight: 600, 
-                          fontSize: '16px', 
-                          cursor: 'pointer', 
-                          transition: 'background-color 0.2s'
-                        }}
+                        className={styles.inputStepDashboardButton}
                         onClick={() => {
-                          console.log('Confirm button clicked', { stepId: step.id, inputName: step.inputConfig!.name });
+                          console.log("Go to Dashboard button clicked", {
+                            stepId: step.id,
+                            inputName: step.inputConfig!.name,
+                          });
                           handleInputSubmit(step.id, step.inputConfig!.name);
                         }}
                         disabled={isSubmitting}
                       >
-                        {isSubmitting ? 'Creating Gig...' : step.inputConfig?.placeholder || 'Confirm'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            }
-            
-            // For other incomplete inputs, don't show anything - let the user use the chat input
-            // For completed inputs, don't show anything since user messages are handled separately
-            return null;
-          }
-
-          if (step.type === "discountCode" && !step.isComplete) {
-            return (
-              <DiscountCodeBubble
-                key={key}
-                sessionCode={referralCode}
-                onConfirm={(code) => {
-                  void handleDiscountCodeConfirm(step.id, code);
-                }}
-                role={"BUYER"}
-              />
-            );
-          }
-
-          // Handle calendar picker step
-          if (step.type === "calendar") {
-            return (
-              <div key={key} style={{ 
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.5rem',
-                marginBottom: '0.5rem'
-              }}>
-                {/* AI Avatar - Separated */}
-                <div key={`${key}-avatar`} style={{ 
-                  flexShrink: 0, 
-                  marginTop: '0.25rem' 
-                }}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'linear-gradient(135deg, var(--secondary-color), var(--secondary-darker-color))',
-                    boxShadow: '0 2px 8px rgba(126, 238, 249, 0.3)'
-                  }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      background: '#000000',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid rgba(255, 255, 255, 0.2)'
-                    }}>
-                      <Image 
-                        src="/images/ableai.png" 
-                        alt="Able AI" 
-                        width={24} 
-                        height={24} 
-                        style={{
-                          borderRadius: '50%',
-                          objectFit: 'cover'
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Calendar Picker - Separated */}
-                <div key={`${key}-calendar`} style={{ flex: 1 }}>
-                  <CalendarPickerBubble
-                    name={step.inputConfig?.name}
-                    value={formData[step.inputConfig?.name || ''] ? new Date(formData[step.inputConfig?.name || '']) : null}
-                    onChange={(date) => {
-                      if (step.inputConfig?.name) {
-                        handleInputChange(step.inputConfig.name, date);
-                      }
-                    }}
-                    placeholderText={step.inputConfig?.placeholder || "Select a date"}
-                    role="BUYER"
-                  />
-                  
-                  {/* Confirm button when date is selected */}
-                  {formData[step.inputConfig?.name || ''] && !confirmedSteps.has(step.id) && (
-                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        style={{
-                          background: isConfirming ? '#555' : 'var(--secondary-color)',
-                          border: 'none',
-                          borderRadius: '8px',
-                          padding: '8px 16px',
-                          fontWeight: 600,
-                          fontSize: '14px',
-                          cursor: isConfirming ? 'not-allowed' : 'pointer',
-                          transition: 'background-color 0.2s',
-                          opacity: isConfirming ? 0.7 : 1
-                        }}
-                        onClick={() => {
-                          if (step.inputConfig?.name && !isConfirming) {
-                            handlePickerConfirm(step.id, step.inputConfig.name);
-                          }
-                        }}
-                        onMouseOver={(e) => {
-                          if (!isConfirming) {
-                            e.currentTarget.style.background = 'var(--secondary-darker-color)';
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          if (!isConfirming) {
-                            e.currentTarget.style.background = 'var(--secondary-color)';
-                          }
-                        }}
-                        disabled={isConfirming}
-                      >
-                        {isConfirming ? 'Confirming...' : 'Confirm Date'}
+                        <svg
+                          width="16"
+                          height="16"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                          style={{ marginRight: "8px" }}
+                        >
+                          <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+                        </svg>
+                        Go to Dashboard
                       </button>
                     </div>
-                  )}
-                  
-                  {/* Show confirmed status when step has been confirmed */}
-                  {confirmedSteps.has(step.id) && (
-                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-                      <div style={{
-                        background: 'var(--secondary-color)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '8px 16px',
-                        fontWeight: 600,
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <span>✓</span>
-                        Date Confirmed
-                      </div>
-                    </div>
+                  ) : (
+                    <button
+                      className={styles.inputStepDefaultButton}
+                      onClick={() => {
+                        console.log("Confirm button clicked", {
+                          stepId: step.id,
+                          inputName: step.inputConfig!.name,
+                        });
+                        handleInputSubmit(step.id, step.inputConfig!.name);
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting
+                        ? "Creating Gig..."
+                        : step.inputConfig?.placeholder || "Confirm"}
+                    </button>
                   )}
                 </div>
               </div>
             );
           }
           
-          // Handle location picker step
-          if (step.type === "location") {
-            return (
-              <div key={key} style={{ 
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.5rem',
-                marginBottom: '0.5rem'
-              }}>
-                {/* AI Avatar - Separated */}
-                <div key={`${key}-avatar`} style={{ 
-                  flexShrink: 0, 
-                  marginTop: '0.25rem' 
-                }}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'linear-gradient(135deg, var(--secondary-color), var(--secondary-darker-color))',
-                    boxShadow: '0 2px 8px rgba(126, 238, 249, 0.3)'
-                  }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      background: '#000000',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid rgba(255, 255, 255, 0.2)'
-                    }}>
-                      <Image 
-                        src="/images/ableai.png" 
-                        alt="Able AI" 
-                        width={24} 
-                        height={24} 
-                        style={{
-                          borderRadius: '50%',
-                          objectFit: 'cover'
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Location Picker - Separated */}
-                <div key={`${key}-location`} style={{ flex: 1 }}>
-                  <LocationPickerBubble
-                    value={formData[step.inputConfig?.name || '']}
-                    onChange={(value) => {
-                      if (step.inputConfig?.name) {
-                        handleInputChange(step.inputConfig.name, value);
-                      }
-                    }}
-                    role="BUYER"
-                  />
-                  
-                  {/* Confirm button when location is selected */}
-                  {formData[step.inputConfig?.name || ''] && !confirmedSteps.has(step.id) && (
-                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        style={{
-                          background: isConfirming ? '#555' : 'var(--secondary-color)',
-                          border: 'none',
-                          borderRadius: '8px',
-                          padding: '8px 16px',
-                          fontWeight: 600,
-                          fontSize: '14px',
-                          cursor: isConfirming ? 'not-allowed' : 'pointer',
-                          transition: 'background-color 0.2s',
-                          opacity: isConfirming ? 0.7 : 1
-                        }}
-                        onClick={() => {
-                          if (step.inputConfig?.name && !isConfirming) {
-                            handlePickerConfirm(step.id, step.inputConfig.name);
-                          }
-                        }}
-                        onMouseOver={(e) => {
-                          if (!isConfirming) {
-                            e.currentTarget.style.background = 'var(--secondary-darker-color)';
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          if (!isConfirming) {
-                            e.currentTarget.style.background = 'var(--secondary-color)';
-                          }
-                        }}
-                        disabled={isConfirming}
-                      >
-                        {isConfirming ? 'Confirming...' : 'Confirm Location'}
-                      </button>
-                    </div>
-                  )}
-                  
-                  {/* Show confirmed status when step has been confirmed */}
-                  {confirmedSteps.has(step.id) && (
-                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-                      <div style={{
-                        background: 'var(--secondary-color)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '8px 16px',
-                        fontWeight: 600,
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <span>✓</span>
-                        Location Confirmed
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          }
-          
+          // For other incomplete inputs, don't show anything - let the user use the chat input
+          // For completed inputs, don't show anything since user messages are handled separately
           return null;
-        })}
-        <div ref={endOfChatRef} />
-        {isSubmitting && (
-          <MessageBubble
-            key="submitting-msg"
-            text="Processing..."
-            senderType="bot"
-            role="BUYER"
-          />
-        )}
-      </ChatBotLayout>
-    </>
+        }
+
+        if (step.type === "discountCode" && !step.isComplete) {
+          return (
+            <DiscountCodeBubble
+              key={key}
+              sessionCode={referralCode}
+              onConfirm={(code) => {
+                void handleDiscountCodeConfirm(step.id, code);
+              }}
+              role={"BUYER"}
+            />
+          );
+        }
+
+        // Handle calendar picker step
+        if (step.type === "calendar") {
+          return (
+            <div key={key} className={styles.calendarStep}>
+              {/* AI Avatar - Separated */}
+              <div key={`${key}-avatar`} className={styles.calendarStepAvatar}>
+                <div className={styles.calendarStepAvatarOuter}>
+                  <div className={styles.calendarStepAvatarInner}>
+                    <Image 
+                      src="/images/ableai.png" 
+                      alt="Able AI" 
+                      width={24} 
+                      height={24} 
+                      className={styles.calendarStepAvatarImg}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Calendar Picker - Separated */}
+              <div key={`${key}-calendar`} className={styles.calendarStepCalendar}>
+                <CalendarPickerBubble
+                  name={step.inputConfig?.name}
+                  value={formData[step.inputConfig?.name || ''] ? new Date(formData[step.inputConfig?.name || '']) : null}
+                  onChange={(date) => {
+                    if (step.inputConfig?.name) {
+                      handleInputChange(step.inputConfig.name, date);
+                    }
+                  }}
+                  placeholderText={step.inputConfig?.placeholder || "Select a date"}
+                  role="BUYER"
+                />
+
+                {/* Confirm button when date is selected */}
+                {formData[step.inputConfig?.name || ''] && !confirmedSteps.has(step.id) && (
+                  <div className={styles.calendarStepConfirmContainer}>
+                    <button
+                      className={`${styles.calendarStepConfirmBtn} ${isConfirming ? styles.confirming : ""}`}
+                      onClick={() => {
+                        if (step.inputConfig?.name && !isConfirming) {
+                          handlePickerConfirm(step.id, step.inputConfig.name);
+                        }
+                      }}
+                      disabled={isConfirming}
+                    >
+                      {isConfirming ? 'Confirming...' : 'Confirm Date'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Show confirmed status */}
+                {confirmedSteps.has(step.id) && (
+                  <div className={styles.calendarStepConfirmContainer}>
+                    <div className={styles.calendarStepConfirmed}>
+                      <span>✓</span>
+                      Date Confirmed
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+        
+        // Handle location picker step
+        if (step.type === "location") {
+          return (
+            <div key={key} className={styles.locationStep}>
+              {/* AI Avatar - Reusable */}
+              <div key={`${key}-avatar`} className={styles.aiAvatar}>
+                <div className={styles.aiAvatarOuter}>
+                  <div className={styles.aiAvatarInner}>
+                    <Image
+                      src="/images/ableai.png"
+                      alt="Able AI"
+                      width={24}
+                      height={24}
+                      className={styles.aiAvatarImg}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Location Picker */}
+              <div key={`${key}-location`} className={styles.locationStepPicker}>
+                <LocationPickerBubble
+                  value={formData[step.inputConfig?.name || ""]}
+                  onChange={(value) => {
+                    if (step.inputConfig?.name) {
+                      handleInputChange(step.inputConfig.name, value);
+                    }
+                  }}
+                  role="BUYER"
+                />
+
+                {/* Confirm button when location is selected */}
+                {formData[step.inputConfig?.name || ""] &&
+                  !confirmedSteps.has(step.id) && (
+                    <div className={styles.locationStepConfirmContainer}>
+                      <button
+                        className={`${styles.locationStepConfirmBtn} ${
+                          isConfirming ? styles.confirming : ""
+                        }`}
+                        onClick={() => {
+                          if (step.inputConfig?.name && !isConfirming) {
+                            handlePickerConfirm(step.id, step.inputConfig.name);
+                          }
+                        }}
+                        disabled={isConfirming}
+                      >
+                        {isConfirming ? "Confirming..." : "Confirm Location"}
+                      </button>
+                    </div>
+                  )}
+
+                {/* Confirmed status */}
+                {confirmedSteps.has(step.id) && (
+                  <div className={styles.locationStepConfirmContainer}>
+                    <div className={styles.locationStepConfirmed}>
+                      <span>✓</span>
+                      Location Confirmed
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+        
+        return null;
+      })}
+      <div ref={endOfChatRef} />
+      {isSubmitting && (
+        <MessageBubble
+          key="submitting-msg"
+          text="Processing..."
+          senderType="bot"
+          role="BUYER"
+        />
+      )}
+    </ChatBotLayout>
+    
   );
 }
