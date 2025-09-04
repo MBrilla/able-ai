@@ -5,6 +5,8 @@ import { MapPin, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import styles from "./WorkerProfile.module.css";
 import ProfileVideo from "./WorkerProfileVideo";
+import LocationPickerBubble from "../onboarding/LocationPickerBubble";
+import { useEffect, useState } from "react";
 
 interface ProfileMediaProps {
   workerProfile: any;
@@ -19,6 +21,26 @@ export default function ProfileMedia({
   workerLink,
   onVideoUpload,
 }: ProfileMediaProps) {
+  // keep location always as string
+  const [location, setLocation] = useState("");
+  const [isPicking, setIsPicking] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  // sync with profile when it changes
+  useEffect(() => {
+    if (workerProfile?.location) {
+      const initial =
+        typeof workerProfile.location === "string"
+          ? workerProfile.location
+          : workerProfile.location.formatted_address;
+      setLocation(initial || "");
+    }
+  }, [workerProfile?.location]);
+
+  // shorten address for collapsed view
+  const shortAddress =
+    location.length > 20 ? location.substring(0, 20) + "..." : location;
+
   return (
     <div className={styles.profileHeaderImageSection}>
       <div className={styles.profileImageVideo}>
@@ -31,13 +53,57 @@ export default function ProfileMedia({
 
       <div className={styles.profileHeaderRightCol}>
         {workerLink && <QRCodeDisplay url={workerLink} />}
+
         <div className={styles.locationShareContainer}>
-          {workerProfile?.location && (
+          {location && (
             <div className={styles.locationInfo}>
-              <MapPin size={16} color="#ffffff" className={styles.mapPin} />
-              <span>{workerProfile.location}</span>
+              <button
+                className={styles.editLocationButton}
+                onClick={() => setIsPicking(true)}
+                disabled={!isSelfView}
+              >
+                <MapPin size={16} color="#ffffff" className={styles.mapPin} />
+              </button>
+
+              <span
+                className={styles.addressText}
+                onClick={() => setExpanded(!expanded)}
+                style={{ cursor: "pointer" }}
+              >
+                {expanded ? location : shortAddress}
+              </span>
             </div>
           )}
+
+          {/* Location Picker Bubble */}
+          {isPicking && (
+            <div className={styles.modalOverlay}>
+              <div className={styles.modalContent}>
+                <button
+                  className={styles.closeLocationPicker}
+                  onClick={() => setIsPicking(false)}
+                >
+                  ✕
+                </button>
+
+                <LocationPickerBubble
+                  value={location}
+                  onChange={(newLocation) => {
+                    const updated =
+                      typeof newLocation === "string"
+                        ? newLocation
+                        : newLocation.formatted_address;
+                    setLocation(updated);
+                    toast.success("Location updated!");
+                    setIsPicking(false);
+                  }}
+                  showConfirm
+                  onConfirm={() => setIsPicking(false)}
+                />
+              </div>
+            </div>
+          )}
+
           <button
             className={styles.shareProfileButton}
             aria-label="Share profile"
