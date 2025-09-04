@@ -224,41 +224,7 @@
   margin-bottom: 0.5rem;
 }
 
-.typingStepAvatarWrapper {
-  flex-shrink: 0;
-  margin-top: 0.25rem;
-}
 
-.typingStepAvatarOuter {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(
-    135deg,
-    var(--secondary-color),
-    var(--secondary-darker-color)
-  );
-  box-shadow: 0 2px 8px rgba(34, 211, 238, 0.3);
-}
-
-.typingStepAvatarInner {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #000000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.typingStepAvatarImage {
-  border-radius: 50%;
-  object-fit: cover;
-}
 
 .typingStepIndicator {
   flex: 1;
@@ -274,42 +240,7 @@
   margin-bottom: 0.5rem;
 }
 
-/* Avatar (reuse from typing step if wanted) */
-.inputStepAvatarWrapper {
-  flex-shrink: 0;
-  margin-top: 0.25rem;
-}
 
-.inputStepAvatarOuter {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(
-    135deg,
-    var(--secondary-color),
-    var(--secondary-darker-color)
-  );
-  box-shadow: 0 2px 8px rgba(34, 211, 238, 0.3);
-}
-
-.inputStepAvatarInner {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #000000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.inputStepAvatarImage {
-  border-radius: 50%;
-  object-fit: cover;
-}
 
 /* Content wrapper */
 .inputStepContent {
@@ -401,38 +332,7 @@
   margin-bottom: 0.5rem;
 }
 
-/* Avatar */
-.calendarStepAvatar {
-  flex-shrink: 0;
-  margin-top: 0.25rem;
-}
 
-.calendarStepAvatarOuter {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--secondary-color), var(--secondary-darker-color));
-  box-shadow: 0 2px 8px rgba(126, 238, 249, 0.3);
-}
-
-.calendarStepAvatarInner {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.calendarStepAvatarImg {
-  border-radius: 50%;
-  object-fit: cover;
-}
 
 /* Calendar */
 .calendarStepCalendar {
@@ -460,12 +360,6 @@
 
 .calendarStepConfirmBtn:hover:not(.confirming) {
   background: var(--secondary-darker-color);
-}
-
-.confirming {
-  background: #555;
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 /* Confirmed status */

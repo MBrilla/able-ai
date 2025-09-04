@@ -2560,7 +2560,7 @@ Make the conversation feel natural and build on what they've already told you.`;
               key={key}
               text={
                 <div>
-                  <div className={styles.container}>This is what you wanted?</div>
+                  <div className={styles.confirmationContainer}>This is what you wanted?</div>
 
                   {typeof displayValue === "string" ? (
                     <div className={styles.displayValue}>{displayValue}</div>
@@ -2836,15 +2836,15 @@ Make the conversation feel natural and build on what they've already told you.`;
           return (
            <div key={key} className={styles.typingStepContainer}>
               {/* AI Avatar */}
-              <div className={styles.typingStepAvatarWrapper}>
-                <div className={styles.typingStepAvatarOuter}>
-                  <div className={styles.typingStepAvatarInner}>
+              <div className={styles.aiAvatar}>
+                <div className={styles.aiAvatarOuter}>
+                  <div className={styles.aiAvatarInner}>
                     <Image
                       src="/images/ableai.png"
                       alt="Able AI"
                       width={24}
                       height={24}
-                      className={styles.typingStepAvatarImage}
+                      className={styles.aiAvatarImg}
                     />
                   </div>
                 </div>
@@ -2862,15 +2862,15 @@ Make the conversation feel natural and build on what they've already told you.`;
             return (
               <div key={key} className={styles.inputStepContainer}>
                 {/* AI Avatar */}
-                <div className={styles.inputStepAvatarWrapper}>
-                  <div className={styles.inputStepAvatarOuter}>
-                    <div className={styles.inputStepAvatarInner}>
+                <div className={styles.aiAvatar}>
+                  <div className={styles.aiAvatarOuter}>
+                    <div className={styles.aiAvatarInner}>
                       <Image
                         src="/images/ableai.png"
                         alt="Able AI"
                         width={24}
                         height={24}
-                        className={styles.inputStepAvatarImage}
+                        className={styles.aiAvatarImg}
                       />
                     </div>
                   </div>
@@ -2960,15 +2960,15 @@ Make the conversation feel natural and build on what they've already told you.`;
           return (
             <div key={key} className={styles.calendarStep}>
               {/* AI Avatar - Separated */}
-              <div key={`${key}-avatar`} className={styles.calendarStepAvatar}>
-                <div className={styles.calendarStepAvatarOuter}>
-                  <div className={styles.calendarStepAvatarInner}>
-                    <Image 
-                      src="/images/ableai.png" 
-                      alt="Able AI" 
-                      width={24} 
-                      height={24} 
-                      className={styles.calendarStepAvatarImg}
+              <div key={`${key}-avatar`} className={styles.aiAvatar}>
+                <div className={styles.aiAvatarOuter}>
+                  <div className={styles.aiAvatarInner}>
+                    <Image
+                      src="/images/ableai.png"
+                      alt="Able AI"
+                      width={24}
+                      height={24}
+                      className={styles.aiAvatarImg}
                     />
                   </div>
                 </div>
