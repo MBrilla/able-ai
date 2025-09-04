@@ -69,7 +69,7 @@ export interface SemanticProfile {
 export default interface PublicWorkerProfile {
   id: string;
   userId?: string | undefined;
-  location?: string | undefined;
+  location: string | { formatted_address: string; [key: string]: any } | undefined;
   user?: {
     fullName: string | undefined;
     rtwStatus?:

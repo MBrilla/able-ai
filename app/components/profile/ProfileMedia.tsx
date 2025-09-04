@@ -7,9 +7,10 @@ import styles from "./WorkerProfile.module.css";
 import ProfileVideo from "./WorkerProfileVideo";
 import LocationPickerBubble from "../onboarding/LocationPickerBubble";
 import { useEffect, useState } from "react";
+import PublicWorkerProfile from "@/app/types/workerProfileTypes";
 
 interface ProfileMediaProps {
-  workerProfile: any;
+  workerProfile: PublicWorkerProfile;
   isSelfView: boolean;
   workerLink: string | null;
   onVideoUpload: (file: Blob) => void;
@@ -23,6 +24,7 @@ export default function ProfileMedia({
 }: ProfileMediaProps) {
   // keep location always as string
   const [location, setLocation] = useState("");
+  const [tempLocation, setTempLocation] = useState(location);
   const [isPicking, setIsPicking] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -87,18 +89,21 @@ export default function ProfileMedia({
                 </button>
 
                 <LocationPickerBubble
-                  value={location}
+                  value={tempLocation}
                   onChange={(newLocation) => {
                     const updated =
                       typeof newLocation === "string"
                         ? newLocation
                         : newLocation.formatted_address;
-                    setLocation(updated);
+                    setTempLocation(updated);
+                  }}
+                  showConfirm
+                  onConfirm={() => {
+                    setLocation(tempLocation);
+                    // TODO: Call a prop passed to ProfileMedia to persist tempLocation to the backend.
                     toast.success("Location updated!");
                     setIsPicking(false);
                   }}
-                  showConfirm
-                  onConfirm={() => setIsPicking(false)}
                 />
               </div>
             </div>
