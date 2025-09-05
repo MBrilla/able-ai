@@ -177,17 +177,10 @@ export default function WorkerMatchmakingResults({
                  fontWeight: 600, 
                  color: 'White' 
                }}>
-                 No Perfect Match?
+                
                </span>
              </div>
-             <p style={{ 
-               fontSize: '12px', 
-               color: 'White', 
-               margin: '0 0 12px 0',
-               lineHeight: '1.4'
-             }}>
-               Don't worry! Your gig will be posted and workers can apply directly. You'll get notifications when they're interested.
-             </p>
+             
              <button
                onClick={onSkipSelection}
                disabled={isSkipping || isSelecting}

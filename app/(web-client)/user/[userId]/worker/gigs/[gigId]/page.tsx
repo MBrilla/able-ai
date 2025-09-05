@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth, User } from '@/context/AuthContext';
-import { getWorkerUserFromProfileId, getWorkerProfileIdFromFirebaseUid, getWorkerProfileIdFromUserId, WorkerUser } from '@/actions/user/get-worker-user';
+import { WorkerUser } from '@/actions/user/get-worker-user';
 import { Loader2 } from 'lucide-react';
 import styles from './GigDetailsPage.module.css';
 import GigDetailsComponent from '@/app/components/gigs/GigDetails';
@@ -12,6 +12,8 @@ import { getGigDetails } from '@/actions/gigs/get-gig-details';
 import { getWorkerOffers } from '@/actions/gigs/get-worker-offers';
 
 async function fetchWorkerGigDetails(user: User | WorkerUser, gigId: string): Promise<GigDetails | null> {
+  console.log("Fetching gig details for worker:", user?.uid, "gig:", gigId);
+
   const isViewQA = false;
   
   // For WorkerUser, use the database user ID directly
@@ -77,7 +79,7 @@ export default function WorkerGigDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAvailableOffer, setIsAvailableOffer] = useState(false);
   const [isCheckingOffer, setIsCheckingOffer] = useState(false);
-  const [workerUser, setWorkerUser] = useState<User | null>(null);
+  const [workerUser, setWorkerUser] = useState<WorkerUser | null>(null);
 
   // Fetch worker user from worker profile ID
   useEffect(() => {
@@ -196,7 +198,7 @@ export default function WorkerGigDetailsPage() {
 
   return (
     <GigDetailsComponent 
-      userId={authUserId || ''} 
+      userId={workerProfileId} 
       role="worker" 
       gig={gig} 
       setGig={setGig}
