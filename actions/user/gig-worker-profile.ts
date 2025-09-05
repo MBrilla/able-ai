@@ -21,6 +21,89 @@ import { ERROR_CODES } from "@/lib/responses/errors";
 import { isUserAuthenticated } from "@/lib/user.server";
 import { and, eq, sql } from "drizzle-orm";
 import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
+import { geminiAIAgent } from '@/lib/firebase/ai';
+import { getAI } from '@firebase/ai';
+import { Schema } from '@firebase/ai';
+import { BadgeIcon } from "@/app/components/profile/GetBadgeIcon";
+
+// AI Hashtag Generation Schema
+const hashtagGenerationSchema = Schema.object({
+  properties: {
+    hashtags: Schema.array({
+      items: Schema.string(),
+      maxItems: 3,
+      minItems: 1
+    })
+  },
+  required: ["hashtags"],
+  additionalProperties: false
+});
+
+// AI function to generate hashtags from onboarding data
+async function generateHashtagsFromOnboarding(profileData: {
+  about: string;
+  experience: string;
+  skills: string;
+  equipment?: { name: string; description?: string }[];
+  location?: any;
+}): Promise<string[]> {
+  try {
+    const ai = getAI();
+    if (!ai) {
+      console.log('⚠️ AI not available, returning empty hashtags');
+      return [];
+    }
+
+    const prompt = `You are an AI assistant that generates professional hashtags for gig workers based on their profile information.
+
+Based on the following worker profile data, generate exactly 3 relevant, professional hashtags that would help with job matching and discoverability.
+
+Profile Data:
+- About: ${profileData.about || 'Not provided'}
+- Experience: ${profileData.experience || 'Not provided'}
+- Skills: ${profileData.skills || 'Not provided'}
+- Equipment: ${profileData.equipment?.map(e => e.name).join(', ') || 'Not provided'}
+- Location: ${typeof profileData.location === 'string' ? profileData.location : 'Not provided'}
+
+Rules:
+1. Generate exactly 3 hashtags (no more, no less)
+2. Use professional, industry-standard terms
+3. Focus on skills, experience level, and specializations
+4. Use hashtag format (e.g., "#bartender", "#mixology", "#events")
+5. Make them relevant to hospitality, events, and gig work
+6. Avoid generic terms like "#work" or "#job"
+7. Consider the worker's experience level and equipment
+
+Examples of good hashtags:
+- For bartenders: "#bartender", "#mixology", "#cocktails"
+- For chefs: "#chef", "#cooking", "#catering"
+- For event staff: "#events", "#hospitality", "#customer-service"
+
+Generate 3 relevant hashtags for this worker:`;
+
+    const result = await geminiAIAgent(
+      "gemini-2.0-flash",
+      {
+        prompt,
+        responseSchema: hashtagGenerationSchema,
+      },
+      ai,
+      "gemini-2.5-flash-preview-05-20"
+    );
+
+    if (result.ok) {
+      const hashtags = (result.data as { hashtags: string[] }).hashtags;
+      console.log('✅ Generated hashtags:', hashtags);
+      return hashtags;
+    } else {
+      console.error('❌ Failed to generate hashtags:', result.error);
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ Error generating hashtags:', error);
+    return [];
+  }
+}
 
 export const getPublicWorkerProfileAction = async (workerId: string) => {
   if (!workerId) throw "Worker ID is required";
@@ -538,6 +621,16 @@ export const saveWorkerProfileFromOnboardingAction = async (
       throw new Error(`Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}`);
     }
 
+    // Generate AI hashtags from onboarding data
+    console.log('🤖 Generating AI hashtags from onboarding data...');
+    const generatedHashtags = await generateHashtagsFromOnboarding({
+      about: profileData.about,
+      experience: profileData.experience,
+      skills: profileData.skills,
+      equipment: profileData.equipment,
+      location: profileData.location,
+    });
+
     // Prepare profile data
     const profileUpdateData = {
       fullBio: `${profileData.about}\n\n${profileData.experience}`,
@@ -545,7 +638,11 @@ export const saveWorkerProfileFromOnboardingAction = async (
       latitude: typeof profileData.location === 'object' && profileData.location?.lat ? profileData.location.lat : null,
       longitude: typeof profileData.location === 'object' && profileData.location?.lng ? profileData.location.lng : null,
       // Remove availabilityJson - we'll save to worker_availability table instead
-      videoUrl: typeof profileData.videoIntro === 'string' ? profileData.videoIntro : profileData.videoIntro?.name || '',
+      videoUrl:
+        typeof profileData.videoIntro === "string"
+          ? profileData.videoIntro
+          : profileData.videoIntro?.name || "",
+      hashTags: generatedHashtags.length > 0 ? generatedHashtags : null,
       semanticProfileJson: {
         tags: profileData.skills.split(',').map(skill => skill.trim()).filter(Boolean)
       },
@@ -623,33 +720,33 @@ export const saveWorkerProfileFromOnboardingAction = async (
     // Log call stack to see where this is being called from
     console.log(`🚀 [${callId}] Call stack:`, new Error().stack?.split('\n').slice(1, 4).join('\n'));
     
-    try {
-      // Extract skill name from skills field first, then job title, then about
-      skillName = profileData.skills || profileData.jobTitle || profileData.about || '';
-      
-      // Extract years of experience from experience field
+          try {
+        // Only use about field as job title for skills database entry to avoid duplicates
+        skillName = profileData.about || '';
+        
+        // Extract years of experience from experience field
       const experienceText = profileData.experience || '';
       const yearsMatch = experienceText.match(/(\d+)\s*(?:years?|yrs?|y)/i);
       yearsOfExperience = yearsMatch ? parseFloat(yearsMatch[1]) : undefined;
       
-      // Extract hourly rate
-      extractedHourlyRate = profileData.hourlyRate ? parseFloat(profileData.hourlyRate) : undefined;
+      // Extract hourly rate from form data
+      extractedHourlyRate = profileData.hourlyRate ? parseFloat(profileData.hourlyRate) : validatedHourlyRate;
       
       console.log('🔍 Worker Skills Debug:', {
         skillName,
         yearsOfExperience,
         hourlyRate: extractedHourlyRate,
+        validatedHourlyRate,
         workerProfileId,
         user_id: user.id,
         worker_profile_id: workerProfileId,
         profileData_keys: Object.keys(profileData),
         profileData_values: Object.values(profileData),
         hasSkillName: !!skillName,
-        skills_field: profileData.skills,
-        jobTitle_field: profileData.jobTitle,
         about_field: profileData.about,
         experience_field: profileData.experience,
-        hourlyRate_field: profileData.hourlyRate
+        hourlyRate_field: profileData.hourlyRate,
+        note: 'Using about field as job title for skills database entry to avoid duplicates'
       });
       
       if (skillName) {
@@ -680,7 +777,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
               name: skillName,
               experienceMonths: 0,
               experienceYears: yearsOfExperience || 0,
-              agreedRate: String(extractedHourlyRate || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
+              agreedRate: String(extractedHourlyRate || validatedHourlyRate),
               skillVideoUrl: null,
               adminTags: null,
               ableGigs: null,
@@ -696,7 +793,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
               name: skillName,
               experienceMonths: 0,
               experienceYears: yearsOfExperience || 0,
-              agreedRate: String(extractedHourlyRate || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
+              agreedRate: String(extractedHourlyRate || validatedHourlyRate),
             });
             throw insertError;
           }
@@ -706,12 +803,12 @@ export const saveWorkerProfileFromOnboardingAction = async (
           console.log('🔍 Attempted to add skill:', skillName);
         }
       } else {
-        console.log('⚠️ No skill name found, skipping worker skills save');
+        console.log('⚠️ No about field found, skipping worker skills save');
         console.log('🔍 Available data:', {
-          jobTitle: profileData.jobTitle,
           about: profileData.about,
           experience: profileData.experience,
-          hourlyRate: profileData.hourlyRate
+          hourlyRate: profileData.hourlyRate,
+          note: 'Using about field as job title for skills database entry to avoid duplicates'
         });
       }
     } catch (skillError) {

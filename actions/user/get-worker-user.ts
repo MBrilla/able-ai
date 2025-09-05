@@ -5,25 +5,40 @@ import { eq } from "drizzle-orm";
 import { GigWorkerProfilesTable, UsersTable } from "@/lib/drizzle/schema";
 
 export interface WorkerUser {
-  uid?: string;
+  uid: string;
   displayName?: string;
   email?: string;
   id: string;
-  canReceivePayouts?: boolean;
-  stripeAccountStatus?: string | null;
-  stripeConnectAccountId?: string | null;
 }
 
-export async function getWorkerUserFromProfileId(profileId: string): Promise<{
+export async function getWorkerUserFromProfileId(workerProfileId: string): Promise<{
   success: boolean;
   data?: WorkerUser;
   error?: string;
 }> {
   try {
-    if (!profileId) throw new Error("Worker profile ID is required");
+    if (!workerProfileId) {
+      return {
+        success: false,
+        error: "Worker profile ID is required"
+      };
+    }
 
+    console.log(`🔍 Looking up worker user for profile ID: ${workerProfileId}`);
+
+    // First, let's check if any worker profiles exist at all
+    const allProfiles = await db.query.GigWorkerProfilesTable.findMany({
+      limit: 5,
+      columns: {
+        id: true,
+        userId: true,
+      }
+    });
+    console.log(`🔍 Sample worker profiles in database:`, allProfiles.map(p => ({ id: p.id, userId: p.userId })));
+
+    // Get worker profile with associated user
     const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
-      where: eq(GigWorkerProfilesTable.id, profileId),
+      where: eq(GigWorkerProfilesTable.id, workerProfileId),
       with: {
         user: {
           columns: {
@@ -31,13 +46,29 @@ export async function getWorkerUserFromProfileId(profileId: string): Promise<{
             firebaseUid: true,
             fullName: true,
             email: true,
-          },
-        },
-      },
+          }
+        }
+      }
     });
 
+    console.log(`🔍 Worker profile lookup result:`, workerProfile ? 'Found' : 'Not found');
+    if (workerProfile) {
+      console.log(`🔍 Worker profile details:`, {
+        id: workerProfile.id,
+        userId: workerProfile.userId,
+        userFirebaseUid: workerProfile.user?.firebaseUid,
+        userFullName: workerProfile.user?.fullName
+      });
+    } else {
+      console.log(`❌ Worker profile not found with ID: ${workerProfileId}`);
+      console.log(`❌ Available worker profile IDs:`, allProfiles.map(p => p.id));
+    }
+
     if (!workerProfile?.user) {
-      throw new Error("Worker profile or user not found");
+      return {
+        success: false,
+        error: "Worker profile or user not found"
+      };
     }
 
     const workerUser: WorkerUser = {
@@ -49,181 +80,14 @@ export async function getWorkerUserFromProfileId(profileId: string): Promise<{
 
     return {
       success: true,
-      data: workerUser,
+      data: workerUser
     };
+
   } catch (error) {
-    console.error("🔍 DEBUG: getWorkerUserFromProfileId - Error:", error);
+    console.error('Error fetching worker user from profile ID:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-    };
-  }
-}
-
-export async function getWorkerUserFromFirebaseId(firebaseUid: string): Promise<{
-  success: boolean;
-  data?: WorkerUser;
-  error?: string;
-}> {
-  try {
-    if (!firebaseUid) {
-      return {
-        success: false,
-        error: "Firebase UID is required",
-      };
-    }
-
-    const user = await db.query.UsersTable.findFirst({
-      where: eq(UsersTable.firebaseUid, firebaseUid),
-      columns: {
-        id: true,
-        firebaseUid: true,
-        fullName: true,
-        email: true,
-      },
-    });
-
-    if (!user) {
-      return {
-        success: false,
-        error: "User not found",
-      };
-    }
-
-    const workerUser: WorkerUser = {
-      uid: user.firebaseUid,
-      displayName: user.fullName || undefined,
-      email: user.email || undefined,
-      id: user.id,
-    };
-
-    return {
-      success: true,
-      data: workerUser,
-    };
-  } catch (error) {
-    console.error('Error fetching worker user from Firebase UID:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-    };
-  }
-}
-
-export async function getWorkerProfileIdFromFirebaseUid(firebaseUid: string): Promise<{
-  success: boolean;
-  data?: string;
-  error?: string;
-}> {
-  try {
-    if (!firebaseUid) {
-      return {
-        success: false,
-        error: "Firebase UID is required"
-      };
-    }
-
-    // Get user first
-    const user = await db.query.UsersTable.findFirst({
-      where: eq(UsersTable.firebaseUid, firebaseUid),
-      columns: {
-        id: true,
-        firebaseUid: true,
-        fullName: true,
-      }
-    });
-
-    if (!user) {
-      return {
-        success: false,
-        error: "User not found"
-      };
-    }
-
-    // Get worker profile
-    const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
-      where: eq(GigWorkerProfilesTable.userId, user.id),
-      columns: {
-        id: true,
-        userId: true,
-      }
-    });
-
-    if (!workerProfile) {
-      return {
-        success: false,
-        error: "Worker profile not found"
-      };
-    }
-
-    return {
-      success: true,
-      data: workerProfile.id
-    };
-  } catch (error) {
-    console.error("Error fetching worker user from profile ID:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-    };
-  }
-}
-
-export async function getWorkerProfileIdFromUserId(userId: string): Promise<{
-  success: boolean;
-  data?: string;
-  error?: string;
-}> {
-  try {
-    if (!userId) {
-      return {
-        success: false,
-        error: "User ID is required"
-      };
-    }
-
-    // Get user first by database ID
-    const user = await db.query.UsersTable.findFirst({
-      where: eq(UsersTable.id, userId),
-      columns: {
-        id: true,
-        firebaseUid: true,
-        fullName: true,
-      }
-    });
-
-    if (!user) {
-      return {
-        success: false,
-        error: "User not found"
-      };
-    }
-
-    // Get worker profile
-    const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
-      where: eq(GigWorkerProfilesTable.userId, user.id),
-      columns: {
-        id: true,
-        userId: true,
-      }
-    });
-
-    if (!workerProfile) {
-      return {
-        success: false,
-        error: "Worker profile not found"
-      };
-    }
-
-    return {
-      success: true,
-      data: workerProfile.id
-    };
-  } catch (error) {
-    console.error("Error fetching worker profile from user ID:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 }

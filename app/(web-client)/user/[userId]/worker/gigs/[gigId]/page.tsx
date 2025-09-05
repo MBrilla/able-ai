@@ -77,51 +77,19 @@ export default function WorkerGigDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAvailableOffer, setIsAvailableOffer] = useState(false);
   const [isCheckingOffer, setIsCheckingOffer] = useState(false);
-  const [workerUser, setWorkerUser] = useState<WorkerUser | null>(null);
+  const [workerUser, setWorkerUser] = useState<User | null>(null);
 
-  // Fetch worker user from URL parameter (could be user ID or worker profile ID)
+  // Fetch worker user from worker profile ID
   useEffect(() => {
     const fetchWorkerUser = async () => {
-      if (!workerProfileId) {
-        return;
-      }
+      if (!workerProfileId) return;
+      
       try {
-        let result = null;
+        // Import the function to get worker user from profile ID
+        const { getWorkerUserFromProfileId } = await import('@/actions/user/get-worker-user');
+        const result = await getWorkerUserFromProfileId(workerProfileId);
         
-        // If the URL parameter matches the authenticated user, use that directly
-        if (authUserId && workerProfileId === authUserId) {
-          const authProfileIdResult = await getWorkerProfileIdFromFirebaseUid(authUserId);
-          if (authProfileIdResult.success && authProfileIdResult.data) {
-            result = await getWorkerUserFromProfileId(authProfileIdResult.data);
-          }
-        } else {
-          result = await getWorkerUserFromProfileId(workerProfileId);
-          if (!result.success) {
-            // Try as database user ID first (since we know this is likely a database user ID)
-            const dbUserIdResult = await getWorkerProfileIdFromUserId(workerProfileId);
-            
-            if (dbUserIdResult.success && dbUserIdResult.data) {
-              result = await getWorkerUserFromProfileId(dbUserIdResult.data);
-            } else {
-              // Try as Firebase UID
-              const profileIdResult = await getWorkerProfileIdFromFirebaseUid(workerProfileId);
-              
-              if (profileIdResult.success && profileIdResult.data) {
-                result = await getWorkerUserFromProfileId(profileIdResult.data);
-              } else {
-                // Last resort: try with the authenticated user's UID
-                if (authUserId) {
-                  const authProfileIdResult = await getWorkerProfileIdFromFirebaseUid(authUserId);
-                  if (authProfileIdResult.success && authProfileIdResult.data) {
-                    result = await getWorkerUserFromProfileId(authProfileIdResult.data);
-                  }
-                }
-              }
-            }
-          }
-        }
-        
-        if (result && result.success && result.data) {
+        if (result.success && result.data) {
           setWorkerUser(result.data);
         } else {
           setError("Worker not found");
@@ -135,13 +103,11 @@ export default function WorkerGigDetailsPage() {
     };
 
     fetchWorkerUser();
-  }, [workerProfileId, authUserId]);
+  }, [workerProfileId]);
 
   // Fetch Gig Details
   useEffect(() => {
-    if (loadingAuth || !workerUser) {
-      return;
-    }
+    if (loadingAuth || !workerUser) return; // Wait for auth state and worker user to be clear
 
     const shouldFetch = (user?.claims.role === "QA" && workerProfileId && gigId) ||
       (user && authUserId === workerUser.uid && gigId);
@@ -177,6 +143,20 @@ export default function WorkerGigDetailsPage() {
         });
     }
   }, [loadingAuth, user, authUserId, workerProfileId, gigId, workerUser]);
+
+
+  /*
+  const getStatusBadgeClass = (status: GigDetails['status']) => {
+    switch (status) {
+        case 'ACCEPTED': return styles.statusAccepted;
+        case 'IN_PROGRESS': return styles.statusInProgress;
+        case 'AWAITING_BUYER_CONFIRMATION': return styles.statusAwaitingConfirmation;
+        case 'COMPLETED': return styles.statusCompleted;
+        case 'CANCELLED': return styles.statusCancelled;
+        default: return '';
+    }
+  }
+  */
 
   if (isLoadingGig) {
     return (

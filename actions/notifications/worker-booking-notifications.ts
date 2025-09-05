@@ -5,20 +5,7 @@ import { isUserAuthenticated } from "@/lib/user.server";
 import { ERROR_CODES } from "@/lib/responses/errors";
 import { db } from "@/lib/drizzle/db";
 import { eq } from "drizzle-orm";
-import { GigWorkerProfilesTable } from "@/lib/drizzle/schema";
-import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
-
-/**
- * Helper function to lookup worker profile by user ID
- */
-async function getWorkerProfileByUserId(userId: string) {
-  return await db.query.GigWorkerProfilesTable.findFirst({
-    where: eq(GigWorkerProfilesTable.userId, userId),
-    with: {
-      user: true
-    }
-  });
-}
+import { UsersTable, GigWorkerProfilesTable } from "@/lib/drizzle/schema";
 
 export interface WorkerBookingNotificationData {
   workerId: string;
@@ -46,17 +33,45 @@ export async function sendWorkerBookingNotificationAction(
     if (!buyerData) throw ERROR_CODES.UNAUTHORIZED;
 
     // Get worker's user ID - data.workerId is actually the user ID from matchmaking
+    console.log("🔍 Looking up worker with user ID:", data.workerId);
+    
     // Look up worker profile by user ID (since data.workerId is the user ID from matchmaking)
-    const workerProfile = await getWorkerProfileByUserId(data.workerId);
+    let workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
+      where: eq(GigWorkerProfilesTable.userId, data.workerId),
+      with: {
+        user: true
+      }
+    });
+
+    console.log("🔍 Worker profile lookup (by user ID):", workerProfile ? "Found" : "Not found");
 
     if (!workerProfile?.user) {
-      console.error("Worker not found with ID:", data.workerId);
+      console.error("❌ Worker not found with ID:", data.workerId);
+      console.error("❌ Available worker profiles in database:");
+      
+      // Debug: List some worker profiles to help troubleshoot
+      const allProfiles = await db.query.GigWorkerProfilesTable.findMany({
+        limit: 5,
+        with: { user: true }
+      });
+      console.error("❌ Sample worker profiles:", allProfiles.map(p => ({ 
+        id: p.id, 
+        userId: p.userId, 
+        userFirebaseUid: p.user?.firebaseUid 
+      })));
+      
       return {
         success: false,
         error: "Worker not found",
         data: null,
       };
     }
+
+    console.log("✅ Worker found:", {
+      workerProfileId: workerProfile.id,
+      userId: workerProfile.userId,
+      firebaseUid: workerProfile.user.firebaseUid
+    });
 
     const workerUid = workerProfile.user.firebaseUid;
     if (!workerUid) {
@@ -69,14 +84,14 @@ export async function sendWorkerBookingNotificationAction(
 
     // Create notification content
     const notificationTitle = "🎉 You've been booked!";
-    const isPendingGig = data.gigId === VALIDATION_CONSTANTS.GIG_STATUS.PENDING || data.gigId === VALIDATION_CONSTANTS.GIG_STATUS.TEMP;
+    const isPendingGig = data.gigId === 'pending' || data.gigId === 'temp-gig-id';
     const notificationBody = isPendingGig 
       ? `${data.buyerName} wants to book you for "${data.gigTitle}" - £${data.totalAmount.toFixed(2)} total. Check your dashboard for details!`
       : `${data.buyerName} has booked you for "${data.gigTitle}" - £${data.totalAmount.toFixed(2)} total`;
     
     // Determine notification path - go to worker dashboard for pending gigs, specific gig for confirmed ones
     // Use worker profile ID in the path (this is what the URL structure expects)
-    const notificationPath = isPendingGig 
+    const notificationPath = data.gigId === 'pending' || data.gigId === 'temp-gig-id' 
       ? `/user/${workerProfile.id}/worker` // Go to worker dashboard
       : `/user/${workerProfile.id}/worker/gigs/${data.gigId}`; // Go to specific gig
     
@@ -84,7 +99,7 @@ export async function sendWorkerBookingNotificationAction(
     const notificationResult = await createNotificationAction(
       {
         userUid: workerUid,
-        type: VALIDATION_CONSTANTS.NOTIFICATION_TYPES.OFFER,
+        type: "offer",
         title: notificationTitle,
         body: notificationBody,
         image: "/images/booking-notification.svg", // You can add a booking notification icon
@@ -103,6 +118,7 @@ export async function sendWorkerBookingNotificationAction(
       };
     }
 
+    console.log(`✅ Booking notification sent to worker ${data.workerName} (${workerUid})`);
     
     return {
       success: true,
@@ -134,7 +150,12 @@ export async function sendWorkerBookingConfirmationNotificationAction(
     if (!buyerData) throw ERROR_CODES.UNAUTHORIZED;
 
     // Get worker's user ID - data.workerId is actually the user ID from matchmaking
-    const workerProfile = await getWorkerProfileByUserId(data.workerId);
+    let workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
+      where: eq(GigWorkerProfilesTable.userId, data.workerId),
+      with: {
+        user: true
+      }
+    });
 
     if (!workerProfile?.user?.firebaseUid) {
       console.error("Worker not found with ID:", data.workerId);
@@ -151,7 +172,7 @@ export async function sendWorkerBookingConfirmationNotificationAction(
     const notificationResult = await createNotificationAction(
       {
         userUid: workerProfile.user.firebaseUid,
-        type: VALIDATION_CONSTANTS.NOTIFICATION_TYPES.GIG_UPDATE,
+        type: "gigUpdate",
         title: notificationTitle,
         body: notificationBody,
         image: "/images/confirmation-notification.svg",
@@ -195,7 +216,12 @@ export async function sendWorkerBookingCancellationNotificationAction(
     if (!buyerData) throw ERROR_CODES.UNAUTHORIZED;
 
     // Get worker's user ID - data.workerId is actually the user ID from matchmaking
-    const workerProfile = await getWorkerProfileByUserId(data.workerId);
+    let workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
+      where: eq(GigWorkerProfilesTable.userId, data.workerId),
+      with: {
+        user: true
+      }
+    });
 
     if (!workerProfile?.user?.firebaseUid) {
       console.error("Worker not found with ID:", data.workerId);
@@ -212,7 +238,7 @@ export async function sendWorkerBookingCancellationNotificationAction(
     const notificationResult = await createNotificationAction(
       {
         userUid: workerProfile.user.firebaseUid,
-        type: VALIDATION_CONSTANTS.NOTIFICATION_TYPES.GIG_UPDATE,
+        type: "gigUpdate",
         title: notificationTitle,
         body: notificationBody,
         image: "/images/cancellation-notification.svg",
