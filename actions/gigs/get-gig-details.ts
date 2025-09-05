@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/drizzle/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or, isNull } from "drizzle-orm";
 import { GigsTable, UsersTable } from "@/lib/drizzle/schema";
 import moment from "moment";
 import GigDetails from "@/app/types/GigDetailsTypes";
@@ -104,36 +104,158 @@ export async function getGigDetails({ gigId, userId, role, isViewQA }: { gigId: 
   }
 
   try {
+    console.log(`🔍 Looking up user with Firebase UID: ${userId}`);
+    
     const user = await db.query.UsersTable.findFirst({
       where: eq(UsersTable.firebaseUid, userId),
       columns: {
         id: true,
+        firebaseUid: true,
+        fullName: true,
       }
     });
+
+    console.log(`🔍 User lookup result:`, user ? 'Found' : 'Not found');
+    if (user) {
+      console.log(`🔍 User details:`, {
+        id: user.id,
+        firebaseUid: user.firebaseUid,
+        fullName: user.fullName
+      });
+    }
 
     if (!user) {
       return { error: 'User is not found', gig: {} as GigDetails, status: 404 };
     }
 
-    const columnConditionId = role === 'buyer' ? GigsTable.buyerUserId : GigsTable.workerUserId;
-    const gig = await db.query.GigsTable.findFirst({
-      where: and(eq(columnConditionId, user.id), eq(GigsTable.id, gigId)),
-      with: {
-        buyer: {
-          columns: {
-            id: true,
-            fullName: true,
-            email: true,
+    let gig;
+    
+    if (role === 'buyer') {
+      // For buyers, look for gigs they created
+      gig = await db.query.GigsTable.findFirst({
+        where: and(eq(GigsTable.buyerUserId, user.id), eq(GigsTable.id, gigId)),
+        with: {
+          buyer: {
+            columns: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          worker: {
+            columns: {
+              id: true,
+              fullName: true,
+            },
           },
         },
-        worker: {
-          columns: {
-            id: true,
-            fullName: true,
+      });
+    } else if (role === 'worker') {
+      // For workers, look for gigs assigned to them OR offered to them
+      console.log(`🔍 Looking for gig ${gigId} for worker ${user.id}`);
+      
+      // First, let's check if the gig exists at all
+      const gigExists = await db.query.GigsTable.findFirst({
+        where: eq(GigsTable.id, gigId),
+        columns: {
+          id: true,
+          statusInternal: true,
+          workerUserId: true,
+          buyerUserId: true,
+          titleInternal: true
+        }
+      });
+      
+      console.log(`🔍 Gig exists check:`, gigExists ? 'Yes' : 'No');
+      if (gigExists) {
+        console.log(`🔍 Gig basic info:`, {
+          id: gigExists.id,
+          status: gigExists.statusInternal,
+          workerUserId: gigExists.workerUserId,
+          buyerUserId: gigExists.buyerUserId,
+          title: gigExists.titleInternal
+        });
+      }
+      
+      gig = await db.query.GigsTable.findFirst({
+        where: and(
+          eq(GigsTable.id, gigId),
+          or(
+            eq(GigsTable.workerUserId, user.id), // Assigned to this worker
+            and(
+              eq(GigsTable.statusInternal, 'PENDING_WORKER_ACCEPTANCE'),
+              isNull(GigsTable.workerUserId) // Offered to workers (no specific worker assigned)
+            )
+          )
+        ),
+        with: {
+          buyer: {
+            columns: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          worker: {
+            columns: {
+              id: true,
+              fullName: true,
+            },
           },
         },
-      },
-    });
+      });
+      
+      console.log(`🔍 Gig found for worker:`, gig ? 'Yes' : 'No');
+      if (gig) {
+        console.log(`🔍 Gig details:`, {
+          id: gig.id,
+          status: gig.statusInternal,
+          workerUserId: gig.workerUserId,
+          buyerUserId: gig.buyerUserId
+        });
+      } else {
+        console.log(`❌ Gig not found for worker. Possible reasons:`);
+        console.log(`   - Gig not assigned to this worker (workerUserId: ${gigExists?.workerUserId})`);
+        console.log(`   - Gig not in PENDING_WORKER_ACCEPTANCE status (status: ${gigExists?.statusInternal})`);
+        console.log(`   - Gig has workerUserId set (workerUserId: ${gigExists?.workerUserId})`);
+        console.log(`   - Current worker ID: ${user.id}`);
+        console.log(`   - Gig buyer ID: ${gigExists?.buyerUserId}`);
+        
+        // Let's also check if there are any gigs with this ID at all
+        const allGigsWithId = await db.query.GigsTable.findMany({
+          where: eq(GigsTable.id, gigId),
+          columns: {
+            id: true,
+            statusInternal: true,
+            workerUserId: true,
+            buyerUserId: true,
+            titleInternal: true
+          }
+        });
+        console.log(`🔍 All gigs with this ID:`, allGigsWithId);
+      }
+    } else {
+      // Fallback to original logic
+      const columnConditionId = role === 'buyer' ? GigsTable.buyerUserId : GigsTable.workerUserId;
+      gig = await db.query.GigsTable.findFirst({
+        where: and(eq(columnConditionId, user.id), eq(GigsTable.id, gigId)),
+        with: {
+          buyer: {
+            columns: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          worker: {
+            columns: {
+              id: true,
+              fullName: true,
+            },
+          },
+        },
+      });
+    }
 
     if (isViewQA && !gig) return { gig: getMockedQAData(gigId) as GigDetails, status: 200 };
 
