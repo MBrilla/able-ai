@@ -18,6 +18,7 @@ import styles from "./NewGig.module.css";
 import { useAuth } from "@/context/AuthContext";
 import { createGig } from "@/actions/gigs/create-gig";
 import { findMatchingWorkers } from "@/actions/gigs/ai-matchmaking";
+import { sendWorkerBookingNotificationAction } from "@/actions/notifications/worker-booking-notifications";
 import { StepInputConfig, FormInputType } from "@/app/types/form";
 import WorkerMatchmakingResults from "@/app/components/gigs/WorkerMatchmakingResults";
 import { WorkerMatch } from "@/app/components/gigs/WorkerMatchCard";
@@ -2073,12 +2074,77 @@ Make the conversation feel natural and build on what they've already told you.`;
     setClickedSanitizedButtons(prev => new Set([...prev, `${fieldName}-reformulate`]));
   };
 
+  // Helper function to get gig data from form
+  const getGigDataFromForm = () => {
+    const gigData: any = {};
+    
+    // Extract data from chat steps
+    chatSteps.forEach(step => {
+      if (step.type === 'summary' && step.summaryData) {
+        Object.assign(gigData, step.summaryData);
+      }
+    });
+    
+    return gigData;
+  };
+
   // Handle worker selection
   const handleSelectWorker = async (workerId: string) => {
     setIsSelectingWorker(true);
     try {
-      // Here you would typically update the gig with the selected worker
-      // For now, we'll just update the UI state
+      // Find the selected worker data from the current step
+      const currentStep = chatSteps.find(step => step.type === 'matchmaking' && step.matches);
+      const selectedWorker = currentStep?.matches?.find(worker => worker.workerId === workerId);
+      if (!selectedWorker) {
+        throw new Error('Selected worker not found');
+      }
+
+      // Get gig data from form
+      const gigData = getGigDataFromForm();
+      
+      // Create the gig first
+      console.log('Creating gig for selected worker...');
+      const gigPayload = {
+        userId: user?.uid || '',
+        gigDescription: gigData.title || 'Gig Request',
+        additionalInstructions: gigData.description || '',
+        hourlyRate: selectedWorker.hourlyRate,
+        gigLocation: gigData.location,
+        gigDate: gigData.date || new Date().toISOString().split('T')[0],
+        gigTime: gigData.time || '09:00-17:00',
+      };
+      
+      const gigResult = await createGig(gigPayload);
+      
+      if (gigResult.status !== 200 || !gigResult.gigId) {
+        throw new Error(`Failed to create gig: ${gigResult.error}`);
+      }
+      
+      console.log('Gig created successfully:', gigResult.gigId);
+      
+      // Send notification to the worker with the real gigId
+      const notificationResult = await sendWorkerBookingNotificationAction(
+        {
+          workerId: selectedWorker.workerId,
+          workerName: selectedWorker.workerName,
+          buyerName: user?.displayName || 'A buyer',
+          gigTitle: gigData.title || 'Your gig',
+          gigId: gigResult.gigId, // Use the real gigId
+          hourlyRate: selectedWorker.hourlyRate,
+          totalHours: 6, // Default hours as shown in the UI
+          totalAmount: selectedWorker.hourlyRate * 6,
+          gigDate: gigData.date || 'TBD',
+          gigLocation: gigData.location || 'TBD',
+        },
+        user?.token || ''
+      );
+
+      if (!notificationResult.success) {
+        console.error('Failed to send notification:', notificationResult.error);
+        // Continue anyway, don't block the booking
+      }
+
+      // Update the UI state
       setSelectedWorkerId(workerId);
       
       // Show success message
@@ -2087,7 +2153,7 @@ Make the conversation feel natural and build on what they've already told you.`;
         {
           id: Date.now() + 1,
           type: "bot",
-          content: `Great choice! You've selected a worker for your gig. They'll be notified and can accept or decline the offer.`,
+          content: `Great choice! You've selected ${selectedWorker.workerName} for your gig. They've been notified and can accept or decline the offer.`,
           isNew: true,
         },
       ]);
@@ -2095,7 +2161,7 @@ Make the conversation feel natural and build on what they've already told you.`;
       // Navigate to buyer dashboard after a delay
       setTimeout(() => {
         router.push(`/user/${user?.uid}/buyer`);
-      }, 2000);
+      }, 1000);
       
     } catch (error) {
       console.error('Error selecting worker:', error);
@@ -2125,7 +2191,7 @@ Make the conversation feel natural and build on what they've already told you.`;
       // Navigate to buyer dashboard after a delay
       setTimeout(() => {
         router.push(`/user/${user?.uid}/buyer`);
-      }, 2000);
+      }, 1000);
       
     } catch (error) {
       console.error('Error skipping selection:', error);

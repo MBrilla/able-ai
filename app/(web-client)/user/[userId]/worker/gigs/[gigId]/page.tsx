@@ -36,7 +36,7 @@ async function checkIfGigIsAvailableOffer(user: User, gigId: string): Promise<bo
 
 export default function WorkerGigDetailsPage() {
   const params = useParams();
-  const pageUserId = params.userId as string; // This is the worker's ID from the URL
+  const workerProfileId = params.userId as string; // This is the worker profile ID from the URL
   const gigId = params.gigId as string;
 
   const { user, loading: loadingAuth } = useAuth();
@@ -47,26 +47,53 @@ export default function WorkerGigDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAvailableOffer, setIsAvailableOffer] = useState(false);
   const [isCheckingOffer, setIsCheckingOffer] = useState(false);
+  const [workerUser, setWorkerUser] = useState<User | null>(null);
+
+  // Fetch worker user from worker profile ID
+  useEffect(() => {
+    const fetchWorkerUser = async () => {
+      if (!workerProfileId) return;
+      
+      try {
+        // Import the function to get worker user from profile ID
+        const { getWorkerUserFromProfileId } = await import('@/actions/user/get-worker-user');
+        const result = await getWorkerUserFromProfileId(workerProfileId);
+        
+        if (result.success && result.data) {
+          setWorkerUser(result.data);
+        } else {
+          setError("Worker not found");
+          setIsLoadingGig(false);
+        }
+      } catch (err) {
+        console.error("Error fetching worker user:", err);
+        setError("Could not load worker information");
+        setIsLoadingGig(false);
+      }
+    };
+
+    fetchWorkerUser();
+  }, [workerProfileId]);
 
   // Fetch Gig Details
   useEffect(() => {
-    if (loadingAuth) return; // Wait for auth state to be clear
+    if (loadingAuth || !workerUser) return; // Wait for auth state and worker user to be clear
 
-    const shouldFetch = (user?.claims.role === "QA" && pageUserId && gigId) ||
-      (user && authUserId === pageUserId && gigId);
+    const shouldFetch = (user?.claims.role === "QA" && workerProfileId && gigId) ||
+      (user && authUserId === workerUser.uid && gigId);
 
     if (shouldFetch) {
       setIsLoadingGig(true);
       
-      // First fetch gig details
-      fetchWorkerGigDetails(user, gigId)
+      // First fetch gig details using the worker user
+      fetchWorkerGigDetails(workerUser, gigId)
         .then(data => {
           if (data) {
             setGig(data);
             
             // Then check if this is an available offer
             setIsCheckingOffer(true);
-            return checkIfGigIsAvailableOffer(user, gigId);
+            return checkIfGigIsAvailableOffer(workerUser, gigId);
           } else {
             setError("Gig not found or access denied.");
             return false;
@@ -84,7 +111,7 @@ export default function WorkerGigDetailsPage() {
           setIsCheckingOffer(false);
         });
     }
-  }, [loadingAuth, user, authUserId, pageUserId, gigId]);
+  }, [loadingAuth, user, authUserId, workerProfileId, gigId, workerUser]);
 
 
   /*
