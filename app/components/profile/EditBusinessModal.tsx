@@ -4,15 +4,21 @@ import LocationPickerBubble from "../onboarding/LocationPickerBubble";
 
 import { MapPin, X } from "lucide-react";
 
+interface Location {
+  formatted_address: string;
+  lat: number;
+  lng: number;
+}
+
 interface EditBusinessModalProps {
   initialData: {
     fullCompanyName: string;
-    location: any; // {lat, lng, formatted_address}
+    location: Location;
     companyRole: string;
   };
   onSave: (data: {
     fullCompanyName: string;
-    location: any;
+    location: Location;
     companyRole: string;
   }) => void;
   onClose: () => void;
@@ -74,25 +80,33 @@ export default function EditBusinessModal({
             </button>
           </div>
 
-           {/* Location Picker as Modal */}
-        {showLocationPicker && (
+          {/* Location Picker as Modal */}
+          {showLocationPicker && (
             <div className={styles.locationPickerBackdrop}>
-                <div className={styles.locationPickerContent}>
-                    <div className={styles.modalHeader}>
-                        <button className={styles.closeBtn} onClick={() => setShowLocationPicker(false)}>
-                            <X className={styles.closeIcon} />
-                        </button>
-                    </div>
-                    <LocationPickerBubble
-                        value={form.location}
-                        onChange={(loc) => setForm({ ...form, location: loc })}
-                        showConfirm
-                        onConfirm={() => setShowLocationPicker(false)}
-                        role="BUYER"
-                    />
+              <div className={styles.locationPickerContent}>
+                <div className={`${styles.modalHeader} ${styles.pickerHeader}`}>
+                  <button
+                    className={`${styles.closeBtn} ${styles.pickerCloseBtn}`}
+                    onClick={() => setShowLocationPicker(false)}
+                  >
+                    <X className={styles.closeIcon} />
+                  </button>
                 </div>
+                <LocationPickerBubble
+                  value={form.location}
+                  onChange={(loc) =>
+                    setForm({
+                      ...form,
+                      location: loc, // ✅ matches {lat, lng, formatted_address}
+                    })
+                  }
+                  showConfirm
+                  onConfirm={() => setShowLocationPicker(false)}
+                  role="BUYER"
+                />
+              </div>
             </div>
-        )}
+          )}
         </div>
 
         {/* Role */}

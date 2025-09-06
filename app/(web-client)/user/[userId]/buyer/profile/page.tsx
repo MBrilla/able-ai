@@ -33,8 +33,8 @@ import EditBusinessModal from "@/app/components/profile/EditBusinessModal";
 
 interface Location {
   formatted_address: string;
-  latitude: number | undefined;
-  longitude: number | undefined;
+  lat: number;
+  lng: number;
 }
 
 interface BusinessInfo {
@@ -69,8 +69,8 @@ export default function BuyerProfilePage() {
     fullCompanyName: "",
     location: {
       formatted_address: "",
-      latitude: undefined,
-      longitude: undefined,
+      lat: 51.5074, // London latitude
+      lng: -0.1278
     },
     companyRole: "",
   });
@@ -121,11 +121,11 @@ export default function BuyerProfilePage() {
       setBusinessInfo({
         fullCompanyName: dashboardData.fullCompanyName || "",
         location: {
-          formatted_address: dashboardData?.location.formatted_address || "",
-          latitude: dashboardData?.location.latitude,
-          longitude: dashboardData?.location.longitude,
+          formatted_address: dashboardData.billingAddressJson?.formatted_address || "",
+          lat: dashboardData.billingAddressJson?.lat || 51.5074, // Default to London latitude
+          lng: dashboardData.billingAddressJson?.lng || -0.1278, // Default to London longitude
         },
-        companyRole: dashboardData?.companyRole || "",
+        companyRole: dashboardData.companyRole || "",
       });
     }
   }, [dashboardData]);
@@ -200,13 +200,11 @@ export default function BuyerProfilePage() {
         ? {
             ...prev,
             fullCompanyName: updatedData.fullCompanyName,
-            location: updatedData.location,
+            billingAddressJson: updatedData.location,
             companyRole: updatedData.companyRole,
           }
         : prev
-    );  
-
-    console.log("Saving data:", updatedData);
+    ); 
     setIsModalOpen(false);
   };
 
@@ -286,7 +284,7 @@ export default function BuyerProfilePage() {
             <h4>Business:</h4>
             <p>{businessInfo.fullCompanyName}</p>
 
-            <span>
+            <span className={styles.location}>
               {businessInfo.location.formatted_address}
             </span>
 
@@ -394,9 +392,9 @@ export default function BuyerProfilePage() {
       {/* Edit Name Modal */}
       {isOpen && (
         <UserNameModal
-          userId={user?.uid as string}
+          userId={user.uid}
           initialValue={dashboardData.fullName}
-          fetchUserProfile={fetchUserProfile}
+          fetchUserProfile={(_id) => fetchUserProfile()}
           onClose={() => setIsOpen(false)}
         />
       )}

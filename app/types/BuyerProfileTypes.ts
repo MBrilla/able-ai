@@ -30,20 +30,10 @@ export default interface DashboardData {
   introVideoThumbnailUrl?: string;
   introVideoUrl?: string;
   fullCompanyName: string;
-  // billingAddressJson?: {
-  //   addressLine1: string;
-  //   addressLine2?: string;
-  //   city: string;
-  //   state?: string;
-  //   postalCode?: string;
-  //   country: string;
-  //   latitude?: string;
-  //   longitude?: string;
-  // };
-  location: { 
+  billingAddressJson?: {
     formatted_address: string,
-    latitude: number | undefined,
-    longitude: number | undefined,
+    lat: number | undefined,
+    lng: number | undefined,
   };
   companyRole: string;
   videoUrl?: string;
