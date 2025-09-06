@@ -75,7 +75,7 @@ export default function BuyerProfilePage() {
     companyRole: "",
   });
 
-  const isViewQA = true;
+  const isViewQA = false;
 
   const fetchUserProfile = async () => {
     if (isViewQA) {
