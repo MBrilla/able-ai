@@ -46,7 +46,6 @@
   line-height: 1.6;
   color: #ffffff;
   font-weight: 700;
-  line-height: 24px;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -175,7 +174,6 @@
   font-size: 1rem;
   font-family: "Roboto";
   font-weight: 500;
-  line-height: 19px;
 }
 
 .loadingMessage, .successMessage, .errorMessage {

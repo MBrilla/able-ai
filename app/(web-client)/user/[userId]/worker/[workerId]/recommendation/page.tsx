@@ -55,7 +55,8 @@ export default function PublicRecommendationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const firstName = workerDetails?.name.split(" ")[0];
+  
+   const firstName = React.useMemo(() => workerDetails?.name.split(" ")[0], [workerDetails]);
   
   // Fetch worker details
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function PublicRecommendationPage() {
             setError("Could not load worker details to recommend.");
           }
         })
-        .catch(() => setError("Error fetching worker details."))
+        .catch((err: Error) => setError(err.message || "Error fetching worker details."))
         .finally(() => setIsLoadingWorker(false));
     }
   }, [workerToRecommendId]);
@@ -151,7 +152,7 @@ export default function PublicRecommendationPage() {
   }
 
   if (workerDetails?.skills.length === 0)
-    return <p>{workerDetails.name} don't have skills yet to showcase</p>;
+    return <p>{workerDetails.name} doesn't have skills yet to showcase</p>;
 
   return (
     <div className={styles.container}>
@@ -207,7 +208,10 @@ export default function PublicRecommendationPage() {
                 value={formData.recommendationText}
                 onChange={handleChange}
                 className={styles.textarea}
-                placeholder={`Enter your recommendation here... eg: What makes ${workerDetails.name} great at ${selectedSkill?.name || ""}`}
+                placeholder={selectedSkill?.name ? 
+                  `Enter your recommendation here... eg: What makes ${workerDetails.name} great at ${selectedSkill?.name}` : 
+                  "Enter your recommendation here..."
+                }
                 required
               />
             </div>
@@ -226,10 +230,10 @@ export default function PublicRecommendationPage() {
             </div>
 
             <div className={styles.inputGroup}>
-              <label className={styles.label}>
+              <span className={styles.label}>
                 Your Details (won&apos;t be public on their profile){" "}
                 <span style={{ color: "var(--error-color)" }}>*</span>
-              </label>
+              </span>
               <div className={styles.nameEmailGroup}>
                 <InputField
                   id="recommenderName"
