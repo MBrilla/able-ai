@@ -31,15 +31,9 @@ import { BadgeIcon } from "@/app/components/profile/GetBadgeIcon";
 import UserNameModal from "@/app/components/profile/UserNameModal";
 import EditBusinessModal from "@/app/components/profile/EditBusinessModal";
 
-interface Location {
-  formatted_address: string;
-  lat: number;
-  lng: number;
-}
-
 interface BusinessInfo {
   fullCompanyName: string;
-  location: Location;
+  location: string;
   companyRole: string;
 }
 
@@ -67,11 +61,7 @@ export default function BuyerProfilePage() {
   // default empty state
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo>({
     fullCompanyName: "",
-    location: {
-      formatted_address: "",
-      lat: 51.5074, // London latitude
-      lng: -0.1278
-    },
+    location: "",
     companyRole: "",
   });
 
@@ -120,11 +110,7 @@ export default function BuyerProfilePage() {
     if (dashboardData) {
       setBusinessInfo({
         fullCompanyName: dashboardData.fullCompanyName || "",
-        location: {
-          formatted_address: dashboardData.billingAddressJson?.formatted_address || "",
-          lat: dashboardData.billingAddressJson?.lat || 51.5074, // Default to London latitude
-          lng: dashboardData.billingAddressJson?.lng || -0.1278, // Default to London longitude
-        },
+        location: dashboardData.billingAddressJson?.formatted_address || "",
         companyRole: dashboardData.companyRole || "",
       });
     }
@@ -191,20 +177,8 @@ export default function BuyerProfilePage() {
   );
 
   const handleSave = (updatedData: typeof businessInfo) => {
-
     // 🔹 TODO: call API to save updates
     setBusinessInfo(updatedData);
-    
-    setDashboardData((prev) =>
-      prev
-        ? {
-            ...prev,
-            fullCompanyName: updatedData.fullCompanyName,
-            billingAddressJson: updatedData.location,
-            companyRole: updatedData.companyRole,
-          }
-        : prev
-    ); 
     setIsModalOpen(false);
   };
 
@@ -285,7 +259,7 @@ export default function BuyerProfilePage() {
             <p>{businessInfo.fullCompanyName}</p>
 
             <span className={styles.location}>
-              {businessInfo.location.formatted_address}
+              {businessInfo.location}
             </span>
 
             <h4>Role:</h4>
