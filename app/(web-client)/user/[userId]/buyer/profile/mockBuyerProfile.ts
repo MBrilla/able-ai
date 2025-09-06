@@ -14,10 +14,10 @@ const dashboardMockData: DashboardData = {
   introVideoThumbnailUrl: "",
   introVideoUrl: "",
   fullCompanyName: "Elite Hospitality Group",
-  location: {
+  billingAddressJson: {
     formatted_address: "123 Main Street, Nairobi, Kenya",
-    latitude: -1.2921,
-    longitude: 36.8219,
+    lat: -1.2921,
+    lng: 36.8219,
   },
   companyRole: "Hospitality Manager",
   videoUrl: "",
