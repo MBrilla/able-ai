@@ -157,14 +157,14 @@ export default function PublicRecommendationPage() {
     <div className={styles.container}>
       <div className={styles.pageWrapper}>
         <header className={styles.title}>
-          <Star color="#ffffff" fill="#ffffff" />
+          <Star color="#7eeef9" fill=" #7eeef9" />
           <span>Recommendation for {workerDetails.name}</span>
         </header>
 
         <div className={styles.recommendationCard}>
-          <p className={styles.prompt}>
-            {firstName} is available for hire on Able! <br />
-            Please provide a reference for {firstName}&apos;s skills as a{" "}
+          <div className={styles.prompt}>
+            <p>{firstName} is available for hire on Able! <br />
+            Please provide a reference for {firstName}&apos;s skills as a{" "}</p>
             <select
               className={styles.select}
               value={selectedSkill?.id || ""}
@@ -184,7 +184,7 @@ export default function PublicRecommendationPage() {
                 </option>
               ))}
             </select>
-          </p>
+          </div>
 
           <p className={styles.note}>
             Your feedback will be added to their public profile.
@@ -213,7 +213,7 @@ export default function PublicRecommendationPage() {
             </div>
 
             <div className={styles.inputGroup}>
-              {/* <label htmlFor="relationship" className={styles.label}>How do you know {workerDetails.name}? <span style={{color: 'var(--error-color)'}}>*</span></label> */}
+              <label htmlFor="relationship" className={styles.label}>How do you know {workerDetails.name}? <span style={{color: 'var(--error-color)'}}>*</span></label>
               <textarea
                 id="relationship"
                 name="relationship"
