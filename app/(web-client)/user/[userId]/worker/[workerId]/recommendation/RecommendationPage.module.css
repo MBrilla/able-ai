@@ -125,7 +125,7 @@
   align-items: center;
   justify-content: center;
   margin-top: auto;
-  gap: 1rem;
+  gap: 0.3rem;
   width: 100%;
   background-color: var(--secondary-color);
   color: #0f0f0f;
@@ -133,7 +133,7 @@
   padding: 0.85rem 1.5rem;
   border-radius: 9999px;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-weight: 600;
   align-self: center;
   transition: background-color 0.2s ease, transform 0.15s ease;
@@ -204,7 +204,6 @@
   font-size: 0.9rem;
   font-family: var(--font-family);
   outline: none;
-  margin-left: 0.5rem;
   cursor: pointer;
 }
 

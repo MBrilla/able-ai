@@ -12,6 +12,7 @@ import {
   getWorkerForRecommendationAction,
   submitExternalRecommendationAction,
 } from "@/actions/user/recommendation";
+import Loader from "@/app/components/shared/Loader";
 
 interface RecommendationFormData {
   recommendationText: string;
@@ -137,8 +138,7 @@ export default function PublicRecommendationPage() {
   if (isLoadingWorker) {
     return (
       <div className={styles.loadingContainer}>
-        <Loader2 size={32} className="animate-spin" /> Loading Recommendation
-        Form...
+        <Loader />
       </div>
     );
   }
