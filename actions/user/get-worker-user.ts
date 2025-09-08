@@ -24,18 +24,6 @@ export async function getWorkerUserFromProfileId(workerProfileId: string): Promi
       };
     }
 
-    console.log(`🔍 Looking up worker user for profile ID: ${workerProfileId}`);
-
-    // First, let's check if any worker profiles exist at all
-    const allProfiles = await db.query.GigWorkerProfilesTable.findMany({
-      limit: 5,
-      columns: {
-        id: true,
-        userId: true,
-      }
-    });
-    console.log(`🔍 Sample worker profiles in database:`, allProfiles.map(p => ({ id: p.id, userId: p.userId })));
-
     // Get worker profile with associated user
     const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
       where: eq(GigWorkerProfilesTable.id, workerProfileId),
@@ -51,18 +39,6 @@ export async function getWorkerUserFromProfileId(workerProfileId: string): Promi
       }
     });
 
-    console.log(`🔍 Worker profile lookup result:`, workerProfile ? 'Found' : 'Not found');
-    if (workerProfile) {
-      console.log(`🔍 Worker profile details:`, {
-        id: workerProfile.id,
-        userId: workerProfile.userId,
-        userFirebaseUid: workerProfile.user?.firebaseUid,
-        userFullName: workerProfile.user?.fullName
-      });
-    } else {
-      console.log(`❌ Worker profile not found with ID: ${workerProfileId}`);
-      console.log(`❌ Available worker profile IDs:`, allProfiles.map(p => p.id));
-    }
 
     if (!workerProfile?.user) {
       return {
