@@ -6,6 +6,8 @@ import { VALIDATION_CONSTANTS } from '@/app/constants/validation';
 import styles from './ManualProfileForm.module.css';
 import LocationPickerBubble from './LocationPickerBubble';
 import VideoRecorderOnboarding from './VideoRecorderOnboarding';
+import { ref, uploadBytesResumable, getDownloadURL, getStorage } from "firebase/storage";
+import { firebaseApp } from "@/lib/firebase/clientApp";
 
 // Helper: generate a compact random code and build a recommendation URL
 function generateRandomCode(length = 8): string {
@@ -48,7 +50,7 @@ interface FormData {
     startTime: string;
     endTime: string;
   };
-  videoIntro: File | null;
+  videoIntro: string | null;
   references: string;
 }
 
@@ -153,7 +155,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
         return value && Array.isArray(value.days) && value.days.length > 0;
       }
       if (field === 'videoIntro') {
-        return value && value instanceof File;
+        return value && typeof value === 'string' && value.trim().length > 0;
       }
       return value && (typeof value === 'string' ? value.trim() !== '' : value > 0);
     });
@@ -181,7 +183,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       case 'availability':
         return !value.days || value.days.length === 0 ? 'Please select at least one day of availability' : '';
       case 'videoIntro':
-        return !value || !(value instanceof File) ? 'Please record a video introduction' : '';
+        return !value || typeof value !== 'string' || value.trim().length === 0 ? 'Please record a video introduction' : '';
       default:
         return '';
     }
@@ -210,9 +212,51 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     }
   };
 
-  const handleVideoRecorded = (blob: Blob) => {
-    const file = new File([blob], 'video-intro.webm', { type: 'video/webm' });
-    setFormData(prev => ({ ...prev, videoIntro: file }));
+  const handleVideoRecorded = async (blob: Blob) => {
+    if (!user) {
+      console.error('User not authenticated for video upload');
+      return;
+    }
+
+    try {
+      // Upload video to Firebase Storage
+      const file = new File([blob], 'video-intro.webm', { type: 'video/webm' });
+      const filePath = `workers/${user.uid}/introVideo/introduction-${encodeURI(user.email ?? user.uid)}.webm`;
+      const fileStorageRef = ref(getStorage(firebaseApp), filePath);
+      const uploadTask = uploadBytesResumable(fileStorageRef, file);
+
+      // Wait for upload to complete and get download URL
+      const downloadURL = await new Promise<string>((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log("Video upload progress:", progress + "%");
+          },
+          (error) => {
+            console.error("Video upload failed:", error);
+            reject(error);
+          },
+          () => {
+            getDownloadURL(uploadTask.snapshot.ref)
+              .then((url) => {
+                console.log("Video uploaded successfully:", url);
+                resolve(url);
+              })
+              .catch(reject);
+          }
+        );
+      });
+
+      // Store the Firebase download URL instead of the File object
+      setFormData(prev => ({ ...prev, videoIntro: downloadURL }));
+      
+      // Clear any existing video validation errors
+      setErrors(prev => ({ ...prev, videoIntro: '' }));
+    } catch (error) {
+      console.error("Video upload error:", error);
+      setErrors(prev => ({ ...prev, videoIntro: 'Video upload failed. Please try again.' }));
+    }
   };
 
   const handleDayToggle = (day: string) => {
@@ -500,7 +544,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
               prompt="Record a 30-second introduction video to help clients get to know you"
             />
             {formData.videoIntro && (
-              <p className={styles.helpText}>Video recorded: {formData.videoIntro.name}</p>
+              <p className={styles.helpText}>Video uploaded successfully ✓</p>
             )}
             {errors.videoIntro && <span className={styles.errorText}>{errors.videoIntro}</span>}
           </div>

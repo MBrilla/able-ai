@@ -947,7 +947,7 @@ export default function OnboardWorkerPage() {
           hourlyRate: String(formData.hourlyRate || ''),
           location: formData.location || '',
           availability: formData.availability || { days: [], startTime: '09:00', endTime: '17:00' },
-          videoIntro: formData.videoIntro || '',
+          videoIntro: typeof formData.videoIntro === 'string' ? formData.videoIntro : '',
           time: formData.time || '',
           jobTitle: extractedJobTitle
         };
@@ -2297,7 +2297,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
         },
         () => {
           getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-            updateVideoUrlProfileAction(user.token, downloadURL);
+            updateVideoUrlProfileAction(downloadURL, user.token);
             handleInputChange(name, downloadURL);
             
             // Show sanitized confirmation step for video (with confirm/reformulate buttons)
@@ -2307,7 +2307,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                 id: Date.now() + 1,
                 type: "sanitized",
                 fieldName: name,
-                sanitizedValue: "Video introduction recorded successfully! 🎥",
+                sanitizedValue: downloadURL,
                 originalValue: "Video uploaded",
                 naturalSummary: "I saved the video introduction! 🎥",
                 extractedData: JSON.stringify({ videoIntro: downloadURL }),

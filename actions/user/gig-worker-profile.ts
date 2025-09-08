@@ -448,6 +448,8 @@ export const updateVideoUrlProfileAction = async (
   token?: string | undefined
 ) => {
   try {
+    console.log('🎥 Updating video URL:', videoUrl);
+    
     if (!token) {
       throw new Error("User ID is required to fetch buyer profile");
     }
@@ -461,16 +463,22 @@ export const updateVideoUrlProfileAction = async (
 
     if (!user) throw "User not found";
 
-    await db
+    console.log('🎥 Updating video URL for user:', user.id, 'with URL:', videoUrl);
+
+    const result = await db
       .update(GigWorkerProfilesTable)
       .set({
         videoUrl: videoUrl,
         updatedAt: new Date(),
       })
-      .where(eq(GigWorkerProfilesTable.userId, user?.id));
+      .where(eq(GigWorkerProfilesTable.userId, user?.id))
+      .returning();
+
+    console.log('🎥 Video URL update result:', result);
 
     return { success: true, data: "Url video updated successfully" };
   } catch (error) {
+    console.error('🎥 Video URL update error:', error);
     return { success: false, data: "Url video updated successfully", error };
   }
 };
@@ -687,6 +695,12 @@ export const saveWorkerProfileFromOnboardingAction = async (
     });
 
     // Prepare profile data
+    console.log('🎥 Video intro data in save function:', {
+      videoIntro: profileData.videoIntro,
+      type: typeof profileData.videoIntro,
+      isString: typeof profileData.videoIntro === 'string'
+    });
+    
     const profileUpdateData = {
       fullBio: `${profileData.about}\n\n${profileData.experience}`,
       location:
@@ -704,10 +718,12 @@ export const saveWorkerProfileFromOnboardingAction = async (
           ? profileData.location.lng
           : null,
       // Remove availabilityJson - we'll save to worker_availability table instead
-      videoUrl:
-        typeof profileData.videoIntro === "string"
-          ? profileData.videoIntro
-          : profileData.videoIntro?.name || "",
+      videoUrl: (() => {
+        if (typeof profileData.videoIntro === "string") {
+          return profileData.videoIntro;
+        }
+        return null;
+      })(),
       hashTags: generatedHashtags.length > 0 ? generatedHashtags : null,
       semanticProfileJson: {
         tags: profileData.skills
