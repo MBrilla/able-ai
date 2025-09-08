@@ -24,6 +24,7 @@ import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { getAI } from '@firebase/ai';
 import { Schema } from '@firebase/ai';
+import admin from '@/lib/firebase/firebase-server';
 import { BadgeIcon } from "@/app/components/profile/GetBadgeIcon";
 
 // AI Hashtag Generation Schema
@@ -47,11 +48,20 @@ async function generateHashtagsFromOnboarding(profileData: {
   equipment?: { name: string; description?: string }[];
   location?: any;
 }): Promise<string[]> {
+  console.log('🚀 Starting hashtag generation with data:', profileData);
   try {
-    const ai = getAI();
-    if (!ai) {
-      console.log('⚠️ AI not available, returning empty hashtags');
-      return [];
+    // Try to get AI instance, fallback to null if not available
+    let ai = null;
+    try {
+      ai = getAI();
+      console.log('✅ AI is available, proceeding with generation...');
+    } catch (error) {
+      console.log('⚠️ AI not available, using fallback hashtags');
+      return [
+        `#${profileData.skills?.split(',')[0]?.trim().toLowerCase().replace(/\s+/g, '-') || 'worker'}`,
+        `#${profileData.about?.split(' ')[0]?.toLowerCase() || 'professional'}`,
+        '#gig-worker'
+      ];
     }
 
     const prompt = `You are an AI assistant that generates professional hashtags for gig workers based on their profile information.
@@ -87,13 +97,19 @@ Generate 3 relevant hashtags for this worker:`;
         prompt,
         responseSchema: hashtagGenerationSchema,
       },
-      ai,
+      ai, // This will be null if AI is not available
       VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_5_FLASH_PREVIEW
     );
 
     if (result.ok) {
       const hashtags = (result.data as { hashtags: string[] }).hashtags;
       console.log('✅ Generated hashtags:', hashtags);
+      console.log('🔍 Hashtags details:', {
+        type: typeof hashtags,
+        isArray: Array.isArray(hashtags),
+        length: hashtags?.length,
+        content: hashtags
+      });
       return hashtags;
     } else {
       console.error('❌ Failed to generate hashtags:', result.error);
@@ -630,6 +646,14 @@ export const saveWorkerProfileFromOnboardingAction = async (
 
     // Generate AI hashtags from onboarding data
     console.log('🤖 Generating AI hashtags from onboarding data...');
+    console.log('📊 Profile data for hashtag generation:', {
+      about: profileData.about,
+      experience: profileData.experience,
+      skills: profileData.skills,
+      equipment: profileData.equipment,
+      location: profileData.location
+    });
+    
     const generatedHashtags = await generateHashtagsFromOnboarding({
       about: profileData.about,
       experience: profileData.experience,
@@ -642,7 +666,9 @@ export const saveWorkerProfileFromOnboardingAction = async (
       hashtags: generatedHashtags,
       length: generatedHashtags.length,
       type: typeof generatedHashtags,
-      isArray: Array.isArray(generatedHashtags)
+      isArray: Array.isArray(generatedHashtags),
+      isEmpty: generatedHashtags.length === 0,
+      willUseFallback: generatedHashtags.length === 0
     });
 
     // Prepare profile data
@@ -664,7 +690,11 @@ export const saveWorkerProfileFromOnboardingAction = async (
         }
         return null;
       })(),
-      hashTags: generatedHashtags.length > 0 ? generatedHashtags : null,
+      hashTags: generatedHashtags.length > 0 ? generatedHashtags : [
+        `#${profileData.skills?.split(',')[0]?.trim().toLowerCase().replace(/\s+/g, '-') || 'worker'}`,
+        `#${profileData.about?.split(' ')[0]?.toLowerCase() || 'professional'}`,
+        '#gig-worker'
+      ],
       semanticProfileJson: {
         tags: profileData.skills.split(',').map(skill => skill.trim()).filter(Boolean)
       },
@@ -675,7 +705,9 @@ export const saveWorkerProfileFromOnboardingAction = async (
     console.log('💾 Profile update data with hashtags:', {
       hashTags: profileUpdateData.hashTags,
       hashTagsType: typeof profileUpdateData.hashTags,
-      hashTagsLength: Array.isArray(profileUpdateData.hashTags) ? profileUpdateData.hashTags.length : 'not array'
+      hashTagsLength: Array.isArray(profileUpdateData.hashTags) ? profileUpdateData.hashTags.length : 'not array',
+      hashTagsStringified: JSON.stringify(profileUpdateData.hashTags),
+      isUsingFallback: generatedHashtags.length === 0
     });
 
     let workerProfileId: string;
@@ -683,14 +715,26 @@ export const saveWorkerProfileFromOnboardingAction = async (
     if (workerProfile) {
       // Update existing profile
       console.log('🔄 Updating existing worker profile with hashtags...');
-      await db
+      console.log('📝 Data being sent to database update:', {
+        hashTags: profileUpdateData.hashTags,
+        hashTagsType: typeof profileUpdateData.hashTags,
+        isArray: Array.isArray(profileUpdateData.hashTags)
+      });
+      const updateResult = await db
         .update(GigWorkerProfilesTable)
         .set(profileUpdateData)
-        .where(eq(GigWorkerProfilesTable.userId, user.id));
+        .where(eq(GigWorkerProfilesTable.userId, user.id))
+        .returning();
+      console.log('🔄 Database update result:', updateResult);
       workerProfileId = workerProfile.id;
     } else {
       // Create new profile
       console.log('➕ Creating new worker profile with hashtags...');
+      console.log('📝 Data being sent to database insert:', {
+        hashTags: profileUpdateData.hashTags,
+        hashTagsType: typeof profileUpdateData.hashTags,
+        isArray: Array.isArray(profileUpdateData.hashTags)
+      });
       const newProfile = await db
         .insert(GigWorkerProfilesTable)
         .values({
@@ -699,15 +743,32 @@ export const saveWorkerProfileFromOnboardingAction = async (
           createdAt: new Date(),
         })
         .returning();
+      console.log('➕ Database insert result:', newProfile);
       workerProfileId = newProfile[0].id;
     }
     
     // Verify hashtags were saved
     const savedProfile = await db.query.GigWorkerProfilesTable.findFirst({
-      where: eq(GigWorkerProfilesTable.userId, user.id),
-      columns: { hashtags: true }
+      where: eq(GigWorkerProfilesTable.userId, user.id)
     });
-    console.log('✅ Verified saved hashtags in database:', savedProfile?.hashtags);
+    console.log('✅ Verified saved hashtags in database:', {
+      hashtags: savedProfile?.hashtags,
+      hashtagsType: typeof savedProfile?.hashtags,
+      isArray: Array.isArray(savedProfile?.hashtags),
+      length: Array.isArray(savedProfile?.hashtags) ? savedProfile.hashtags.length : 'not array',
+      fullProfile: savedProfile
+    });
+
+    // Also try a direct SQL query to see what's in the database
+    try {
+      const directQuery = await db.execute(sql`
+        SELECT hash_tags FROM gig_worker_profiles 
+        WHERE user_id = ${user.id}
+      `);
+      console.log('🔍 Direct SQL query result:', directQuery);
+    } catch (error) {
+      console.error('❌ Direct SQL query failed:', error);
+    }
 
     // Save availability data to worker_availability table
     if (profileData.availability && typeof profileData.availability === 'object') {

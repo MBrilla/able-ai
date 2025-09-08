@@ -8,6 +8,9 @@ import LocationPickerBubble from './LocationPickerBubble';
 import VideoRecorderOnboarding from './VideoRecorderOnboarding';
 import { ref, uploadBytesResumable, getDownloadURL, getStorage } from "firebase/storage";
 import { firebaseApp } from "@/lib/firebase/clientApp";
+import { geminiAIAgent } from '@/lib/firebase/ai';
+import { getAI } from '@firebase/ai';
+import { Schema } from '@firebase/ai';
 
 function buildRecommendationLink(workerProfileId: string | null): string {
   const origin = window.location.origin ?? 'http://localhost:3000';
@@ -44,8 +47,6 @@ interface FormData {
   videoIntro: string | null;
   references: string;
   jobTitle?: string; // AI extracted job title
-  experienceYears?: number; // Parsed years of experience
-  experienceMonths?: number; // Parsed months of experience
 }
 
 interface ManualProfileFormProps {
@@ -671,34 +672,16 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     }
   };
 
-
-  // AI Sanitization function for specific fields (kept for job title extraction)
+  // AI Sanitization function for specific fields
   const sanitizeWithAI = async (field: string, value: string): Promise<{ sanitized: string; jobTitle?: string; yearsOfExperience?: number }> => {
     if (!value || value.trim().length === 0) {
       return { sanitized: value };
     }
 
-    // Pre-validation: Check for inappropriate content before AI processing
-    try {
-      const { preValidateContent } = await import('../../../lib/utils/contentModeration');
-      const preValidation = preValidateContent(value);
-      
-      // If pre-validation rejects with high confidence, return sanitized rejection
-      if (!preValidation.isAppropriate && preValidation.confidence > 0.8) {
-        return { 
-          sanitized: `[Content rejected: ${preValidation.reason}]`,
-          yearsOfExperience: 0
-        };
-      }
-    } catch (error) {
-      console.error('Pre-validation failed:', error);
-      // Continue with AI validation if pre-validation fails
-    }
-
     try {
       const ai = getAI();
       if (!ai) {
-  // AI not available; returning original value
+        console.log('AI not available, returning original value');
         return { sanitized: value };
       }
 
@@ -718,15 +701,7 @@ Description: "${value}"`;
           required: ["jobTitle", "sanitized"]
         });
       } else if (field === 'skills') {
-        prompt = `Clean and format this skills list. Extract only the skill names, removing phrases like "I am a", "I can", "I have", etc. Convert to simple skill names.
-
-Examples:
-- "I am a chef" → "Chef"
-- "I can cook" → "Cooking"
-- "I have experience in bartending" → "Bartending"
-- "I am good at customer service" → "Customer Service"
-
-Remove duplicates, fix typos, and organize into a clean comma-separated list. Keep only relevant professional skills.
+        prompt = `Clean and format this skills list. Remove duplicates, fix typos, and organize into a clean comma-separated list. Keep only relevant professional skills.
 
 Skills: "${value}"`;
         
@@ -737,20 +712,7 @@ Skills: "${value}"`;
           required: ["sanitized"]
         });
       } else if (field === 'experience') {
-        prompt = `Extract the years of experience from this text. Be VERY LENIENT - accept any reasonable input including single numbers. REJECT only if it contains:
-- Video game references: "mario", "luigi", "peach", "bowser", "sonic", "link", "zelda", "pokemon", etc.
-- Fictional characters: "batman", "superman", "spiderman", "wonder woman", etc.
-- Memes and internet culture: "its a me mario", "hello there", "general kenobi", etc.
-- Jokes and humor: "i am the best at nothing", "i can fly", "i am a wizard", etc.
-- Nonsense and gibberish: "asdf", "qwerty", "random text", "blah blah", etc.
-
-ACCEPT ANY reasonable input including:
-- Single numbers (e.g., "1", "5", "2.5")
-- Numbers with "years" (e.g., "1 year", "5 years", "2.5 years")
-- Numbers with "yrs" or "y" (e.g., "1 yr", "5 yrs", "2y")
-- Descriptive text (e.g., "1 year of experience", "I have 5 years", "5 years of experience")
-
-Return the number of years as a number (can be decimal). If content is inappropriate or no clear number is found, return 0.
+        prompt = `Extract the years of experience from this text. Look for numbers followed by "years", "yrs", or similar. Return the number of years as an integer.
 
 Experience description: "${value}"`;
         
@@ -760,17 +722,6 @@ Experience description: "${value}"`;
             sanitized: Schema.string()
           },
           required: ["yearsOfExperience", "sanitized"]
-        });
-      } else if (field === 'qualifications') {
-        prompt = `Clean and format this qualifications list. Remove duplicates, fix typos, and organize into a clean comma-separated list. Keep only relevant professional qualifications, certifications, degrees, or licenses.
-
-Qualifications: "${value}"`;
-        
-        schema = Schema.object({
-          properties: {
-            sanitized: Schema.string()
-          },
-          required: ["sanitized"]
         });
       } else {
         return { sanitized: value };
@@ -800,7 +751,7 @@ Qualifications: "${value}"`;
     }
   };
 
-  const validateForm = async (): Promise<boolean> => {
+  const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
@@ -885,89 +836,34 @@ Qualifications: "${value}"`;
     setIsSubmitting(true);
     
     try {
-      // AI Content Validation - this will REJECT inappropriate content
-      const validationErrors: Record<string, string> = {};
-      const hasContentErrors = false;
-
-      // Validate each field with AI
-      const fieldsToValidate = ['about', 'experience', 'skills', 'equipment', 'qualifications'];
-      
-      for (const field of fieldsToValidate) {
-        const value = formData[field as keyof FormData];
-        if (value && typeof value === 'string' && value.trim().length > 0) {
-          console.log(`🤖 Validating ${field} content with AI...`);
-          const validation = await validateContentWithAI(field, value);
-          
-          if (!validation.isValid) {
-            console.log(`⚠️ AI flagged ${field} for review:`, validation.error);
-            // For manual onboarding, be more lenient - only show warning, don't block submission
-            console.log(`📝 Manual onboarding: Allowing ${field} despite AI flag`);
-            // Don't set hasContentErrors = true for manual onboarding
-          } else {
-            console.log(`✅ AI approved ${field}`);
-          }
-        }
-      }
-
-      // For manual onboarding, be more lenient with AI validation
-      if (hasContentErrors) {
-        console.log('⚠️ AI flagged some content, but allowing submission for manual onboarding');
-        // Don't block submission for manual onboarding - just log the warnings
-        // setErrors(prev => ({ ...prev, ...validationErrors }));
-        // setIsSubmitting(false);
-        // return;
-      }
-
-      console.log('✅ AI content validation passed, proceeding with data cleaning');
-      
-      // AI Sanitization for specific fields (only if content is valid)
+      // AI Sanitization for specific fields (silent)
       const sanitizedData = { ...formData };
       let extractedJobTitle = '';
 
       // Sanitize About field (extract job title)
       if (formData.about) {
         const aboutResult = await sanitizeWithAI('about', formData.about);
-        // Always apply sanitization directly without user confirmation
         sanitizedData.about = aboutResult.sanitized;
-        
         if (aboutResult.jobTitle) {
           extractedJobTitle = aboutResult.jobTitle;
         }
       }
 
-      // Skills field is for display only - jobTitle is THE skill saved to database
+      // Sanitize Skills field
       if (formData.skills) {
         const skillsResult = await sanitizeWithAI('skills', formData.skills);
-        // Always apply sanitization directly without user confirmation
         sanitizedData.skills = skillsResult.sanitized;
-        console.log('ℹ️ Skills field sanitized for display only - jobTitle is THE skill');
       }
 
-      // Sanitize Qualifications field
-      if (formData.qualifications) {
-        const qualificationsResult = await sanitizeWithAI('qualifications', formData.qualifications);
-        // Always apply sanitization directly without user confirmation
-        sanitizedData.qualifications = qualificationsResult.sanitized;
-      }
-
-      // Sanitize Experience field (extract years and months as numeric)
+      // Sanitize Experience field (extract years)
       if (formData.experience) {
         const experienceResult = await sanitizeWithAI('experience', formData.experience);
         sanitizedData.experience = experienceResult.sanitized;
         
-        // Parse experience text to get numeric years and months
-        const { years, months } = parseExperienceToNumeric(formData.experience);
-        
-        // Store the parsed numeric values
-        sanitizedData.experienceYears = years;
-        sanitizedData.experienceMonths = months;
-        
-        console.log('Parsed experience:', { 
-          original: formData.experience, 
-          years, 
-          months,
-          totalYears: years + (months / 12)
-        });
+        // If we extracted years of experience, we could use this for other purposes
+        if (experienceResult.yearsOfExperience) {
+          console.log('Extracted years of experience:', experienceResult.yearsOfExperience);
+        }
       }
 
       // Add extracted job title to the data
@@ -975,27 +871,11 @@ Qualifications: "${value}"`;
         sanitizedData.jobTitle = extractedJobTitle;
       }
 
-      // Show data review modal with original and cleaned data
-      console.log('📋 Showing data review modal with original and cleaned data');
+      // Update form data with sanitized values
+      setFormData(sanitizedData);
       
-      setDataReviewModal({
-        isOpen: true,
-        originalData: { ...formData },
-        cleanedData: { ...sanitizedData },
-        onConfirm: () => {
-          console.log('✅ User confirmed cleaned data, proceeding with submission');
-          console.log('🔍 Modal onConfirm called, sanitized data:', sanitizedData);
-          setDataReviewModal(prev => ({ ...prev, isOpen: false }));
-          // Submit sanitized data directly
-          console.log('🚀 Calling continueFormSubmission...');
-          continueFormSubmission(sanitizedData);
-        },
-        onGoBack: () => {
-          console.log('↩️ User chose to go back and edit');
-          setDataReviewModal(prev => ({ ...prev, isOpen: false }));
-          setIsSubmitting(false);
-        }
-      });
+      // Submit the sanitized data
+      await onSubmit(sanitizedData);
     } catch (error) {
       console.error('Form submission error:', error);
       // Set error state to show user
