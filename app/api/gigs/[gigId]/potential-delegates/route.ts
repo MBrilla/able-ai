@@ -18,20 +18,9 @@ export async function GET(
       );
     }
 
-    // Parse filters from query parameters
-    const filters = {
-      searchTerm: searchParams.get('search') || '',
-      minExperience: searchParams.get('minExperience') ? parseInt(searchParams.get('minExperience')!) : undefined,
-      maxRate: searchParams.get('maxRate') ? parseFloat(searchParams.get('maxRate')!) : undefined,
-      minRate: searchParams.get('minRate') ? parseFloat(searchParams.get('minRate')!) : undefined,
-      skills: searchParams.get('skills') ? searchParams.get('skills')!.split(',') : undefined,
-      availableOnly: searchParams.get('availableOnly') === 'true',
-      sortBy: (searchParams.get('sortBy') as 'relevance' | 'distance' | 'experience' | 'rate') || 'relevance'
-    };
+    const result = await searchWorkersForDelegation(token, gigId, searchTerm);
 
-    const result = await searchWorkersForDelegation(token, gigId, searchTerm, filters);
-
-    if ('error' in result) {
+    if (result.error) {
       return NextResponse.json(
         { error: result.error },
         { status: result.status || 500 }

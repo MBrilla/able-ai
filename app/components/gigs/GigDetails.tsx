@@ -221,8 +221,9 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 				setGig({ ...gig, status: 'CONFIRMED' });
 				toast.success('Gig confirmed successfully!');
 			} else if (action === 'requestAmendment') {
-				setGig({ ...gig, status: 'REQUESTED_AMENDMENT' });
-				router.push(`/gigs/${gig.id}/amends/${amendId}/request`);
+				// Generate a temporary amendment ID or use gig ID
+				const amendmentId = `amend-${Date.now()}`;
+				router.push(`/gigs/${gig.id}/amends/${amendmentId}`);
 			} else if (action === 'reportIssue') {
 				router.push(`/gigs/${gig.id}/report-issue`);
 			} else if (action === 'delete') {

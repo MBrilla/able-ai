@@ -263,11 +263,11 @@ Generate a friendly, contextual prompt for the next question. The prompt should:
 9. Be concise and direct - get to the point without unnecessary repetition of what they've already told you
 
 Field-specific guidance:
-- additionalInstructions: Ask about specific skills, requirements, or preferences for the job
-- hourlyRate: Ask about budget with relevant pricing guidance for hiring someone in British Pounds (£). Provide rate guidance by role and mention London minimum wage of £12.21/hour
-- gigLocation: Ask about location with context about finding nearby workers
-- gigDate: Ask about timing with context about availability
-- gigTime: Ask about the specific start time of the gig
+- additionalInstructions: Ask about specific skills, requirements, or preferences for the job. Avoid "Okay, you need a [role]!" - instead try "What specific skills or requirements do you have in mind?" or "Any particular preferences for this role?"
+- hourlyRate: Ask about budget with relevant pricing guidance for hiring someone in British Pounds (£). Provide rate guidance by role and mention London minimum wage of £12.21/hour. Avoid "Okay, you need a [role]!" - instead try "What's your budget for this role?" or "What hourly rate are you thinking?"
+- gigLocation: Ask about location with context about finding nearby workers. Avoid "Okay, you need a [role]!" - instead try "Where will this gig take place?" or "What's the location for this work?"
+- gigDate: Ask about timing with context about availability. Avoid "Okay, you need a [role]!" - instead try "When do you need them?" or "What date works for you?"
+- gigTime: Ask about both the start time and end time of the gig (e.g., "What time do you need them to start and finish? This helps potential workers know if the gig fits their schedule."). Avoid "Okay, you need a [role]!" - instead try "What hours do you need them?" or "What time should they start and finish?"
 
 GIG CREATION CONTEXT: Remember, this user is creating a job posting to hire someone. They are the employer/buyer. Keep responses focused on gig creation only.
 
@@ -2139,8 +2139,8 @@ Make the conversation feel natural and build on what they've already told you, b
           gigTitle: gigData.title || 'Your gig',
           gigId: gigResult.gigId, // Use the real gigId
           hourlyRate: selectedWorker.hourlyRate,
-          totalHours: 6, // Default hours as shown in the UI
-          totalAmount: selectedWorker.hourlyRate * 6,
+          totalHours: VALIDATION_CONSTANTS.GIG_DEFAULTS.DEFAULT_TOTAL_HOURS, // Default hours as shown in the UI
+          totalAmount: selectedWorker.hourlyRate * VALIDATION_CONSTANTS.GIG_DEFAULTS.DEFAULT_TOTAL_HOURS,
           gigDate: gigData.date || 'TBD',
           gigLocation: gigData.location || 'TBD',
         },

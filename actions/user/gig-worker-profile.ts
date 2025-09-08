@@ -82,13 +82,13 @@ Examples of good hashtags:
 Generate 3 relevant hashtags for this worker:`;
 
     const result = await geminiAIAgent(
-      "gemini-2.0-flash",
+      VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_0_FLASH,
       {
         prompt,
         responseSchema: hashtagGenerationSchema,
       },
       ai,
-      "gemini-2.5-flash-preview-05-20"
+      VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_5_FLASH_PREVIEW
     );
 
     if (result.ok) {
@@ -630,6 +630,13 @@ export const saveWorkerProfileFromOnboardingAction = async (
       equipment: profileData.equipment,
       location: profileData.location,
     });
+    
+    console.log('🔍 Generated hashtags result:', {
+      hashtags: generatedHashtags,
+      length: generatedHashtags.length,
+      type: typeof generatedHashtags,
+      isArray: Array.isArray(generatedHashtags)
+    });
 
     // Prepare profile data
     const profileUpdateData = {
@@ -649,11 +656,18 @@ export const saveWorkerProfileFromOnboardingAction = async (
       privateNotes: `Hourly Rate: ${profileData.hourlyRate}\n`,
       updatedAt: new Date(),
     };
+    
+    console.log('💾 Profile update data with hashtags:', {
+      hashTags: profileUpdateData.hashTags,
+      hashTagsType: typeof profileUpdateData.hashTags,
+      hashTagsLength: Array.isArray(profileUpdateData.hashTags) ? profileUpdateData.hashTags.length : 'not array'
+    });
 
     let workerProfileId: string;
     
     if (workerProfile) {
       // Update existing profile
+      console.log('🔄 Updating existing worker profile with hashtags...');
       await db
         .update(GigWorkerProfilesTable)
         .set(profileUpdateData)
@@ -661,13 +675,24 @@ export const saveWorkerProfileFromOnboardingAction = async (
       workerProfileId = workerProfile.id;
     } else {
       // Create new profile
-      const newProfile = await db.insert(GigWorkerProfilesTable).values({
-        userId: user.id,
-        ...profileUpdateData,
-        createdAt: new Date(),
-      }).returning();
+      console.log('➕ Creating new worker profile with hashtags...');
+      const newProfile = await db
+        .insert(GigWorkerProfilesTable)
+        .values({
+          userId: user.id,
+          ...profileUpdateData,
+          createdAt: new Date(),
+        })
+        .returning();
       workerProfileId = newProfile[0].id;
     }
+    
+    // Verify hashtags were saved
+    const savedProfile = await db.query.GigWorkerProfilesTable.findFirst({
+      where: eq(GigWorkerProfilesTable.userId, user.id),
+      columns: { hashtags: true }
+    });
+    console.log('✅ Verified saved hashtags in database:', savedProfile?.hashtags);
 
     // Save availability data to worker_availability table
     if (profileData.availability && typeof profileData.availability === 'object') {

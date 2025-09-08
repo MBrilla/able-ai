@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import WorkerCard, { WorkerData } from '../onboarding/WorkerCard';
 import { WorkerMatch } from './WorkerMatchCard';
 import Loader from '../shared/Loader';
+import { VALIDATION_CONSTANTS } from '@/app/constants/validation';
 
 interface WorkerMatchmakingResultsProps {
   matches: WorkerMatch[];
@@ -30,26 +31,22 @@ export default function WorkerMatchmakingResults({
 
   // Function to convert WorkerMatch to WorkerData format
   const convertToWorkerData = (worker: WorkerMatch): WorkerData => {
-    // Calculate total hours and price (assuming 6 hours as shown in the image)
-    const totalHours = 6; // Default hours as shown in the image
+    // Calculate total hours and price using constants
+    const totalHours = VALIDATION_CONSTANTS.GIG_DEFAULTS.DEFAULT_TOTAL_HOURS;
     const totalPrice = worker.hourlyRate * totalHours;
-    
-    // Calculate fees (using the same structure as shown in the image)
-    const ableFees = "6.5% +VAT";
-    const stripeFees = "1.5% +20p";
     
     return {
       name: worker.workerName,
       title: worker.primarySkill,
-      gigs: Math.floor(Math.random() * 20) + 5, // Generate random gig count for display
+      gigs: 0, // No gig count data available yet
       experience: `${worker.experienceYears} years experience`,
       keywords: worker.bio || "professional, reliable, skilled", // Use bio as keywords
       hourlyRate: worker.hourlyRate,
       totalHours: totalHours,
       totalPrice: totalPrice,
-      ableFees: ableFees,
-      stripeFees: stripeFees,
-      imageSrc: "/images/default-avatar.svg"
+      ableFees: VALIDATION_CONSTANTS.GIG_DEFAULTS.ABLE_FEES,
+      stripeFees: VALIDATION_CONSTANTS.GIG_DEFAULTS.STRIPE_FEES,
+      imageSrc: VALIDATION_CONSTANTS.GIG_DEFAULTS.DEFAULT_IMAGE
     };
   };
 
@@ -148,28 +145,13 @@ export default function WorkerMatchmakingResults({
          
                   {/* Skip Selection Button */}
          <div className="text-center">
-           <div style={{ 
-             
-             border: '2px solid #7eeef9',
-             borderRadius: 12,
-             padding: '16px 20px',
-             marginBottom: '8px'
-           }}>
+          
              <div style={{ 
                display: 'flex', 
                alignItems: 'center', 
                marginBottom: '8px' 
              }}>
-               <div style={{
-                 width: '24px',
-                 height: '24px',
-                 background: '#7eeef9',
-                 borderRadius: '50%',
-                 display: 'flex',
-                 alignItems: 'center',
-                 justifyContent: 'center',
-                 marginRight: '8px'
-               }}>
+               
                  
                </div>
                <span style={{ 
@@ -225,16 +207,13 @@ export default function WorkerMatchmakingResults({
                  </>
                ) : (
                  <>
-                   <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style={{ marginRight: '8px' }}>
-                     <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
-                   </svg>
+
                    Skip Selection & Go to Dashboard
                  </>
                )}
              </button>
            </div>
          </div>
-       </div>
-    </div>
+    
   );
 }
