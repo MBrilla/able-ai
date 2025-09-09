@@ -44,10 +44,17 @@
 }
 
 .hashtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.hashtag {
   background-color: var(--primary-color);
   padding: 0.25rem 0.75rem;
   border-radius: 1.6rem;
-  font-size: 1rem;
+  font-size: 0.875rem;
   color: #000000;
   word-wrap: break-word;
 }

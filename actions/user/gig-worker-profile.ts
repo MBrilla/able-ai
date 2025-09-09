@@ -21,9 +21,7 @@ import { isUserAuthenticated } from "@/lib/user.server";
 import { and, eq, sql } from "drizzle-orm";
 import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
 import { geminiAIAgent } from '@/lib/firebase/ai';
-import { getAI } from '@firebase/ai';
 import { Schema } from '@firebase/ai';
-import admin from '@/lib/firebase/firebase-server';
 import { BadgeIcon } from "@/app/components/profile/GetBadgeIcon";
 
 // AI Hashtag Generation Schema
@@ -39,6 +37,7 @@ const hashtagGenerationSchema = Schema.object({
   additionalProperties: false
 });
 
+
 // AI function to generate hashtags from onboarding data
 async function generateHashtagsFromOnboarding(profileData: {
   about: string;
@@ -49,20 +48,6 @@ async function generateHashtagsFromOnboarding(profileData: {
 }): Promise<string[]> {
   console.log('🚀 Starting hashtag generation with data:', profileData);
   try {
-    // Try to get AI instance, fallback to null if not available
-    let ai = null;
-    try {
-      ai = getAI();
-      console.log('✅ AI is available, proceeding with generation...');
-    } catch (error) {
-      console.log('⚠️ AI not available, using fallback hashtags');
-      return [
-        `#${profileData.skills?.split(',')[0]?.trim().toLowerCase().replace(/\s+/g, '-') || 'worker'}`,
-        `#${profileData.about?.split(' ')[0]?.toLowerCase() || 'professional'}`,
-        '#gig-worker'
-      ];
-    }
-
     const prompt = `You are an AI assistant that generates professional hashtags for gig workers based on their profile information.
 
 Based on the following worker profile data, generate exactly 3 relevant, professional hashtags that would help with job matching and discoverability.
@@ -90,19 +75,20 @@ Examples of good hashtags:
 
 Generate 3 relevant hashtags for this worker:`;
 
+    console.log('🤖 Calling Gemini AI for hashtag generation...');
     const result = await geminiAIAgent(
       VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_0_FLASH,
       {
         prompt,
         responseSchema: hashtagGenerationSchema,
       },
-      ai, // This will be null if AI is not available
+      null, // No injected AI for server-side calls
       VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_5_FLASH_PREVIEW
     );
 
-    if (result.ok) {
+    if (result.ok && result.data) {
       const hashtags = (result.data as { hashtags: string[] }).hashtags;
-      console.log('✅ Generated hashtags:', hashtags);
+      console.log('✅ Generated hashtags via AI:', hashtags);
       console.log('🔍 Hashtags details:', {
         type: typeof hashtags,
         isArray: Array.isArray(hashtags),
@@ -111,12 +97,22 @@ Generate 3 relevant hashtags for this worker:`;
       });
       return hashtags;
     } else {
-      console.error('❌ Failed to generate hashtags:', result.error);
-      return [];
+      console.error('❌ AI generation failed:', result);
+      // Fallback to basic hashtags
+      return [
+        `#${profileData.skills?.split(',')[0]?.trim().toLowerCase().replace(/\s+/g, '-') || 'worker'}`,
+        `#${profileData.about?.split(' ')[0]?.toLowerCase() || 'professional'}`,
+        '#gig-worker'
+      ];
     }
   } catch (error) {
     console.error('❌ Error generating hashtags:', error);
-    return [];
+    // Fallback to basic hashtags
+    return [
+      `#${profileData.skills?.split(',')[0]?.trim().toLowerCase().replace(/\s+/g, '-') || 'worker'}`,
+      `#${profileData.about?.split(' ')[0]?.toLowerCase() || 'professional'}`,
+      '#gig-worker'
+    ];
   }
 }
 
@@ -239,6 +235,7 @@ export const getGigWorkerProfile = async (
       privateNotes: workerProfile?.privateNotes ?? undefined,
       responseRateInternal: workerProfile?.responseRateInternal ?? undefined,
       videoUrl: workerProfile?.videoUrl ?? undefined,
+      hashtags: Array.isArray(workerProfile?.hashtags) ? workerProfile.hashtags : undefined,
       availabilityJson: undefined, // Set to undefined since we now use worker_availability table
       semanticProfileJson:
         workerProfile?.semanticProfileJson as SemanticProfile,
@@ -364,8 +361,8 @@ export const getSkillDetailsWorker = async (id: string) => {
       name: user?.fullName,
       title: skill?.name,
       hashtags: Array.isArray(workerProfile?.hashtags)
-        ? workerProfile.hashtags.join(" ")
-        : "",
+        ? workerProfile.hashtags
+        : [],
       customerReviewsText: workerProfile?.fullBio,
       ableGigs: skill?.ableGigs,
       experienceYears: skill?.experienceYears,
@@ -755,7 +752,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
         }
         return null;
       })(),
-      hashTags: generatedHashtags.length > 0 ? generatedHashtags : [
+      hashtags: generatedHashtags.length > 0 ? generatedHashtags : [
         `#${profileData.skills?.split(',')[0]?.trim().toLowerCase().replace(/\s+/g, '-') || 'worker'}`,
         `#${profileData.about?.split(' ')[0]?.toLowerCase() || 'professional'}`,
         '#gig-worker'
@@ -771,10 +768,10 @@ export const saveWorkerProfileFromOnboardingAction = async (
     };
     
     console.log('💾 Profile update data with hashtags:', {
-      hashTags: profileUpdateData.hashTags,
-      hashTagsType: typeof profileUpdateData.hashTags,
-      hashTagsLength: Array.isArray(profileUpdateData.hashTags) ? profileUpdateData.hashTags.length : 'not array',
-      hashTagsStringified: JSON.stringify(profileUpdateData.hashTags),
+      hashtags: profileUpdateData.hashtags,
+      hashtagsType: typeof profileUpdateData.hashtags,
+      hashtagsLength: Array.isArray(profileUpdateData.hashtags) ? profileUpdateData.hashtags.length : 'not array',
+      hashtagsStringified: JSON.stringify(profileUpdateData.hashtags),
       isUsingFallback: generatedHashtags.length === 0
     });
 
@@ -784,9 +781,9 @@ export const saveWorkerProfileFromOnboardingAction = async (
       // Update existing profile
       console.log('🔄 Updating existing worker profile with hashtags...');
       console.log('📝 Data being sent to database update:', {
-        hashTags: profileUpdateData.hashTags,
-        hashTagsType: typeof profileUpdateData.hashTags,
-        isArray: Array.isArray(profileUpdateData.hashTags)
+        hashtags: profileUpdateData.hashtags,
+        hashtagsType: typeof profileUpdateData.hashtags,
+        isArray: Array.isArray(profileUpdateData.hashtags)
       });
       const updateResult = await db
         .update(GigWorkerProfilesTable)
@@ -799,9 +796,9 @@ export const saveWorkerProfileFromOnboardingAction = async (
       // Create new profile
       console.log('➕ Creating new worker profile with hashtags...');
       console.log('📝 Data being sent to database insert:', {
-        hashTags: profileUpdateData.hashTags,
-        hashTagsType: typeof profileUpdateData.hashTags,
-        isArray: Array.isArray(profileUpdateData.hashTags)
+        hashtags: profileUpdateData.hashtags,
+        hashtagsType: typeof profileUpdateData.hashtags,
+        isArray: Array.isArray(profileUpdateData.hashtags)
       });
       const newProfile = await db
         .insert(GigWorkerProfilesTable)
@@ -900,8 +897,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
     console.log(`🚀 [${callId}] Call stack:`, new Error().stack?.split('\n').slice(1, 4).join('\n'));
     
           try {
-        // Only use about field as job title for skills database entry to avoid duplicates
-        skillName = profileData.about || '';
+        // Use jobTitle field as the main skill for database entry
+        skillName = profileData.jobTitle || profileData.about || '';
         
         // Extract years of experience from experience field
       const experienceText = profileData.experience || '';
@@ -925,7 +922,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
         about_field: profileData.about,
         experience_field: profileData.experience,
         hourlyRate_field: profileData.hourlyRate,
-        note: 'Using about field as job title for skills database entry to avoid duplicates'
+        note: 'Using jobTitle field as main skill for database entry'
       });
 
       if (skillName) {
@@ -1000,7 +997,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
           about: profileData.about,
           experience: profileData.experience,
           hourlyRate: profileData.hourlyRate,
-          note: 'Using about field as job title for skills database entry to avoid duplicates'
+          note: 'Using jobTitle field as main skill for database entry'
         });
       }
     } catch (skillError) {
