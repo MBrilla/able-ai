@@ -9,7 +9,7 @@ import {
 } from "@/lib/drizzle/schema";
 import { ERROR_CODES } from "@/lib/responses/errors";
 import { isUserAuthenticated } from "@/lib/user.server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export const addQualificationAction = async (
   title: string,
@@ -379,10 +379,7 @@ export const getAllSkillsAction = async (workerId: string) => {
   }
 };
 
-export const deleteSkillWorker = async (
-  skillId: string,
-  token?: string
-) => {
+export const deleteSkillWorker = async (skillId: string, token?: string) => {
   try {
     if (!token) {
       throw new Error("Authentication token is required");
@@ -393,36 +390,31 @@ export const deleteSkillWorker = async (
 
     const user = await db.query.UsersTable.findFirst({
       where: eq(UsersTable.firebaseUid, uid),
+      with: { gigWorkerProfile: { columns: { id: true } } },
     });
+    
     if (!user) {
       throw new Error("User not found");
     }
 
-    const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
-      where: eq(GigWorkerProfilesTable.userId, user.id),
-    });
-    if (!workerProfile) {
+    if (!user.gigWorkerProfile) {
       throw new Error("Worker profile not found");
-    }
-
-    const skill = await db.query.SkillsTable.findFirst({
-      where: eq(SkillsTable.id, skillId),
-    });
-    if (!skill) {
-      throw new Error("Skill not found");
-    }
-
-    if (skill.workerProfileId !== workerProfile.id) {
-      throw new Error("Unauthorized to delete this skill");
     }
 
     const result = await db
       .delete(SkillsTable)
-      .where(eq(SkillsTable.id, skillId))
+      .where(
+        and(
+          eq(SkillsTable.id, skillId),
+          eq(SkillsTable.workerProfileId, user.gigWorkerProfile.id)
+        )
+      )
       .returning();
 
     if (result.length === 0) {
-      throw new Error("Failed to delete skill");
+      throw new Error(
+        "Failed to delete skill. It may not exist or you don't have permission."
+      );
     }
 
     return { success: true, data: "Skill deleted successfully" };
