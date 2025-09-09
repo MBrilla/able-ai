@@ -648,6 +648,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
     about: string;
     experience: string;
     skills: string;
+    qualifications?: string; // Add qualifications field
     hourlyRate: string;
     location: any;
     availability:
@@ -762,6 +763,12 @@ export const saveWorkerProfileFromOnboardingAction = async (
           .split(",")
           .map((skill) => skill.trim())
           .filter(Boolean),
+        qualifications: profileData.qualifications
+          ? profileData.qualifications
+              .split(",")
+              .map((qual) => qual.trim())
+              .filter(Boolean)
+          : [],
       },
       privateNotes: `Hourly Rate: ${profileData.hourlyRate}\n`,
       updatedAt: new Date(),
@@ -848,15 +855,24 @@ export const saveWorkerProfileFromOnboardingAction = async (
         return date;
       };
 
+      console.log('📅 Saving availability data to database:', {
+        days: profileData.availability.days,
+        frequency: profileData.availability.frequency,
+        startDate: profileData.availability.startDate,
+        startTime: profileData.availability.startTime,
+        endTime: profileData.availability.endTime,
+        ends: profileData.availability.ends
+      });
+
       await db.insert(WorkerAvailabilityTable).values({
         userId: user.id,
         days: profileData.availability.days || [],
-        frequency: (profileData.availability.frequency || "never") as
+        frequency: (profileData.availability.frequency || "weekly") as
           | "never"
           | "weekly"
           | "biweekly"
           | "monthly",
-        startDate: profileData.availability.startDate,
+        startDate: profileData.availability.startDate || new Date().toISOString().split('T')[0],
         startTimeStr: profileData.availability.startTime,
         endTimeStr: profileData.availability.endTime,
         // Convert time strings to timestamp for the required fields
@@ -872,6 +888,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+
+      console.log('✅ Availability data saved successfully to worker_availability table');
     }
 
     // Save worker skills data to gig_worker_skills table
@@ -1044,6 +1062,74 @@ export const saveWorkerProfileFromOnboardingAction = async (
       }
     } else {
       // No equipment provided
+    }
+
+    // Save qualifications data to qualifications table
+    if (profileData.qualifications && profileData.qualifications.trim().length > 0) {
+      try {
+        console.log('🎓 Saving qualifications data to database...');
+        
+        // Parse qualifications from comma-separated string
+        const qualificationsList = profileData.qualifications
+          .split(',')
+          .map(qual => qual.trim())
+          .filter(qual => qual.length > 0);
+
+        console.log('🎓 Parsed qualifications:', qualificationsList);
+
+        // Wrap delete and insert operations in a transaction for data integrity
+        await db.transaction(async (tx) => {
+          // Delete existing qualifications for this worker
+          await tx
+            .delete(QualificationsTable)
+            .where(eq(QualificationsTable.workerProfileId, workerProfileId));
+
+          // Insert new qualifications
+          if (qualificationsList.length > 0) {
+            const qualificationsToInsert = qualificationsList.map((qualification) => {
+              // Try to extract year from qualification text (e.g., "Bachelor's Degree 2020")
+              const yearMatch = qualification.match(/(\d{4})/);
+              const yearAchieved = yearMatch ? parseInt(yearMatch[1]) : null;
+              
+              // Try to extract institution (basic pattern matching)
+              const institutionMatch = qualification.match(/(?:from|at|@)\s+([^,]+)/i);
+              const institution = institutionMatch ? institutionMatch[1].trim() : null;
+              
+              // Clean up the title by removing year and institution
+              let title = qualification;
+              if (yearMatch) {
+                title = title.replace(/\d{4}/, '').trim();
+              }
+              if (institutionMatch) {
+                title = title.replace(/(?:from|at|@)\s+[^,]+/i, '').trim();
+              }
+              
+              return {
+                workerProfileId: workerProfileId,
+                title: title || qualification, // Fallback to original if cleaning fails
+                institution: institution,
+                yearAchieved: yearAchieved,
+                description: null, // Could be enhanced to extract more details
+                documentUrl: null, // Could be enhanced to handle document uploads
+                isVerifiedByAdmin: false,
+                skillId: null, // Could be enhanced to link to specific skills
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              };
+            });
+
+            console.log('🎓 Inserting qualifications:', qualificationsToInsert);
+            
+            const insertResult = await tx.insert(QualificationsTable).values(qualificationsToInsert);
+            console.log('✅ Qualifications saved successfully:', insertResult);
+          }
+        });
+      } catch (dbError) {
+        console.error('❌ Error saving qualifications:', dbError);
+        // Don't fail the entire profile save if qualifications saving fails
+      }
+    } else {
+      console.log('🎓 No qualifications provided, skipping qualifications save');
     }
 
     // Save job title as a skill if provided (check for duplicates first)

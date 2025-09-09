@@ -169,6 +169,7 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 		'complete' | 
 		'requestAmendment' | 
 		'reportIssue' | 
+		'delegate' |
 		'awaiting' | 
 		'confirmed' | 
 		'requested' | 
@@ -236,11 +237,14 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 				toast.success('Gig confirmed successfully!');
 				// Show success message
 			} else if (action === 'requestAmendment') {
-				// Generate a temporary amendment ID or use gig ID
-				const amendmentId = `amend-${Date.now()}`;
-				router.push(`/gigs/${gig.id}/amends/${amendmentId}`);
+				// Navigate to the amend page using the correct user profile structure
+				router.push(`/user/${userId}/worker/gigs/${gig.id}/amend`);
 			} else if (action === 'reportIssue') {
+				// Navigate to the report issue page using the correct path structure
 				router.push(`/gigs/${gig.id}/report-issue`);
+			} else if (action === 'delegate') {
+				// Navigate to the delegate gig page using the correct path structure
+				router.push(`/gigs/${gig.id}/delegate`);
 			} else if (action === 'delete') {
 				await deleteGig({ gigId: gig.id, userId: userId });
 				toast.success('Gig deleted successfully!');
@@ -257,36 +261,39 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
             setIsActionLoading(false);
         }
     };
-{/* MBrilla change end 
+
 	// Handler for negotiating gig details
 	const handleNegotiateGig = () => {
 		if (!user?.uid || !gig.id) return;
 
-		// Navigate to the existing negotiation page
-		router.push(`/gigs/${gig.id}/amends/${amendId}`);
+		// Navigate to the amend page - need to get the current user's profile ID
+		const currentUserId = userId; // This should be the worker's profile ID from props
+		router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/amend`);
 	};
 
 	// Handler for reporting an issue
 	const handleReportIssue = () => {
 		if (!user?.uid || !gig.id) return;
 
-		// Navigate to the existing report issue page
-		router.push(`/gigs/${gig.id}/report-issue`);
+		// Navigate to the report issue page
+		const currentUserId = userId; // This should be the worker's profile ID from props
+		router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/report-issue`);
 	};
 
 	// Handler for delegating gig
 	const handleDelegateGig = () => {
 		if (!user?.uid || !gig.id) return;
 
-		// Navigate to the existing delegate gig page
-		router.push(`/gigs/${gig.id}/delegate`);
+		// Navigate to the delegate gig page
+		const currentUserId = userId; // This should be the worker's profile ID from props
+		router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/delegate`);
 	};
 
 	// Handler for viewing terms of agreement
 	const handleViewTerms = () => {
 		// Navigate to the existing terms page
 		router.push('/legal/terms');
-	};*/}
+	};
 
 	return (
 		<div className={styles.container}>
@@ -429,6 +436,9 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 					</Link>
 					<button onClick={() => handleGigAction('reportIssue')} className={styles.secondaryActionButton} disabled={isActionLoading}>
 						Report an Issue
+					</button>
+					<button onClick={() => handleGigAction('delegate')} className={styles.secondaryActionButton} disabled={isActionLoading}>
+						Delegate gig
 					</button>
 				</section>
 			</main>

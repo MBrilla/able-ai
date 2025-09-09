@@ -13,7 +13,7 @@ import LocationPickerBubble from '@/app/components/onboarding/LocationPickerBubb
 import ShareLinkBubble from "@/app/components/onboarding/ShareLinkBubble";
 import SanitizedConfirmationBubble from "@/app/components/onboarding/SanitizedConfirmationBubble";
 import SetupChoiceModal from "@/app/components/onboarding/SetupChoiceModal";
-import ManualProfileForm from "@/app/components/onboarding/ManualProfileForm";
+import ManualProfileForm, { validateWorkerProfileData } from "@/app/components/onboarding/ManualProfileForm";
 import Loader from "@/app/components/shared/Loader";
 
 // Typing indicator component with bouncing animation - matching gig creation
@@ -146,6 +146,7 @@ interface FormData {
   about?: string;
   experience?: string;
   skills?: string;
+  qualifications?: string; // Add qualifications field
   equipment?: string;
   hourlyRate?: number;
   location?: { lat: number; lng: number } | string;
@@ -155,6 +156,7 @@ interface FormData {
     endTime: string;
     frequency?: string;
     ends?: string;
+    startDate?: string;
     endDate?: string;
     occurrences?: number;
   } | string;
@@ -919,8 +921,21 @@ export default function OnboardWorkerPage() {
       setError('Authentication required. Please sign in again.');
       return;
     }
+
+    console.log('🔍 Starting manual form submission validation...');
     
+    // Validate the form data before proceeding
+    const validation = validateWorkerProfileData(formData);
+    if (!validation.isValid) {
+      console.error('❌ Form validation failed:', validation.errors);
+      setError(`Form validation failed: ${Object.values(validation.errors).join(', ')}`);
+      return;
+    }
+
+    console.log('✅ Form validation passed, proceeding with submission');
     setIsSubmitting(true);
+    setError(null);
+    
     try {
       // Extract job title from about field if not already provided
       let extractedJobTitle = formData.jobTitle || '';
@@ -941,20 +956,43 @@ export default function OnboardWorkerPage() {
           about: formData.about || '', // This is now the sanitized version from the form
           experience: formData.experience || '', // This is now the sanitized version from the form
           skills: formData.skills || '', // This is now the sanitized version from the form
+          qualifications: formData.qualifications || '', // Add qualifications field
           equipment: typeof formData.equipment === 'string' && formData.equipment.trim().length > 0
             ? formData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined }))
             : [],
           hourlyRate: String(formData.hourlyRate || ''),
           location: formData.location || '',
-          availability: formData.availability || { days: [], startTime: '09:00', endTime: '17:00' },
+          availability: formData.availability || { 
+            days: [], 
+            startTime: '09:00', 
+            endTime: '17:00',
+            frequency: 'weekly',
+            ends: 'never',
+            startDate: new Date().toISOString().split('T')[0],
+            endDate: undefined,
+            occurrences: undefined
+          },
           videoIntro: typeof formData.videoIntro === 'string' ? formData.videoIntro : '',
           time: formData.time || '',
           jobTitle: formData.jobTitle || extractedJobTitle // Use sanitized jobTitle from form first
         };
       
+      console.log('📤 Sending validated data to backend:', {
+        about: requiredData.about?.substring(0, 50) + '...',
+        experience: requiredData.experience?.substring(0, 50) + '...',
+        skills: requiredData.skills?.substring(0, 50) + '...',
+        equipment: requiredData.equipment.length,
+        hourlyRate: requiredData.hourlyRate,
+        hasLocation: !!requiredData.location,
+        availabilityDays: requiredData.availability.days.length,
+        hasVideo: !!requiredData.videoIntro,
+        jobTitle: requiredData.jobTitle
+      });
+      
       // Save the profile data to database - THIRD OCCURRENCE
       const result = await saveWorkerProfileFromOnboardingAction(requiredData, user.token);
       if (result.success) {
+        console.log('✅ Profile saved successfully');
         // Set the worker profile ID for references link generation
         if (result.workerProfileId) {
           setWorkerProfileId(result.workerProfileId);
@@ -963,10 +1001,11 @@ export default function OnboardWorkerPage() {
         // Navigate to worker dashboard
         router.push(`/user/${user?.uid}/worker`);
       } else {
+        console.error('❌ Profile save failed:', result);
         setError('Failed to save profile. Please try again.');
       }
     } catch (error) {
-      console.error('Manual form submission error:', error);
+      console.error('❌ Manual form submission error:', error);
       setError('Failed to save profile. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -2176,7 +2215,12 @@ Share this link to get your reference\n\nSend this link to get your reference: $
             [name]: {
               days: [],
               startTime: '09:00',
-              endTime: '17:00'
+              endTime: '17:00',
+              frequency: 'weekly',
+              ends: 'never',
+              startDate: new Date().toISOString().split('T')[0],
+              endDate: undefined,
+              occurrences: undefined
             }
           }));
         } else {
@@ -2186,7 +2230,12 @@ Share this link to get your reference\n\nSend this link to get your reference: $
             [name]: {
               days: [],
               startTime: '09:00',
-              endTime: '17:00'
+              endTime: '17:00',
+              frequency: 'weekly',
+              ends: 'never',
+              startDate: new Date().toISOString().split('T')[0],
+              endDate: undefined,
+              occurrences: undefined
             }
           }));
         }
@@ -2728,7 +2777,16 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                             : [],
                           hourlyRate: String(step.summaryData?.hourlyRate || ''),
                           location: step.summaryData?.location || '',
-                          availability: step.summaryData?.availability || { days: [], startTime: '09:00', endTime: '17:00' },
+                          availability: step.summaryData?.availability || { 
+                            days: [], 
+                            startTime: '09:00', 
+                            endTime: '17:00',
+                            frequency: 'weekly',
+                            ends: 'never',
+                            startDate: new Date().toISOString().split('T')[0],
+                            endDate: undefined,
+                            occurrences: undefined
+                          },
                           videoIntro: step.summaryData?.videoIntro || '',
                           references: step.summaryData?.references || '',
                           jobTitle: step.summaryData?.jobTitle || ''
@@ -3204,7 +3262,16 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                                  equipment: summaryData.equipment ? summaryData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined })) : [],
                                  hourlyRate: String(summaryData.hourlyRate || ''),
                                  location: summaryData.location || '',
-                                 availability: summaryData.availability || { days: [], startTime: '09:00', endTime: '17:00' },
+                                 availability: summaryData.availability || { 
+                                   days: [], 
+                                   startTime: '09:00', 
+                                   endTime: '17:00',
+                                   frequency: 'weekly',
+                                   ends: 'never',
+                                   startDate: new Date().toISOString().split('T')[0],
+                                   endDate: undefined,
+                                   occurrences: undefined
+                                 },
                                  videoIntro: summaryData.videoIntro || '',
                                  references: summaryData.references || '',
                                  jobTitle: summaryData.jobTitle || ''
@@ -3420,8 +3487,11 @@ Share this link to get your reference\n\nSend this link to get your reference: $
             days: [],
             startTime: '09:00',
             endTime: '17:00',
-            frequency: 'never',
-            ends: 'never'
+            frequency: 'weekly',
+            ends: 'never',
+            startDate: new Date().toISOString().split('T')[0],
+            endDate: undefined,
+            occurrences: undefined
           };
 
           const handleDayToggle = (day: string) => {

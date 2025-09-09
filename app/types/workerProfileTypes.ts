@@ -64,6 +64,7 @@ export interface Availability {
 
 export interface SemanticProfile {
   tags: string[];
+  qualifications?: string[];
 }
 
 export default interface PublicWorkerProfile {

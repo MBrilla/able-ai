@@ -45,6 +45,7 @@ interface FormData {
   about: string;
   experience: string;
   skills: string;
+  qualifications: string; // Add qualifications field
   equipment: string;
   hourlyRate: number;
   location: any; // Changed to any for LocationPickerBubble
@@ -52,6 +53,11 @@ interface FormData {
     days: string[];
     startTime: string;
     endTime: string;
+    frequency?: string;
+    ends?: string;
+    startDate?: string;
+    endDate?: string;
+    occurrences?: number;
   };
   videoIntro: string | null;
   references: string;
@@ -64,6 +70,168 @@ interface ManualProfileFormProps {
   initialData?: Partial<FormData>;
   workerProfileId?: string | null;
 }
+
+// Export validation function for external use (basic validation only)
+export const validateWorkerProfileData = (formData: FormData): { isValid: boolean; errors: Record<string, string> } => {
+  const errors: Record<string, string> = {};
+  let isValid = true;
+
+  // Only validate about, experience, skills, and equipment
+  const fieldsToValidate = ['about', 'experience', 'skills', 'equipment'];
+  
+  fieldsToValidate.forEach(fieldName => {
+    const value = formData[fieldName as keyof FormData];
+    
+    switch (fieldName) {
+      case 'about':
+        if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_ABOUT_LENGTH) {
+          errors.about = `About section must be at least ${VALIDATION_CONSTANTS.WORKER.MIN_ABOUT_LENGTH} characters`;
+          isValid = false;
+        }
+        break;
+      case 'experience':
+        if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH) {
+          errors.experience = `Experience section must be at least ${VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH} characters`;
+          isValid = false;
+        }
+        break;
+      case 'skills':
+        if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH) {
+          errors.skills = `Skills section must be at least ${VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH} characters`;
+          isValid = false;
+        }
+        break;
+      case 'equipment':
+        if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH) {
+          errors.equipment = `Equipment section must be at least ${VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH} characters`;
+          isValid = false;
+        }
+        break;
+    }
+  });
+
+  return { isValid, errors };
+};
+
+// Export AI content validation function for external use
+export const validateContentWithAI = async (field: string, value: string): Promise<{ isValid: boolean; error?: string; sanitized?: string }> => {
+  if (!value || value.trim().length === 0) {
+    return { isValid: true, sanitized: value };
+  }
+
+  try {
+    const ai = getAI();
+    if (!ai) {
+      console.log('AI not available, skipping content validation');
+      return { isValid: true, sanitized: value };
+    }
+
+    let prompt = '';
+    let schema: any;
+
+    if (field === 'about') {
+      prompt = `Validate this worker's self-description. Check if it's professional and relevant for gig work. Reject if it contains:
+      - Personal names of celebrities, athletes, or fictional characters
+      - Jokes, memes, or inappropriate content
+      - Non-professional information
+      - Gibberish or random text
+      
+      If valid, return the cleaned version. If invalid, explain why it's inappropriate.
+      
+      Description: "${value}"`;
+      
+      schema = Schema.object({
+        properties: {
+          isValid: Schema.boolean(),
+          reason: Schema.string(),
+          sanitized: Schema.string()
+        },
+        required: ["isValid", "reason", "sanitized"]
+      });
+    } else if (field === 'skills') {
+      prompt = `Validate this skills list. Check if it contains only professional skills relevant to gig work. Reject if it contains:
+      - Personal names of celebrities, athletes, or fictional characters
+      - Jokes, memes, or inappropriate content
+      - Non-professional skills
+      - Random text or gibberish
+      
+      If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+      
+      Skills: "${value}"`;
+      
+      schema = Schema.object({
+        properties: {
+          isValid: Schema.boolean(),
+          reason: Schema.string(),
+          sanitized: Schema.string()
+        },
+        required: ["isValid", "reason", "sanitized"]
+      });
+    } else if (field === 'experience') {
+      prompt = `Validate this experience description. Check if it's professional and relevant. Reject if it contains:
+      - Personal names of celebrities, athletes, or fictional characters
+      - Jokes, memes, or inappropriate content
+      - Non-professional information
+      - Gibberish or random text
+      
+      If valid, return the cleaned version. If invalid, explain why it's inappropriate.
+      
+      Experience: "${value}"`;
+      
+      schema = Schema.object({
+        properties: {
+          isValid: Schema.boolean(),
+          reason: Schema.string(),
+          sanitized: Schema.string()
+        },
+        required: ["isValid", "reason", "sanitized"]
+      });
+    } else if (field === 'equipment') {
+      prompt = `Validate this equipment list. Check if it contains only professional equipment relevant to gig work. Reject if it contains:
+      - Personal names of celebrities, athletes, or fictional characters
+      - Jokes, memes, or inappropriate content
+      - Non-professional items
+      - Random text or gibberish
+      
+      If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+      
+      Equipment: "${value}"`;
+      
+      schema = Schema.object({
+        properties: {
+          isValid: Schema.boolean(),
+          reason: Schema.string(),
+          sanitized: Schema.string()
+        },
+        required: ["isValid", "reason", "sanitized"]
+      });
+    } else {
+      return { isValid: true, sanitized: value };
+    }
+
+    const result = await geminiAIAgent(
+      VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_0_FLASH,
+      { prompt, responseSchema: schema },
+      ai,
+      VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_5_FLASH_PREVIEW
+    );
+
+    if (result.ok) {
+      const data = result.data as any;
+      return {
+        isValid: data.isValid,
+        error: data.isValid ? undefined : data.reason,
+        sanitized: data.sanitized || value
+      };
+    } else {
+      console.error('AI content validation failed:', result);
+      return { isValid: true, sanitized: value }; // Fallback to allow submission
+    }
+  } catch (error) {
+    console.error('AI content validation error:', error);
+    return { isValid: true, sanitized: value }; // Fallback to allow submission
+  }
+};
 
 const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
   onSubmit,
@@ -78,13 +246,19 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     about: '',
     experience: '',
     skills: '',
+    qualifications: '', // Add qualifications field
     equipment: '',
     hourlyRate: 0,
     location: null,
     availability: {
       days: [],
       startTime: '09:00',
-      endTime: '17:00'
+      endTime: '17:00',
+      frequency: 'weekly',
+      ends: 'never',
+      startDate: new Date().toISOString().split('T')[0], // Today's date
+      endDate: undefined,
+      occurrences: undefined
     },
     videoIntro: null,
     references: workerProfileId ? buildRecommendationLink(workerProfileId) : '',
@@ -142,31 +316,16 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     fetchExistingProfile();
   }, [user?.claims?.role, user?.token, formData.references]);
 
-  // Calculate progress based on filled fields
+  // Calculate progress based on filled fields (only the validated fields)
   useEffect(() => {
-    const requiredFields = ['about', 'experience', 'skills', 'equipment', 'hourlyRate', 'location', 'availability', 'videoIntro'];
+    const validatedFields = ['about', 'experience', 'skills', 'equipment'];
  
-    
-    const filledFields = requiredFields.filter(field => {
+    const filledFields = validatedFields.filter(field => {
       const value = formData[field as keyof FormData];
-      
-
-      
-      if (field === 'location') {
-        return value && typeof value === 'object' && 'lat' in value && 'lng' in value;
-      }
-      if (field === 'availability') {
-        return value && Array.isArray(value.days) && value.days.length > 0;
-      }
-      if (field === 'videoIntro') {
-        return value && typeof value === 'string' && value.trim().length > 0;
-      }
-      return value && (typeof value === 'string' ? value.trim() !== '' : value > 0);
+      return value && typeof value === 'string' && value.trim().length >= VALIDATION_CONSTANTS.WORKER[`MIN_${field.toUpperCase()}_LENGTH` as keyof typeof VALIDATION_CONSTANTS.WORKER];
     });
     
-
-    
-    setProgress((filledFields.length / requiredFields.length) * 100);
+    setProgress((filledFields.length / validatedFields.length) * 100);
   }, [formData]);
 
   const validateField = (name: keyof FormData, value: any): string => {
@@ -180,6 +339,9 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
         return value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH ? `Please list your skills (at least ${VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH} characters)` : '';
       case 'equipment':
         return !value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH ? `Please list your equipment (at least ${VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH} characters)` : '';
+      case 'qualifications':
+        // Qualifications are optional, but if provided, should be meaningful
+        return value && value.trim().length > 0 && value.trim().length < 5 ? 'Please provide more details about your qualifications (at least 5 characters)' : '';
       case 'hourlyRate':
         return !value || value < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE ? `Please enter a valid hourly rate (minimum £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE})` : '';
       case 'location':
@@ -275,7 +437,127 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     }));
   };
 
-  // AI Sanitization function for specific fields
+  // AI Content Validation function - rejects inappropriate content
+  const validateContentWithAI = async (field: string, value: string): Promise<{ isValid: boolean; error?: string; sanitized?: string }> => {
+    if (!value || value.trim().length === 0) {
+      return { isValid: true, sanitized: value };
+    }
+
+    try {
+      const ai = getAI();
+      if (!ai) {
+        console.log('AI not available, skipping content validation');
+        return { isValid: true, sanitized: value };
+      }
+
+      let prompt = '';
+      let schema: any;
+
+      if (field === 'about') {
+        prompt = `Validate this worker's self-description. Check if it's professional and relevant for gig work. Reject if it contains:
+        - Personal names of celebrities, athletes, or fictional characters
+        - Jokes, memes, or inappropriate content
+        - Non-professional information
+        - Gibberish or random text
+        
+        If valid, return the cleaned version. If invalid, explain why it's inappropriate.
+        
+        Description: "${value}"`;
+        
+        schema = Schema.object({
+          properties: {
+            isValid: Schema.boolean(),
+            reason: Schema.string(),
+            sanitized: Schema.string()
+          },
+          required: ["isValid", "reason", "sanitized"]
+        });
+      } else if (field === 'skills') {
+        prompt = `Validate this skills list. Check if it contains only professional skills relevant to gig work. Reject if it contains:
+        - Personal names of celebrities, athletes, or fictional characters
+        - Jokes, memes, or inappropriate content
+        - Non-professional skills
+        - Random text or gibberish
+        
+        If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+        
+        Skills: "${value}"`;
+        
+        schema = Schema.object({
+          properties: {
+            isValid: Schema.boolean(),
+            reason: Schema.string(),
+            sanitized: Schema.string()
+          },
+          required: ["isValid", "reason", "sanitized"]
+        });
+      } else if (field === 'experience') {
+        prompt = `Validate this experience description. Check if it's professional and relevant. Reject if it contains:
+        - Personal names of celebrities, athletes, or fictional characters
+        - Jokes, memes, or inappropriate content
+        - Non-professional information
+        - Gibberish or random text
+        
+        If valid, return the cleaned version. If invalid, explain why it's inappropriate.
+        
+        Experience: "${value}"`;
+        
+        schema = Schema.object({
+          properties: {
+            isValid: Schema.boolean(),
+            reason: Schema.string(),
+            sanitized: Schema.string()
+          },
+          required: ["isValid", "reason", "sanitized"]
+        });
+      } else if (field === 'equipment') {
+        prompt = `Validate this equipment list. Check if it contains only professional equipment relevant to gig work. Reject if it contains:
+        - Personal names of celebrities, athletes, or fictional characters
+        - Jokes, memes, or inappropriate content
+        - Non-professional items
+        - Random text or gibberish
+        
+        If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+        
+        Equipment: "${value}"`;
+        
+        schema = Schema.object({
+          properties: {
+            isValid: Schema.boolean(),
+            reason: Schema.string(),
+            sanitized: Schema.string()
+          },
+          required: ["isValid", "reason", "sanitized"]
+        });
+      } else {
+        return { isValid: true, sanitized: value };
+      }
+
+      const result = await geminiAIAgent(
+        VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_0_FLASH,
+        { prompt, responseSchema: schema },
+        ai,
+        VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_5_FLASH_PREVIEW
+      );
+
+      if (result.ok) {
+        const data = result.data as any;
+        return {
+          isValid: data.isValid,
+          error: data.isValid ? undefined : data.reason,
+          sanitized: data.sanitized || value
+        };
+      } else {
+        console.error('AI content validation failed:', result);
+        return { isValid: true, sanitized: value }; // Fallback to allow submission
+      }
+    } catch (error) {
+      console.error('AI content validation error:', error);
+      return { isValid: true, sanitized: value }; // Fallback to allow submission
+    }
+  };
+
+  // AI Sanitization function for specific fields (kept for job title extraction)
   const sanitizeWithAI = async (field: string, value: string): Promise<{ sanitized: string; jobTitle?: string; yearsOfExperience?: number }> => {
     if (!value || value.trim().length === 0) {
       return { sanitized: value };
@@ -358,23 +640,28 @@ Experience description: "${value}"`;
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
-    // Check all required fields, not just the ones in formData
-    const requiredFields = ['about', 'experience', 'skills', 'equipment', 'hourlyRate', 'location', 'availability', 'videoIntro'];
-    
-    requiredFields.forEach(fieldName => {
-      const value = formData[fieldName as keyof FormData];
-      
+    console.log('🔍 Starting form validation...');
 
-      
+    // Only validate about, experience, skills, and equipment
+    const fieldsToValidate = ['about', 'experience', 'skills', 'equipment'];
+    
+    fieldsToValidate.forEach(fieldName => {
+      const value = formData[fieldName as keyof FormData];
       const error = validateField(fieldName as keyof FormData, value);
 
       if (error) {
         newErrors[fieldName] = error;
         isValid = false;
+        console.log(`❌ Validation failed for ${fieldName}:`, error);
+      } else {
+        console.log(`✅ Validation passed for ${fieldName}`);
       }
     });
 
-
+    console.log(`🔍 Form validation result: ${isValid ? 'PASSED' : 'FAILED'}`);
+    if (!isValid) {
+      console.log('❌ Validation errors:', newErrors);
+    }
 
     setErrors(newErrors);
     return isValid;
@@ -388,14 +675,50 @@ Experience description: "${value}"`;
       return;
     }
 
+    // Validate form before proceeding
     if (!validateForm()) {
+      console.log('❌ Form validation failed, not submitting');
       return;
     }
 
+    console.log('✅ Form validation passed, proceeding with AI content validation');
     setIsSubmitting(true);
     
     try {
-      // AI Sanitization for specific fields (silent)
+      // AI Content Validation - this will REJECT inappropriate content
+      const validationErrors: Record<string, string> = {};
+      let hasContentErrors = false;
+
+      // Validate each field with AI
+      const fieldsToValidate = ['about', 'experience', 'skills', 'equipment'];
+      
+      for (const field of fieldsToValidate) {
+        const value = formData[field as keyof FormData];
+        if (value && typeof value === 'string' && value.trim().length > 0) {
+          console.log(`🤖 Validating ${field} content with AI...`);
+          const validation = await validateContentWithAI(field, value);
+          
+          if (!validation.isValid) {
+            console.log(`❌ AI rejected ${field}:`, validation.error);
+            validationErrors[field] = validation.error || 'Content is inappropriate for professional use';
+            hasContentErrors = true;
+          } else {
+            console.log(`✅ AI approved ${field}`);
+          }
+        }
+      }
+
+      // If AI found inappropriate content, show errors and stop submission
+      if (hasContentErrors) {
+        console.log('❌ AI content validation failed, blocking submission');
+        setErrors(prev => ({ ...prev, ...validationErrors }));
+        setIsSubmitting(false);
+        return;
+      }
+
+      console.log('✅ AI content validation passed, proceeding with sanitization');
+      
+      // AI Sanitization for specific fields (only if content is valid)
       const sanitizedData = { ...formData };
       let extractedJobTitle = '';
 
@@ -433,10 +756,24 @@ Experience description: "${value}"`;
       // Update form data with sanitized values
       setFormData(sanitizedData);
       
-      // Submit the sanitized data
+      console.log('📤 Submitting validated and sanitized data to backend:', {
+        about: sanitizedData.about?.substring(0, 50) + '...',
+        experience: sanitizedData.experience?.substring(0, 50) + '...',
+        skills: sanitizedData.skills?.substring(0, 50) + '...',
+        equipment: sanitizedData.equipment?.substring(0, 50) + '...',
+        hourlyRate: sanitizedData.hourlyRate,
+        hasLocation: !!sanitizedData.location,
+        availabilityDays: sanitizedData.availability.days.length,
+        hasVideo: !!sanitizedData.videoIntro,
+        jobTitle: sanitizedData.jobTitle
+      });
+      
+      // Submit the validated and sanitized data
       await onSubmit(sanitizedData);
     } catch (error) {
       console.error('Form submission error:', error);
+      // Set error state to show user
+      setErrors(prev => ({ ...prev, submit: 'Failed to submit form. Please try again.' }));
     } finally {
       setIsSubmitting(false);
     }
@@ -526,16 +863,30 @@ Experience description: "${value}"`;
 
                      <div className={styles.formGroup}>
              <label className={styles.label}>
-               Skills & Certifications *
+               Skills *
              </label>
              <textarea
                className={`${styles.textarea} ${errors.skills ? styles.error : ''}`}
                value={formData.skills}
                onChange={(e) => handleInputChange('skills', e.target.value)}
-               placeholder="List your skills, certifications, and qualifications..."
+               placeholder="List your professional skills..."
                rows={3}
              />
              {errors.skills && <span className={styles.errorText}>{errors.skills}</span>}
+           </div>
+
+           <div className={styles.formGroup}>
+             <label className={styles.label}>
+               Qualifications & Certifications
+             </label>
+             <textarea
+               className={`${styles.textarea} ${errors.qualifications ? styles.error : ''}`}
+               value={formData.qualifications}
+               onChange={(e) => handleInputChange('qualifications', e.target.value)}
+               placeholder="List your qualifications, certifications, degrees, licenses, etc..."
+               rows={3}
+             />
+             {errors.qualifications && <span className={styles.errorText}>{errors.qualifications}</span>}
            </div>
 
            <div className={styles.formGroup}>
@@ -713,6 +1064,12 @@ Experience description: "${value}"`;
 
         {/* Submit Button */}
         <div className={styles.formActions}>
+          {errors.submit && (
+            <div className={styles.errorMessage}>
+              {errors.submit}
+            </div>
+          )}
+          
           <button
             type="submit"
             className={styles.submitButton}
@@ -730,7 +1087,7 @@ Experience description: "${value}"`;
 
           {progress < 100 && (
             <p className={styles.completionNote}>
-              Please fill in all required fields to complete your profile
+              Please fill in about, experience, skills, and equipment sections to complete your profile
             </p>
           )}
         </div>
