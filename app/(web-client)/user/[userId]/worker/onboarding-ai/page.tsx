@@ -952,6 +952,7 @@ export default function OnboardWorkerPage() {
       }
 
       // Ensure all required fields are present - use sanitized data from form
+      // Ensure all required fields are present - use sanitized data from form
         const requiredData = {
           about: formData.about || '', // This is now the sanitized version from the form
           experience: formData.experience || '', // This is now the sanitized version from the form
@@ -975,6 +976,7 @@ export default function OnboardWorkerPage() {
           videoIntro: typeof formData.videoIntro === 'string' ? formData.videoIntro : '',
           time: formData.time || '',
           jobTitle: formData.jobTitle || extractedJobTitle // Use sanitized jobTitle from form first
+          
         };
       
       console.log('📤 Sending validated data to backend:', {
@@ -1050,6 +1052,7 @@ export default function OnboardWorkerPage() {
 
       // Build validation prompt using ChatAI system
       const basePrompt = buildRolePrompt('gigfolioCoach', 'Profile Validation', `Validate and intelligently sanitize the following input for field: ${field}`);
+      
       
       
       const validationContext = `Previous context from this conversation:
@@ -1132,6 +1135,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
         ai
       );
       
+      
 
       if (result.ok && result.data) {
         const validation = result.data as AIValidationResponse;
@@ -1152,7 +1156,15 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
         }
         
         // Experience field - let AI handle it completely
+        // Experience field - let AI handle it completely
         if (field === 'experience') {
+          // Skip local validation, let AI handle it
+          return {
+            sufficient: true,
+            sanitized: trimmedValue,
+            naturalSummary: `Got it! You have ${trimmedValue}, correct?`,
+            extractedData: JSON.stringify({ experience: trimmedValue })
+          };
           // Skip local validation, let AI handle it
           return {
             sufficient: true,
@@ -2286,6 +2298,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
         },
         () => {
           getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+            updateVideoUrlProfileAction(downloadURL, user.token);
             updateVideoUrlProfileAction(downloadURL, user.token);
             handleInputChange(name, downloadURL);
             
