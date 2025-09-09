@@ -3,20 +3,20 @@
  * Handles AI-powered incident reporting flow
  */
 
-import { geminiAIAgent } from '@/lib/firebase/ai';
+import { geminiAIAgent, SupportedGeminiModel } from '@/lib/firebase/ai';
 import { Schema } from '@firebase/ai';
 import { IncidentType, IncidentAIResponse, IncidentAIPrompt } from '@/app/types/incidentTypes';
 import { getIncidentSeverity } from '@/lib/incident-detection';
 
 export interface IncidentAIConfig {
-  modelName: string;
-  fallbackModelName?: string;
+  modelName: SupportedGeminiModel;
+  fallbackModelName?: SupportedGeminiModel;
   maxRetries?: number;
 }
 
 const DEFAULT_CONFIG: IncidentAIConfig = {
   modelName: 'gemini-2.0-flash',
-  fallbackModelName: 'gemini-1.5-flash',
+  fallbackModelName: 'gemini-2.5-flash-preview-05-20',
   maxRetries: 3
 };
 
@@ -213,7 +213,7 @@ function getIncidentResponseSchema() {
         properties: {
           // Dynamic properties based on incident type
         },
-        additionalProperties: Schema.any()
+        additionalProperties: true
       }),
       suggestedActions: Schema.array({
         items: Schema.string()
