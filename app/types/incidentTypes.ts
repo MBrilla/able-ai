@@ -3,10 +3,7 @@
  * Defines types for incident reporting system
  */
 
-import type { IncidentType } from '@/lib/incident-detection';
-
-// Re-export for convenience
-export type { IncidentType };
+import { IncidentType } from '@/lib/incident-detection';
 
 export interface IncidentReport {
   id: string;

@@ -3,19 +3,20 @@
  * Handles AI-powered incident reporting flow
  */
 
-import { geminiAIAgent, SupportedGeminiModel } from '@/lib/firebase/ai';
+import { geminiAIAgent } from '@/lib/firebase/ai';
 import { Schema } from '@firebase/ai';
 import { IncidentType, IncidentAIResponse, IncidentAIPrompt } from '@/app/types/incidentTypes';
+import { getIncidentSeverity } from '@/lib/incident-detection';
 
 export interface IncidentAIConfig {
-  modelName: SupportedGeminiModel;
-  fallbackModelName?: SupportedGeminiModel;
+  modelName: string;
+  fallbackModelName?: string;
   maxRetries?: number;
 }
 
 const DEFAULT_CONFIG: IncidentAIConfig = {
   modelName: 'gemini-2.0-flash',
-  fallbackModelName: 'gemini-2.5-flash-preview-05-20',
+  fallbackModelName: 'gemini-1.5-flash',
   maxRetries: 3
 };
 
@@ -68,13 +69,6 @@ function buildIncidentPrompt(prompt: IncidentAIPrompt): string {
     .join('\n');
 
   const basePrompt = `You are Able AI, an assistant helping users report incidents on a gig platform. You are currently in an incident reporting flow.
-
-Before responding to the user, follow this structured reasoning process:
-1. UNDERSTAND: Identify the core incident being reported and the current step in the flow
-2. ANALYZE: Break down the key factors, collected data, and what information is still needed
-3. REASON: Find logical connections between the incident type and required information
-4. SYNTHESIZE: Combine the context to determine the most appropriate next question or action
-5. CONCLUDE: Provide clear, helpful guidance for the next step in the incident reporting process
 
 INCIDENT TYPE: ${incidentType}
 CURRENT STEP: ${currentStep} of ${totalSteps}
@@ -219,7 +213,7 @@ function getIncidentResponseSchema() {
         properties: {
           // Dynamic properties based on incident type
         },
-        additionalProperties: true
+        additionalProperties: Schema.any()
       }),
       suggestedActions: Schema.array({
         items: Schema.string()
@@ -270,6 +264,7 @@ export function generateIncidentSummary(
  */
 export function getFollowUpQuestions(
   incidentType: IncidentType,
+  currentData: { [key: string]: any }
 ): string[] {
   const questions: { [key in IncidentType]: string[] } = {
     harassment: [

@@ -5,7 +5,7 @@ import { escalatedIssues, UsersTable } from '@/lib/drizzle/schema';
 import { eq } from 'drizzle-orm';
 import { IncidentReportInput, IncidentReportResponse } from '@/app/types/incidentTypes';
 import { generateIncidentId, getIncidentSeverity } from '@/lib/incident-detection';
-import { isUserAuthenticated } from '@/lib/user.server';
+import { isUserAuthenticated } from '@/lib/auth';
 
 /**
  * Create a new incident report
@@ -155,7 +155,23 @@ export async function getIncidentReport(
 
     // Get incident report
     const incident = await db.query.escalatedIssues.findFirst({
-      where: eq(escalatedIssues.id, incidentId)
+      where: eq(escalatedIssues.id, incidentId),
+      with: {
+        user: {
+          columns: {
+            id: true,
+            fullName: true,
+            email: true
+          }
+        },
+        admin: {
+          columns: {
+            id: true,
+            fullName: true,
+            email: true
+          }
+        }
+      }
     });
 
     if (!incident) {
@@ -208,7 +224,16 @@ export async function getUserIncidentReports(
     // Get user's incident reports
     const incidents = await db.query.escalatedIssues.findMany({
       where: eq(escalatedIssues.userId, user.id),
-      orderBy: (escalatedIssues, { desc }) => [desc(escalatedIssues.createdAt)]
+      orderBy: (escalatedIssues, { desc }) => [desc(escalatedIssues.createdAt)],
+      with: {
+        admin: {
+          columns: {
+            id: true,
+            fullName: true,
+            email: true
+          }
+        }
+      }
     });
 
     return {

@@ -159,7 +159,20 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 		}
 	};
 
-	const handleGigAction = async (action: 'accept' | 'start' | 'complete' | 'requestAmendment' | 'reportIssue' | 'awaiting' | 'confirmed' | 'requested' | 'delete' | 'decline' | 'paid') => {
+	const handleGigAction = async (action: 
+		'accept' | 
+		'start' | 
+		'complete' | 
+		'requestAmendment' | 
+		'reportIssue' | 
+		'delegate' |
+		'awaiting' | 
+		'confirmed' | 
+		'requested' | 
+		'delete' | 
+		'decline' | 
+		'paid'
+	) => {
         if (!gig) return;
         setIsActionLoading(true);
         console.log(`Performing action: ${action} for gig: ${gig.id}`);
@@ -221,11 +234,14 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 				setGig({ ...gig, status: 'CONFIRMED' });
 				toast.success('Gig confirmed successfully!');
 			} else if (action === 'requestAmendment') {
-				// Generate a temporary amendment ID or use gig ID
-				const amendmentId = `amend-${Date.now()}`;
-				router.push(`/gigs/${gig.id}/amends/${amendmentId}`);
+				// Navigate to the amend page using the correct user profile structure
+				router.push(`/user/${userId}/worker/gigs/${gig.id}/amend`);
 			} else if (action === 'reportIssue') {
+				// Navigate to the report issue page using the correct path structure
 				router.push(`/gigs/${gig.id}/report-issue`);
+			} else if (action === 'delegate') {
+				// Navigate to the delegate gig page using the correct path structure
+				router.push(`/gigs/${gig.id}/delegate`);
 			} else if (action === 'delete') {
 				await deleteGig({ gigId: gig.id, userId: userId });
 				toast.success('Gig deleted successfully!');
@@ -246,25 +262,28 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 	// Handler for negotiating gig details
 	const handleNegotiateGig = () => {
 		if (!user?.uid || !gig.id) return;
-		
-		// Navigate to the existing negotiation page
-		router.push(`/gigs/${gig.id}/amends/${amendId}`);
+
+		// Navigate to the amend page - need to get the current user's profile ID
+		const currentUserId = userId; // This should be the worker's profile ID from props
+		router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/amend`);
 	};
 
 	// Handler for reporting an issue
 	const handleReportIssue = () => {
 		if (!user?.uid || !gig.id) return;
-		
-		// Navigate to the existing report issue page
-		router.push(`/gigs/${gig.id}/report-issue`);
+
+		// Navigate to the report issue page
+		const currentUserId = userId; // This should be the worker's profile ID from props
+		router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/report-issue`);
 	};
 
 	// Handler for delegating gig
 	const handleDelegateGig = () => {
 		if (!user?.uid || !gig.id) return;
-		
-		// Navigate to the existing delegate gig page
-		router.push(`/gigs/${gig.id}/delegate`);
+
+		// Navigate to the delegate gig page
+		const currentUserId = userId; // This should be the worker's profile ID from props
+		router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/delegate`);
 	};
 
 	// Handler for viewing terms of agreement
@@ -642,50 +661,9 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 					<button onClick={() => handleGigAction('reportIssue')} className={styles.secondaryActionButton} disabled={isActionLoading}>
 						Report an Issue
 					</button>
-					
-					{/* Worker-specific action buttons */}
-					{lastRoleUsed === "GIG_WORKER" && role === 'worker' && (
-						<>
-							{/* Complete Gig Button - Navigate to complete page */}
-							{(gig.status === 'IN_PROGRESS' || gig.status === 'COMPLETED') && (
-								<Link href={`/user/${userId}/worker/gigs/${gig.id}/complete`} className={styles.secondaryActionButton}>
-									Complete gig
-								</Link>
-							)}
-							
-							{/* Amend Gig Button - Navigate to amend page */}
-							{(gig.status === 'ACCEPTED' || gig.status === 'IN_PROGRESS') && (
-								<Link href={`/user/${userId}/worker/gigs/${gig.id}/amend`} className={styles.secondaryActionButton}>
-									Amend gig
-								</Link>
-							)}
-							
-							{/* Mark Started Button */}
-							{gig.status === 'ACCEPTED' && (
-								<button onClick={() => handleGigAction('start')} className={styles.secondaryActionButton} disabled={isActionLoading}>
-									Mark you have started your shift
-								</button>
-							)}
-							
-							{/* Mark Complete Button */}
-							{gig.status === 'IN_PROGRESS' && (
-								<button onClick={() => handleGigAction('complete')} className={styles.secondaryActionButton} disabled={isActionLoading}>
-									Mark as complete
-								</button>
-							)}
-							
-							{/* Paid Button */}
-							{gig.status === 'COMPLETED' && (
-								<button onClick={() => handleGigAction('paid')} className={styles.secondaryActionButton} disabled={isActionLoading}>
-									Paid
-								</button>
-							)}
-						</>
-					)}
-					
-					{/* <button onClick={() => handleGigAction('delegate')} className={styles.secondaryActionButton} disabled={isActionLoading}>
-							<Share2 size={16} style={{marginRight: '8px'}}/> Delegate Gig
-						</button> */}
+					<button onClick={() => handleGigAction('delegate')} className={styles.secondaryActionButton} disabled={isActionLoading}>
+						Delegate gig
+					</button>
 				</section>
 
           if (!result.success) {

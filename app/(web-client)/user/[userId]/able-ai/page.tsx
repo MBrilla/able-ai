@@ -15,13 +15,8 @@ import pageStyles from "./AbleAIPage.module.css";
 import { useFirebase } from '@/context/FirebaseContext';
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { Schema } from '@firebase/ai';
-import { detectIncidentEnhanced } from '@/lib/ai-incident-detection';
-import { createEscalatedIssueClient } from '@/utils/client-escalation';
-import { parseContextFromURL, generateContextAwarePrompt, PageContext } from '@/lib/context-detection';
-import type GigDetails from '@/app/types/GigDetailsTypes';
-
-// Constants
-const MIN_INCIDENT_DETAILS_LENGTH_FOR_SUBMISSION = 100;
+import { detectIncident } from '@/lib/incident-detection';
+import IncidentReportingModal from '@/app/components/incidents/IncidentReportingModal';
 
 type WorkerGigOffer = {
   id: string;
@@ -320,11 +315,8 @@ What would you like help with?`;
   const [escalated, setEscalated] = useState<boolean>(false);
   
   // Incident reporting state
-  const [isReportingIncident, setIsReportingIncident] = useState(false);
-  const [incidentType, setIncidentType] = useState<string | null>(null);
-  const [incidentDetails, setIncidentDetails] = useState<string>('');
-  const [waitingForIncidentConfirmation, setWaitingForIncidentConfirmation] = useState(false);
-  const [incidentConfirmationTargetId, setIncidentConfirmationTargetId] = useState<number | null>(null);
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
+  const [detectedIncidentType, setDetectedIncidentType] = useState<string | null>(null);
 
   const SUPPORT_EMAIL = 'support@ableai.com';
 
@@ -608,23 +600,19 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
     }, 0);
   }, [feedbackPending, notHelpfulCount, generateUniqueId]);
 
-  // Incident confirmation handlers
-  const handleIncidentConfirm = useCallback(() => {
-    if (!waitingForIncidentConfirmation) return;
+  // Handle sending messages
+  const onSendMessage = useCallback((message: string) => {
+    // Check for incident keywords before processing
+    const incidentDetection = detectIncident(message);
     
-    setWaitingForIncidentConfirmation(false);
-    setIncidentConfirmationTargetId(null);
-    setIsReportingIncident(true);
-    
-    const responseMessage = `Thank you for confirming. I'll help you report this ${incidentType?.replace('_', ' ')} incident properly. 
+    if (incidentDetection.isIncident) {
+      console.log('🚨 Incident detected in Able AI chat:', incidentDetection);
+      setDetectedIncidentType(incidentDetection.incidentType || 'other');
+      setIsIncidentModalOpen(true);
+      return;
+    }
 
-Can you please provide more details about what happened? Please include:
-- When and where this occurred
-- Who was involved (if anyone)
-- Any other relevant information
-
-The more details you can provide, the better we can help you.`;
-    
+    // Add user message
     setChatSteps(prev => [
       ...prev,
       {
@@ -1179,6 +1167,19 @@ The more details you can provide, the better we can help you.`;
         </div>
       )}
 
+      {/* Incident Reporting Modal */}
+      {isIncidentModalOpen && detectedIncidentType && (
+        <IncidentReportingModal
+          isOpen={isIncidentModalOpen}
+          onClose={() => {
+            setIsIncidentModalOpen(false);
+            setDetectedIncidentType(null);
+          }}
+          userId={resolvedUserId || ''}
+          ai={ai}
+          incidentType={detectedIncidentType as any}
+        />
+      )}
     </ChatBotLayout>
   );
 }
