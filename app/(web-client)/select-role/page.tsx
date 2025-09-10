@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Logo from "@/app/components/brand/Logo";
 import ActionButton from "./ActionButton";
@@ -30,7 +30,7 @@ export default function SelectRolePage() {
       
       // Save rute initial in the localstorage
       if (role === "BUYER") {
-          const path = `user/${user.uid || "this_user"}/buyer/gigs/new`;
+          const path = `user/${user.uid || "this_user"}/buyer`;
           localStorage.setItem("lastPathBuyer", path);
           
           router.push(path);
