@@ -241,8 +241,12 @@ const SkillSplashScreen = ({
         </div>
 
         {/* Hashtags */}
-        {profile.hashtags && (
-          <div className={styles.hashtags}>{profile.hashtags}</div>
+        {profile.hashtags && profile.hashtags.length > 0 && (
+          <div className={styles.hashtags}>
+            {profile.hashtags.map((tag, index) => (
+              <span key={index} className={styles.hashtag}>{tag}</span>
+            ))}
+          </div>
         )}
 
         {/* Customer reviews */}

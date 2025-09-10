@@ -45,6 +45,7 @@ export class ProfileDataHandler {
         averageRating,
         awards, // <-- mapped awards
         ...profileDataRest, // <-- rest of profileData, awards excluded
+        hashtags: Array.isArray(workerProfile?.hashtags) ? workerProfile.hashtags : undefined,
       };
 
       return { success: true, data };

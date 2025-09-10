@@ -14,6 +14,8 @@ import pageStyles from "./AbleAIPage.module.css";
 import { useFirebase } from '@/context/FirebaseContext';
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { Schema } from '@firebase/ai';
+import { detectIncident } from '@/lib/incident-detection';
+import IncidentReportingModal from '@/app/components/incidents/IncidentReportingModal';
 
 type WorkerGigOffer = {
   id: string;
@@ -162,6 +164,10 @@ export default function AbleAIPage() {
   const [feedbackPending, setFeedbackPending] = useState<boolean>(false);
   const [notHelpfulCount, setNotHelpfulCount] = useState<number>(0);
   const [escalated, setEscalated] = useState<boolean>(false);
+  
+  // Incident reporting state
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
+  const [detectedIncidentType, setDetectedIncidentType] = useState<string | null>(null);
 
   const SUPPORT_EMAIL = 'support@ableai.com';
 
@@ -399,6 +405,16 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
 
   // Handle sending messages
   const onSendMessage = useCallback((message: string) => {
+    // Check for incident keywords before processing
+    const incidentDetection = detectIncident(message);
+    
+    if (incidentDetection.isIncident) {
+      console.log('🚨 Incident detected in Able AI chat:', incidentDetection);
+      setDetectedIncidentType(incidentDetection.incidentType || 'other');
+      setIsIncidentModalOpen(true);
+      return;
+    }
+
     // Add user message
     setChatSteps(prev => [
       ...prev,
@@ -666,6 +682,20 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
             </div>
           </div>
         </div>
+      )}
+
+      {/* Incident Reporting Modal */}
+      {isIncidentModalOpen && detectedIncidentType && (
+        <IncidentReportingModal
+          isOpen={isIncidentModalOpen}
+          onClose={() => {
+            setIsIncidentModalOpen(false);
+            setDetectedIncidentType(null);
+          }}
+          userId={resolvedUserId || ''}
+          ai={ai}
+          incidentType={detectedIncidentType as any}
+        />
       )}
     </ChatBotLayout>
   );

@@ -5,7 +5,7 @@ export type SkillProfile = {
   workerProfileId?: string;
   name?: string;
   title?: string;
-  hashtags?: string;
+  hashtags?: string[];
   customerReviewsText?: string | null;
   ableGigs?: number | null;
   experienceYears?: number | null;

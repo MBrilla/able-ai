@@ -4,7 +4,7 @@ export const mockSkillProfile: SkillProfile = {
   workerProfileId: "profile_12345",
   name: "Jane",
   title: "Developer",
-  hashtags: "#React #NextJS #NodeJS #MongoDB",
+  hashtags: ["#React", "#NextJS", "#NodeJS", "#MongoDB"],
   customerReviewsText: "Jane is a highly skilled and reliable developer who always delivers on time.",
   ableGigs: 25,
   experienceYears: 3,

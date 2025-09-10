@@ -221,6 +221,8 @@ CRITICAL REQUIREMENTS:
    - A "chef" gig requires cooking/culinary skills - NOT cashier, retail, or unrelated skills
    - A "server" gig requires hospitality/service skills - NOT construction, admin, or unrelated skills
    - Only consider transferable skills if they're genuinely applicable (e.g., "waiter" for server gigs)
+   - **IMPORTANT**: If a worker has multiple skills, select the MOST RELEVANT skill for this specific gig
+   - For example: If a worker has both "Bartender" and "Cashier" skills, and the gig is for bartending, use "Bartender" skill data
 
 2. **Experience Level Appropriateness**:
    - Match experience level to gig complexity

@@ -76,6 +76,92 @@ export interface MatchmakingResult {
   totalWorkersAnalyzed?: number;
 }
 
+// Helper function to find the most relevant skill for a specific gig
+function findMostRelevantSkill(workerSkills: any[], gigTitle: string, gigDescription: string): {
+  skill: any;
+  relevanceScore: number;
+} {
+  if (!workerSkills || workerSkills.length === 0) {
+    return { skill: null, relevanceScore: 0 };
+  }
+
+  if (workerSkills.length === 1) {
+    return { skill: workerSkills[0], relevanceScore: 50 }; // Default score for single skill
+  }
+
+  const gigText = `${gigTitle} ${gigDescription}`.toLowerCase();
+  let bestSkill = workerSkills[0];
+  let bestScore = 0;
+
+  for (const skill of workerSkills) {
+    const skillName = skill.name?.toLowerCase() || '';
+    let score = 0;
+
+    // Direct keyword matches (highest score)
+    if (gigText.includes('baker') && (skillName.includes('baker') || skillName.includes('cake') || skillName.includes('pastry'))) {
+      score = 100;
+    } else if (gigText.includes('chef') && (skillName.includes('chef') || skillName.includes('cook'))) {
+      score = 100;
+    } else if (gigText.includes('server') && (skillName.includes('server') || skillName.includes('waiter') || skillName.includes('bartender'))) {
+      score = 100;
+    } else if (gigText.includes('bartender') && (skillName.includes('bartender') || skillName.includes('mixologist'))) {
+      score = 100;
+    } else if (gigText.includes('waiter') && (skillName.includes('waiter') || skillName.includes('server'))) {
+      score = 100;
+    } else if (gigText.includes('cook') && (skillName.includes('cook') || skillName.includes('chef'))) {
+      score = 100;
+    }
+    // Related matches (high score)
+    else if (gigText.includes('baker') && (skillName.includes('chef') || skillName.includes('cook'))) {
+      score = 80;
+    } else if (gigText.includes('server') && (skillName.includes('chef') || skillName.includes('cook'))) {
+      score = 70;
+    } else if (gigText.includes('bartender') && (skillName.includes('server') || skillName.includes('waiter'))) {
+      score = 80;
+    } else if (gigText.includes('waiter') && (skillName.includes('bartender') || skillName.includes('server'))) {
+      score = 80;
+    } else if (gigText.includes('chef') && (skillName.includes('baker') || skillName.includes('pastry'))) {
+      score = 80;
+    }
+    // Hospitality/service matches (medium score)
+    else if ((gigText.includes('server') || gigText.includes('waiter') || gigText.includes('bartender')) && 
+             (skillName.includes('hospitality') || skillName.includes('service') || skillName.includes('customer'))) {
+      score = 60;
+    }
+    // Food service matches (medium score)
+    else if ((gigText.includes('chef') || gigText.includes('cook') || gigText.includes('baker')) && 
+             (skillName.includes('food') || skillName.includes('kitchen') || skillName.includes('culinary'))) {
+      score = 60;
+    }
+    // Event service matches (medium score)
+    else if ((gigText.includes('event') || gigText.includes('catering') || gigText.includes('party')) && 
+             (skillName.includes('event') || skillName.includes('catering') || skillName.includes('party'))) {
+      score = 60;
+    }
+    // Generic matches (low score)
+    else {
+      score = 30;
+    }
+
+    // Bonus for higher experience years
+    if (skill.experienceYears && skill.experienceYears > 0) {
+      score += Math.min(skill.experienceYears * 2, 20); // Max 20 bonus points
+    }
+
+    // Bonus for higher hourly rate (indicates seniority)
+    if (skill.agreedRate && parseFloat(skill.agreedRate) > 15) {
+      score += 10;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestSkill = skill;
+    }
+  }
+
+  return { skill: bestSkill, relevanceScore: bestScore };
+}
+
 export async function findMatchingWorkers(
   gigId: string
 ): Promise<MatchmakingResult> {
@@ -277,9 +363,19 @@ export async function findMatchingWorkers(
     // Convert AI results to WorkerMatch format
     const matches: WorkerMatch[] = aiMatches.map(match => {
       const worker = filteredWorkers.find((w: any) => w.id === match.workerId);
-      const primarySkill = worker?.gigWorkerProfile?.skills?.[0]?.name || 'Professional';
-      const hourlyRate = worker?.gigWorkerProfile?.skills?.[0]?.agreedRate || 0;
-      const experienceYears = worker?.gigWorkerProfile?.skills?.[0]?.experienceYears || 0;
+      
+      // Find the most relevant skill for this specific gig
+      const { skill: mostRelevantSkill, relevanceScore } = findMostRelevantSkill(
+        worker?.gigWorkerProfile?.skills || [],
+        gig.titleInternal || '',
+        gig.fullDescription || ''
+      );
+      
+      const primarySkill = mostRelevantSkill?.name || 'Professional';
+      const hourlyRate = mostRelevantSkill?.agreedRate || 0;
+      const experienceYears = mostRelevantSkill?.experienceYears || 0;
+
+      console.log(`Worker ${worker?.fullName}: Selected skill "${primarySkill}" (relevance score: ${relevanceScore}) for gig "${gig.titleInternal}"`);
 
       return {
         workerId: match.workerId,
@@ -382,48 +478,25 @@ function createIntelligentFallbackMatches(gigContext: any, workerData: any[]): {
   const gigRate = gigContext.hourlyRate || 0;
 
   return workerData.map(worker => {
-    const primarySkill = worker.skills?.[0]?.name || '';
-    const experience = parseFloat(worker.skills?.[0]?.experienceYears || '0');
-    const rate = parseFloat(worker.skills?.[0]?.agreedRate || '0');
+    // Find the most relevant skill for this specific gig
+    const { skill: mostRelevantSkill, relevanceScore } = findMostRelevantSkill(
+      worker.skills || [],
+      gigContext.title || '',
+      gigContext.description || ''
+    );
+    
+    const primarySkill = mostRelevantSkill?.name || '';
+    const experience = parseFloat(mostRelevantSkill?.experienceYears || '0');
+    const rate = parseFloat(mostRelevantSkill?.agreedRate || '0');
     const bio = (worker.bio || '').toLowerCase();
     
     let matchScore = 50; // Base score
     const reasons = [];
 
-    // Skill relevance scoring
-    if (primarySkill) {
-      const skillLower = primarySkill.toLowerCase();
-      
-      // Direct matches (high score)
-      if (gigText.includes('baker') && (skillLower.includes('baker') || skillLower.includes('cake') || skillLower.includes('pastry'))) {
-        matchScore += 30;
-        reasons.push(`Direct ${primarySkill} experience`);
-      } else if (gigText.includes('chef') && (skillLower.includes('chef') || skillLower.includes('cook'))) {
-        matchScore += 30;
-        reasons.push(`Direct ${primarySkill} experience`);
-      } else if (gigText.includes('server') && (skillLower.includes('server') || skillLower.includes('waiter') || skillLower.includes('bartender'))) {
-        matchScore += 30;
-        reasons.push(`Direct ${primarySkill} experience`);
-      } else if (gigText.includes('bartender') && (skillLower.includes('bartender') || skillLower.includes('mixologist'))) {
-        matchScore += 30;
-        reasons.push(`Direct ${primarySkill} experience`);
-      }
-      // Related matches (medium score)
-      else if (gigText.includes('baker') && (skillLower.includes('chef') || skillLower.includes('cook'))) {
-        matchScore += 20;
-        reasons.push(`Related ${primarySkill} experience`);
-      } else if (gigText.includes('server') && (skillLower.includes('chef') || skillLower.includes('cook'))) {
-        matchScore += 15;
-        reasons.push(`Related ${primarySkill} experience`);
-      } else if (gigText.includes('bartender') && (skillLower.includes('server') || skillLower.includes('waiter'))) {
-        matchScore += 20;
-        reasons.push(`Related ${primarySkill} experience`);
-      }
-      // Generic matches (low score)
-      else {
-        matchScore += 10;
-        reasons.push(`Experienced in ${primarySkill}`);
-      }
+    // Use the relevance score from our skill matching function
+    if (mostRelevantSkill) {
+      matchScore += Math.min(relevanceScore * 0.3, 30); // Scale relevance score to 0-30 points
+      reasons.push(`Relevant ${primarySkill} experience (${relevanceScore}% match)`);
     }
 
     // Bio relevance scoring

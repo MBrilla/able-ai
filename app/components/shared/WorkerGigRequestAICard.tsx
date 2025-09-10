@@ -5,6 +5,8 @@ import { useFirebase } from '@/context/FirebaseContext';
 import { Schema } from '@firebase/ai';
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { MessageCircle, Send, X, Loader2 } from 'lucide-react';
+import { detectIncident } from '@/lib/incident-detection';
+import IncidentReportingModal from '@/app/components/incidents/IncidentReportingModal';
 import styles from './WorkerGigRequestAICard.module.css';
 
 interface ChatMessage {
@@ -35,6 +37,10 @@ export default function WorkerGigRequestAICard({ userId, onClose }: WorkerGigReq
   const [error, setError] = useState<string | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Incident reporting state
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
+  const [detectedIncidentType, setDetectedIncidentType] = useState<string | null>(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -52,6 +58,16 @@ export default function WorkerGigRequestAICard({ userId, onClose }: WorkerGigReq
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !ai) return;
+
+    // Check for incident keywords before processing
+    const incidentDetection = detectIncident(inputValue.trim());
+    
+    if (incidentDetection.isIncident) {
+      console.log('🚨 Incident detected:', incidentDetection);
+      setDetectedIncidentType(incidentDetection.incidentType || 'other');
+      setIsIncidentModalOpen(true);
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -237,6 +253,21 @@ Keep responses concise (2-3 sentences max) and focus on helping them find work o
             </button>
           </div>
         </div>
+      )}
+
+      {/* Incident Reporting Modal */}
+      {isIncidentModalOpen && detectedIncidentType && (
+        <IncidentReportingModal
+          isOpen={isIncidentModalOpen}
+          onClose={() => {
+            setIsIncidentModalOpen(false);
+            setDetectedIncidentType(null);
+          }}
+          userId={userId}
+          ai={ai}
+          incidentType={detectedIncidentType as any}
+          initialMessage={inputValue.trim()}
+        />
       )}
     </div>
   );

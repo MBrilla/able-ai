@@ -64,6 +64,7 @@ export interface Availability {
 
 export interface SemanticProfile {
   tags: string[];
+  qualifications?: string[];
 }
 
 export default interface PublicWorkerProfile {
@@ -87,6 +88,7 @@ export default interface PublicWorkerProfile {
   fullBio: string | undefined;
   privateNotes?: string;
   averageRating?: number | undefined;
+  hashtags?: string[];
 
   responseRateInternal?: string | undefined;
 
