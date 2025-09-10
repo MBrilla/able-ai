@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/drizzle/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { GigsTable, UsersTable } from "@/lib/drizzle/schema";
 import moment from "moment";
 import GigDetails from "@/app/types/GigDetailsTypes";
@@ -12,10 +12,11 @@ function getMockedQAData(gigId: string) {
   if (gigId === "gig123-accepted") {
     return {
       id: "gig123-accepted",
+      workerId: "worker-abc-123",
       role: "Lead Bartender",
       gigTitle: "Corporate Mixer Event",
       buyerName: "Innovate Solutions Ltd.", buyerAvatarUrl: "/images/logo-placeholder.svg",
-      date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // In 2 days
+      date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
       startTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
       endTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000).toISOString(),
       location: "123 Business Rd, Tech Park, London, EC1A 1BB",
@@ -33,6 +34,7 @@ function getMockedQAData(gigId: string) {
   if (gigId === "gig456-inprogress") {
     return {
       id: "gig456-inprogress",
+      workerId: "worker-def-456",
       role: "Event Server",
       gigTitle: "Wedding Reception",
       buyerName: "Alice & Bob",
@@ -58,6 +60,7 @@ function getMockedQAData(gigId: string) {
   return {
     id: gigId,
     role: "Bartender",
+    workerId: undefined,
     gigTitle: "Pop-up Bar Night",
     buyerName: "John Doe",
     date: start.toISOString(),
@@ -100,18 +103,18 @@ function extractLocationFromObject(obj: any): string | null {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
   
   console.log('Location debug - extracting from object:', obj);
-  
-  // Handle coordinate objects with lat/lng
-  if (obj.lat && obj.lng && typeof obj.lat === 'number' && typeof obj.lng === 'number') {
-    const result = `Coordinates: ${obj.lat.toFixed(6)}, ${obj.lng.toFixed(6)}`;
-    console.log('Location debug - extracted coordinates:', result);
-    return result;
-  }
-  
+
   // Handle address objects
   if (obj.formatted_address) {
     const result = obj.formatted_address;
     console.log('Location debug - extracted formatted_address:', result);
+    return result;
+  } 
+
+  // Handle coordinate objects with lat/lng
+  if (obj.lat && obj.lng && typeof obj.lat === 'number' && typeof obj.lng === 'number') {
+    const result = `Coordinates: ${obj.lat.toFixed(6)}, ${obj.lng.toFixed(6)}`;
+    console.log('Location debug - extracted coordinates:', result);
     return result;
   }
   
@@ -355,25 +358,34 @@ export async function getGigDetails({
       return { error: 'User is not found', gig: {} as GigDetails, status: 404 };
     }
 
-    const columnConditionId = role === 'buyer' ? GigsTable.buyerUserId : GigsTable.workerUserId;
-    const gig = await db.query.GigsTable.findFirst({
-      where: and(eq(columnConditionId, user.id), eq(GigsTable.id, gigId)),
-      with: {
-        buyer: {
-          columns: {
-            id: true,
-            fullName: true,
-            email: true,
-          },
+    let gig;
+
+    if (role === 'buyer') {
+      gig = await db.query.GigsTable.findFirst({
+        where: and(eq(GigsTable.buyerUserId, user.id), eq(GigsTable.id, gigId)),
+        with: {
+          buyer: { columns: { id: true, fullName: true, email: true } },
+          worker: { columns: { id: true, fullName: true } },
         },
-        worker: {
-          columns: {
-            id: true,
-            fullName: true,
-          },
+      });
+    } else {
+      gig = await db.query.GigsTable.findFirst({
+        where: and(
+          eq(GigsTable.id, gigId),
+          or(
+            eq(GigsTable.workerUserId, user.id),
+            and(
+              eq(GigsTable.statusInternal, 'PENDING_WORKER_ACCEPTANCE'),
+              isNull(GigsTable.workerUserId)
+            )
+          )
+        ),
+        with: {
+          buyer: { columns: { id: true, fullName: true, email: true } },
+          worker: { columns: { id: true, fullName: true } },
         },
-      },
-    });
+      });
+    } 
 
     if (isViewQA && !gig) return { gig: getMockedQAData(gigId) as GigDetails, status: 200 };
 
@@ -396,6 +408,7 @@ export async function getGigDetails({
 
     const gigDetails: GigDetails = {
       id: gig.id,
+      workerId: gig.workerUserId || undefined,
       role: roleDisplay,
       gigTitle: gig.titleInternal || 'Untitled Gig',
       buyerName: gig.buyer?.fullName || 'Unknown',
