@@ -35,8 +35,8 @@ export default function SelectRolePage() {
           
           router.push(path);
       } else if (role === "GIG_WORKER") {
-        const isWorker = ["GIG_WORKER", "QA"].includes(user.claims.role);
-        
+        const isWorker = user.claims?.haveWorkerProfile || ["GIG_WORKER", "QA"].includes(user.claims.role);
+
         const path = isWorker
           ? `user/${user.uid || "this_user"}/worker`
           : `user/${user.uid || "this_user"}/worker/onboarding-ai`;
