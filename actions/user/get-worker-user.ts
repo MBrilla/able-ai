@@ -11,22 +11,23 @@ export interface WorkerUser {
   id: string;
 }
 
-export async function getWorkerUserFromProfileId(workerProfileId: string): Promise<{
+export async function getWorkerUserFromProfileId(uid: string): Promise<{
   success: boolean;
   data?: WorkerUser;
   error?: string;
 }> {
   try {
-    if (!workerProfileId) {
-      return {
-        success: false,
-        error: "Worker profile ID is required"
-      };
-    }
+    const user = await db.query.UsersTable.findFirst({
+      where: eq(UsersTable.firebaseUid, uid),
+    });
+
+    if (!user) throw new Error("User not found");
+
+    if (!uid) throw new Error("User profile ID is required");
 
     // Get worker profile with associated user
     const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
-      where: eq(GigWorkerProfilesTable.id, workerProfileId),
+      where: eq(GigWorkerProfilesTable.userId, user.id),
       with: {
         user: {
           columns: {
@@ -34,18 +35,13 @@ export async function getWorkerUserFromProfileId(workerProfileId: string): Promi
             firebaseUid: true,
             fullName: true,
             email: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
-
-    if (!workerProfile?.user) {
-      return {
-        success: false,
-        error: "Worker profile or user not found"
-      };
-    }
+    if (!workerProfile?.user)
+      throw new Error("Worker profile or user not found");
 
     const workerUser: WorkerUser = {
       uid: workerProfile.user.firebaseUid,
@@ -56,14 +52,13 @@ export async function getWorkerUserFromProfileId(workerProfileId: string): Promi
 
     return {
       success: true,
-      data: workerUser
+      data: workerUser,
     };
-
   } catch (error) {
-    console.error('Error fetching worker user from profile ID:', error);
+    console.error("Error fetching worker user from profile ID:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 }
