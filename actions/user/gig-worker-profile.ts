@@ -20,101 +20,8 @@ import { ERROR_CODES } from "@/lib/responses/errors";
 import { isUserAuthenticated } from "@/lib/user.server";
 import { and, eq, sql } from "drizzle-orm";
 import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
-import { geminiAIAgent } from '@/lib/firebase/ai';
-import { Schema } from '@firebase/ai';
 import { BadgeIcon } from "@/app/components/profile/GetBadgeIcon";
 
-// AI Hashtag Generation Schema
-const hashtagGenerationSchema = Schema.object({
-  properties: {
-    hashtags: Schema.array({
-      items: Schema.string(),
-      maxItems: 3,
-      minItems: 1
-    })
-  },
-  required: ["hashtags"],
-  additionalProperties: false
-});
-
-
-// AI function to generate hashtags from onboarding data
-async function generateHashtagsFromOnboarding(profileData: {
-  about: string;
-  experience: string;
-  skills: string;
-  equipment?: { name: string; description?: string }[];
-  location?: any;
-}): Promise<string[]> {
-  console.log('🚀 Starting hashtag generation with data:', profileData);
-  try {
-    const prompt = `You are an AI assistant that generates professional hashtags for gig workers based on their profile information.
-
-Based on the following worker profile data, generate exactly 3 relevant, professional hashtags that would help with job matching and discoverability.
-
-Profile Data:
-- About: ${profileData.about || 'Not provided'}
-- Experience: ${profileData.experience || 'Not provided'}
-- Skills: ${profileData.skills || 'Not provided'}
-- Equipment: ${profileData.equipment?.map(e => e.name).join(', ') || 'Not provided'}
-- Location: ${typeof profileData.location === 'string' ? profileData.location : 'Not provided'}
-
-Rules:
-1. Generate exactly 3 hashtags (no more, no less)
-2. Use professional, industry-standard terms
-3. Focus on skills, experience level, and specializations
-4. Use hashtag format (e.g., "#bartender", "#mixology", "#events")
-5. Make them relevant to hospitality, events, and gig work
-6. Avoid generic terms like "#work" or "#job"
-7. Consider the worker's experience level and equipment
-
-Examples of good hashtags:
-- For bartenders: "#bartender", "#mixology", "#cocktails"
-- For chefs: "#chef", "#cooking", "#catering"
-- For event staff: "#events", "#hospitality", "#customer-service"
-
-Generate 3 relevant hashtags for this worker:`;
-
-    console.log('🤖 Calling Gemini AI for hashtag generation...');
-    const result = await geminiAIAgent(
-      VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_0_FLASH,
-      {
-        prompt,
-        responseSchema: hashtagGenerationSchema,
-      },
-      null, // No injected AI for server-side calls
-      VALIDATION_CONSTANTS.AI_MODELS.GEMINI_2_5_FLASH_PREVIEW
-    );
-
-    if (result.ok && result.data) {
-      const hashtags = (result.data as { hashtags: string[] }).hashtags;
-      console.log('✅ Generated hashtags via AI:', hashtags);
-      console.log('🔍 Hashtags details:', {
-        type: typeof hashtags,
-        isArray: Array.isArray(hashtags),
-        length: hashtags?.length,
-        content: hashtags
-      });
-      return hashtags;
-    } else {
-      console.error('❌ AI generation failed:', result);
-      // Fallback to basic hashtags
-      return [
-        `#${profileData.skills?.split(',')[0]?.trim().toLowerCase().replace(/\s+/g, '-') || 'worker'}`,
-        `#${profileData.about?.split(' ')[0]?.toLowerCase() || 'professional'}`,
-        '#gig-worker'
-      ];
-    }
-  } catch (error) {
-    console.error('❌ Error generating hashtags:', error);
-    // Fallback to basic hashtags
-    return [
-      `#${profileData.skills?.split(',')[0]?.trim().toLowerCase().replace(/\s+/g, '-') || 'worker'}`,
-      `#${profileData.about?.split(' ')[0]?.toLowerCase() || 'professional'}`,
-      '#gig-worker'
-    ];
-  }
-}
 
 export const getPublicWorkerProfileAction = async (workerId: string) => {
   if (!workerId) throw "Worker ID is required";
@@ -666,6 +573,9 @@ export const saveWorkerProfileFromOnboardingAction = async (
     videoIntro: File | string;
     jobTitle?: string; // Add job title field
     equipment?: { name: string; description?: string }[]; // Add equipment field
+    experienceYears?: number; // Parsed years of experience
+    experienceMonths?: number; // Parsed months of experience
+    hashtags?: string[]; // Add hashtags field for client-generated hashtags
   },
   token: string
 ) => {
@@ -696,32 +606,9 @@ export const saveWorkerProfileFromOnboardingAction = async (
       );
     }
 
-    // Generate AI hashtags from onboarding data
-    console.log('🤖 Generating AI hashtags from onboarding data...');
-    console.log('📊 Profile data for hashtag generation:', {
-      about: profileData.about,
-      experience: profileData.experience,
-      skills: profileData.skills,
-      equipment: profileData.equipment,
-      location: profileData.location
-    });
-    
-    const generatedHashtags = await generateHashtagsFromOnboarding({
-      about: profileData.about,
-      experience: profileData.experience,
-      skills: profileData.skills,
-      equipment: profileData.equipment,
-      location: profileData.location,
-    });
-    
-    console.log('🔍 Generated hashtags result:', {
-      hashtags: generatedHashtags,
-      length: generatedHashtags.length,
-      type: typeof generatedHashtags,
-      isArray: Array.isArray(generatedHashtags),
-      isEmpty: generatedHashtags.length === 0,
-      willUseFallback: generatedHashtags.length === 0
-    });
+    // Use provided hashtags (always provided by client)
+    const generatedHashtags = profileData.hashtags || [];
+    console.log('✅ Using client-generated hashtags:', generatedHashtags);
 
     // Prepare profile data
     console.log('🎥 Video intro data in save function:', {
@@ -973,7 +860,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
               experienceMonths: 0,
               experienceYears: yearsOfExperience || 0,
               agreedRate: String(extractedHourlyRate || validatedHourlyRate),
-              skillVideoUrl: null,
+              skillVideoUrl: typeof profileData.videoIntro === 'string' ? profileData.videoIntro : null,
               adminTags: null,
               ableGigs: null,
               images: [],
@@ -1150,13 +1037,13 @@ export const saveWorkerProfileFromOnboardingAction = async (
           await db.insert(SkillsTable).values({
             workerProfileId: workerProfileId,
             name: profileData.jobTitle,
-            experienceMonths: 0,
-            experienceYears: 0,
+            experienceMonths: profileData.experienceMonths || 0,
+            experienceYears: profileData.experienceYears || 0,
             agreedRate: String(
               parseFloat(profileData.hourlyRate) ||
                 VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE
             ),
-            skillVideoUrl: null,
+            skillVideoUrl: typeof profileData.videoIntro === 'string' ? profileData.videoIntro : null,
             adminTags: null,
             ableGigs: null,
             images: [],

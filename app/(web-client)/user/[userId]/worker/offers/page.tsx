@@ -21,6 +21,7 @@ import ScreenHeaderWithBack from "@/app/components/layout/ScreenHeaderWithBack";
 import { getWorkerOffers, WorkerGigOffer } from "@/actions/gigs/get-worker-offers";
 import { acceptGigOffer } from "@/actions/gigs/accept-gig-offer";
 import { declineGigOffer } from "@/actions/gigs/decline-gig-offer";
+import { getWorkerProfileIdFromFirebaseUid } from "@/actions/user/get-worker-user";
 
 type GigOffer = WorkerGigOffer;
 
@@ -71,7 +72,28 @@ export default function WorkerOffersPage() {
   >(null);
   const [selectedGig, setSelectedGig] = useState<GigOffer | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [workerProfileId, setWorkerProfileId] = useState<string | null>(null);
   const uid = authUserId;
+
+  // Fetch worker profile ID when component mounts
+  useEffect(() => {
+    const fetchWorkerProfileId = async () => {
+      if (!uid) return;
+      
+      try {
+        const result = await getWorkerProfileIdFromFirebaseUid(uid);
+        if (result.success && result.data) {
+          setWorkerProfileId(result.data);
+        } else {
+          console.error("Failed to get worker profile ID:", result.error);
+        }
+      } catch (error) {
+        console.error("Error fetching worker profile ID:", error);
+      }
+    };
+
+    fetchWorkerProfileId();
+  }, [uid]);
 
   // AI Suggestion Banner Hook
   const {
@@ -239,10 +261,12 @@ export default function WorkerOffersPage() {
 
   const handleViewDetails = (offerId: string) => {
     const offer = offers.find(o => o.id === offerId);
-    if (offer) {
+    if (offer && workerProfileId) {
       setSelectedGig(offer);
-      router.push(`/user/${pageUserId}/worker/gigs/${offerId}`);
+      router.push(`/user/${workerProfileId}/worker/gigs/${offerId}`);
       // setIsModalOpen(true);
+    } else if (!workerProfileId) {
+      console.error("Worker profile ID not available yet");
     }
   };
   const handleGoToHome = () => {

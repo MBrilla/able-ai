@@ -15,7 +15,7 @@ import { useFirebase } from '@/context/FirebaseContext';
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { Schema } from '@firebase/ai';
 import { detectIncident } from '@/lib/incident-detection';
-import IncidentReportingModal from '@/app/components/incidents/IncidentReportingModal';
+import { createEscalatedIssueClient } from '@/utils/client-escalation';
 
 type WorkerGigOffer = {
   id: string;
@@ -166,8 +166,9 @@ export default function AbleAIPage() {
   const [escalated, setEscalated] = useState<boolean>(false);
   
   // Incident reporting state
-  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
-  const [detectedIncidentType, setDetectedIncidentType] = useState<string | null>(null);
+  const [isReportingIncident, setIsReportingIncident] = useState(false);
+  const [incidentType, setIncidentType] = useState<string | null>(null);
+  const [incidentDetails, setIncidentDetails] = useState<string>('');
 
   const SUPPORT_EMAIL = 'support@ableai.com';
 
@@ -403,19 +404,122 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
     }, 0);
   }, [feedbackPending, notHelpfulCount]);
 
-  // Handle sending messages
-  const onSendMessage = useCallback((message: string) => {
-    // Check for incident keywords before processing
-    const incidentDetection = detectIncident(message);
-    
-    if (incidentDetection.isIncident) {
-      console.log('🚨 Incident detected in Able AI chat:', incidentDetection);
-      setDetectedIncidentType(incidentDetection.incidentType || 'other');
-      setIsIncidentModalOpen(true);
-      return;
+  // Handle incident reporting in chat
+  const handleIncidentReporting = useCallback(async (message: string) => {
+    if (!isReportingIncident) {
+      // Start incident reporting flow
+      const incidentDetection = detectIncident(message);
+      if (incidentDetection.isIncident) {
+        console.log('🚨 Incident detected in Able AI chat:', incidentDetection);
+        setIncidentType(incidentDetection.incidentType || 'other');
+        setIsReportingIncident(true);
+        
+        // Add user message
+        setChatSteps(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            type: "user",
+            content: message,
+            isNew: true,
+          },
+        ]);
+
+        // Add AI response for incident reporting
+        setChatSteps(prev => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            type: "bot",
+            content: `I understand you may be experiencing a ${incidentDetection.incidentType?.replace('_', ' ')} issue. This is serious and I want to help you report this properly. Can you please provide more details about what happened? Please include when and where this occurred, and any other relevant information.`,
+            isNew: true,
+          },
+        ]);
+        return;
+      }
+    } else {
+      // Continue incident reporting flow
+      setIncidentDetails(prev => prev + (prev ? ' ' : '') + message);
+      
+      // Add user message
+      setChatSteps(prev => [
+        ...prev,
+        {
+          id: Date.now(),
+          type: "user",
+          content: message,
+          isNew: true,
+        },
+      ]);
+
+      // Check if we have enough details
+      if (incidentDetails.length + message.length > 100) {
+        // Submit incident report to database
+        const finalDetails = incidentDetails + (incidentDetails ? ' ' : '') + message;
+        
+        try {
+          const escalationResult = await createEscalatedIssueClient({
+            userId: user?.uid || '',
+            issueType: `incident_${incidentType}`,
+            description: `Incident Report - ${incidentType?.replace('_', ' ')}: ${finalDetails}`,
+            contextType: 'ai_chat'
+          });
+
+          if (escalationResult.success) {
+            setChatSteps(prev => [
+              ...prev,
+              {
+                id: Date.now() + 1,
+                type: "bot",
+                content: `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report (ID: ${escalationResult.issueId}). This has been escalated to our support team who will review it within 24 hours. You should receive a confirmation email shortly. Is there anything else I can help you with?`,
+                isNew: true,
+              },
+            ]);
+          } else {
+            setChatSteps(prev => [
+              ...prev,
+              {
+                id: Date.now() + 1,
+                type: "bot",
+                content: `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report. There was a technical issue saving it to our system, but I've noted it down. Please contact support directly if needed. Is there anything else I can help you with?`,
+                isNew: true,
+              },
+            ]);
+          }
+        } catch (error) {
+          console.error('Error saving incident report:', error);
+          setChatSteps(prev => [
+            ...prev,
+            {
+              id: Date.now() + 1,
+              type: "bot",
+              content: `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report. There was a technical issue saving it to our system, but I've noted it down. Please contact support directly if needed. Is there anything else I can help you with?`,
+              isNew: true,
+            },
+          ]);
+        }
+        
+        // Reset incident reporting state
+        setIsReportingIncident(false);
+        setIncidentType(null);
+        setIncidentDetails('');
+        return;
+      } else {
+        // Ask for more details
+        setChatSteps(prev => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            type: "bot",
+            content: `Thank you for that information. Can you provide more specific details about the incident? For example, who was involved, what exactly happened, and any witnesses?`,
+            isNew: true,
+          },
+        ]);
+        return;
+      }
     }
 
-    // Add user message
+    // Normal message processing
     setChatSteps(prev => [
       ...prev,
       {
@@ -428,7 +532,12 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
 
     // Get AI response
     handleAIResponse(message);
-  }, [handleAIResponse]);
+  }, [handleAIResponse, isReportingIncident, incidentType, incidentDetails]);
+
+  // Handle sending messages
+  const onSendMessage = useCallback((message: string) => {
+    handleIncidentReporting(message);
+  }, [handleIncidentReporting]);
 
   // Auto-scroll to the bottom whenever chatSteps changes
   useEffect(() => {
@@ -475,6 +584,37 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
           fontSize: '14px'
         }}>
           {error}
+        </div>
+      )}
+
+      {isReportingIncident && (
+        <div style={{ 
+          background: 'linear-gradient(135deg, #ff6b6b, #ee5a52)', 
+          color: 'white', 
+          padding: '12px 16px', 
+          margin: '8px 0', 
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: '600',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          boxShadow: '0 2px 8px rgba(255, 107, 107, 0.3)'
+        }}>
+          <div style={{ 
+            width: '8px', 
+            height: '8px', 
+            borderRadius: '50%', 
+            background: 'white',
+            animation: 'pulse 1.5s infinite'
+          }}></div>
+          <span>🚨 Incident Reporting Mode - Please provide details about the incident</span>
+          <style>{`
+            @keyframes pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.5; }
+            }
+          `}</style>
         </div>
       )}
       
@@ -684,19 +824,6 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
         </div>
       )}
 
-      {/* Incident Reporting Modal */}
-      {isIncidentModalOpen && detectedIncidentType && (
-        <IncidentReportingModal
-          isOpen={isIncidentModalOpen}
-          onClose={() => {
-            setIsIncidentModalOpen(false);
-            setDetectedIncidentType(null);
-          }}
-          userId={resolvedUserId || ''}
-          ai={ai}
-          incidentType={detectedIncidentType as any}
-        />
-      )}
     </ChatBotLayout>
   );
 }

@@ -2,22 +2,13 @@
   background-color: #000000;
   min-height: 100vh;
   color: #FFFFFF;
-  padding: 1rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.header {
-  text-align: center;
-  margin-bottom: 2rem;
-  padding: 1rem 0;
+.content {
+  padding: 1rem;
 }
 
-.header h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #FFFFFF;
-  margin: 0;
-}
 
 .changesSection {
   background: rgba(22, 22, 22, 0.8);
@@ -90,6 +81,12 @@
 .editIcon {
   font-size: 1.2rem;
   color: #79f0f7;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.editIcon:hover {
+  color: #ffffff;
 }
 
 .detailsGrid {
@@ -109,6 +106,58 @@
 .detailRow:last-child {
   border-bottom: none;
 }
+
+.editInput {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(121, 240, 247, 0.3);
+  border-radius: 4px;
+  color: #ffffff;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  width: 200px;
+  text-align: right;
+}
+
+.editInput:focus {
+  outline: none;
+  border-color: #79f0f7;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.editInput::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.submitSection {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.submitButton {
+  background: linear-gradient(135deg, #79f0f7, #4fc3f7);
+  color: #000000;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(121, 240, 247, 0.3);
+}
+
+.submitButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(121, 240, 247, 0.4);
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 
 .label {
   font-size: 0.9rem;

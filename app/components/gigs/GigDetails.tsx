@@ -43,19 +43,19 @@ interface GigDetailsProps {
 }
 
 
-function getGigAcceptActionText(gig: GigDetails, lastRoleUsed: string): string {
+function getGigAcceptActionText(gig: GigDetails, role: string): string {
 	const status = gig.status;
 	const internalStatus = gig.statusInternal;
 
 	if (internalStatus === 'PENDING_WORKER_ACCEPTANCE') {
-		if (lastRoleUsed === "GIG_WORKER") {
+		if (role === "worker") {
 			return 'Waiting for rate acceptance';
 		} else {
 			return 'Agree to Rate - Accept and Hold Payment';
 		}
 	}
 	if (status === 'PENDING') {
-		if (lastRoleUsed === "GIG_WORKER") {
+		if (role === "worker") {
 			return 'Accept Gig';
 		} else {
 			return 'Offer Sent-awaiting acceptance';
@@ -68,7 +68,21 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 	const router = useRouter();
 	const [isActionLoading, setIsActionLoading] = useState(false);
 	const { user } = useAuth();
-	const lastRoleUsed = getLastRoleUsed();
+
+	// Helper function to determine if user can delegate this gig
+	const canDelegateGig = () => {
+		if (role === 'buyer') {
+			// Buyers can always delegate their gigs
+			return true;
+		} else if (role === 'worker') {
+			// Workers can only delegate gigs they have already accepted
+			// They cannot delegate available offers (PENDING_WORKER_ACCEPTANCE)
+			// They must first accept the gig, then they can delegate it
+			return gig.statusInternal !== 'PENDING_WORKER_ACCEPTANCE' && gig.workerName;
+		}
+		
+		return false;
+	};
 	const [isNegotiating, setIsNegotiating] = useState(false);
 	const [isReportingIssue, setIsReportingIssue] = useState(false);
 	const [isDelegating, setIsDelegating] = useState(false);
@@ -78,13 +92,13 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 
 	// Get worker name from gig data if available, otherwise use a placeholder
 	const getWorkerName = () => {
-		// If this is a worker viewing their own gig, use their name
-		if (lastRoleUsed === "GIG_WORKER" && role === 'worker') {
-			return user?.displayName?.split(" ")[0] || "Worker";
-		}
 		// If there's a worker assigned to the gig, use their name
 		if (gig.workerName) {
 			return gig.workerName.split(" ")[0];
+		}
+		// If this is a worker viewing their own gig, use their name
+		if (role === 'worker') {
+			return user?.displayName?.split(" ")[0] || "Worker";
 		}
 		// Fallback for when no worker is assigned yet
 		return "Worker";
@@ -113,7 +127,7 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 		switch (action) {
 			case 'accept':
 				if (status === 'PENDING') {
-					return lastRoleUsed === "GIG_WORKER"
+					return role === "worker"
 					? 'Accept Gig'
 					: 'Offer Sent - awaiting acceptance';
 				}
@@ -121,28 +135,28 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 
 			case 'start':
 				if (status === 'PENDING' || status === 'ACCEPTED') {
-					return lastRoleUsed === "GIG_WORKER"
+					return role === "worker"
 						? 'Mark as you started the gig'
 						: 'Mark as started';
 				} 
-				return lastRoleUsed === 'GIG_WORKER'
+				return role === "worker"
 					? 'Gig Started'
 					: `${workerName} has started the gig`;
 			case 'complete':
 				if (status === 'PENDING' || status === 'ACCEPTED' || status === 'IN_PROGRESS') {
-					return lastRoleUsed === 'GIG_WORKER' ? 'Mark as complete' : `Mark as complete, pay ${workerName}`;
+					return role === "worker" ? 'Mark as complete' : `Mark as complete, pay ${workerName}`;
 				} else {
 					// If the gig is completed, show the appropriate message
 					if (gig.isWorkerSubmittedFeedback && !gig.isBuyerSubmittedFeedback) {
-						return lastRoleUsed === "GIG_WORKER" ? 'Gig Completed' : `🕒Confirm, pay and review ${workerName}`;
+						return role === "worker" ? 'Gig Completed' : `🕒Confirm, pay and review ${workerName}`;
 					} else if (gig.isBuyerSubmittedFeedback && !gig.isWorkerSubmittedFeedback) {
-						return lastRoleUsed === "GIG_WORKER" ? 'Buyer confirmed & paid: leave feedback' : `${workerName} has completed the gig`;
+						return role === "worker" ? 'Buyer confirmed & paid: leave feedback' : `${workerName} has completed the gig`;
 					} else {
-						return lastRoleUsed === "GIG_WORKER" ? 'Gig Completed' : `${workerName} has completed the gig`;
+						return role === "worker" ? 'Gig Completed' : `${workerName} has completed the gig`;
 					}
 				}
 			case 'awaiting':
-				if (lastRoleUsed === "GIG_WORKER") {
+				if (role === "worker") {
 					return !gig.isBuyerSubmittedFeedback 
 					? `Waiting for ${buyer} to confirm and pay` 
 					: (
@@ -183,7 +197,7 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 			await new Promise(resolve => setTimeout(resolve, 1000));
 
 			{/* MBrilla change
-			if (action === 'accept' && lastRoleUsed === 'GIG_WORKER' && gig.statusInternal === 'PENDING_WORKER_ACCEPTANCE') {
+			if (action === 'accept' && role === 'worker' && gig.statusInternal === 'PENDING_WORKER_ACCEPTANCE') {
 				const result = await acceptGigOffer({ gigId: gig.id, userId: userId });
 				if (result.error) {
 					toast.error(result.error);
@@ -198,7 +212,7 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 				}, 2000);
 				return;
 			}
-			if (action === 'decline' && lastRoleUsed === 'GIG_WORKER' && gig.statusInternal === 'PENDING_WORKER_ACCEPTANCE') {
+			if (action === 'decline' && role === 'worker' && gig.statusInternal === 'PENDING_WORKER_ACCEPTANCE') {
 				const result = await declineGigOffer({ gigId: gig.id, userId: userId });
 				if (result.error) {
 					toast.error(result.error);
@@ -213,10 +227,19 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 				}, 1500);
 				return;
 			}*/}
-			if (action === 'accept' && gig && lastRoleUsed === 'GIG_WORKER') {
-				setGig({ ...gig, status: 'ACCEPTED' });
-				await updateGigOfferStatus({ gigId: gig.id, userId: userId, role: role, action: 'accept' });
-				toast.success('Gig accepted successfully!');
+			if (action === 'accept' && gig && role === 'worker') {
+				const result = await acceptGigOffer({ gigId: gig.id, userId: user?.uid || '' });
+				if (result.error) {
+					toast.error(result.error);
+					return;
+				}
+				setGig({ 
+					...gig, 
+					status: 'ACCEPTED', 
+					statusInternal: 'ACCEPTED',
+					workerName: user?.displayName || 'Worker'
+				});
+				toast.success('Gig offer accepted successfully! You can now start the gig when ready.');
 			}
 			else if (action === 'start' && gig) {
 				setGig({ ...gig, status: 'IN_PROGRESS' });
@@ -227,7 +250,7 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 				await updateGigOfferStatus({ gigId: gig.id, userId: userId, role: role, action: 'complete' });
 				toast.success('Gig completed successfully!');
 				// redirect to feedback page 
-				if (lastRoleUsed === "GIG_WORKER") {
+				if (role === "worker") {
 					router.push(`/user/${user?.uid}/worker/gigs/${gig.id}/feedback`);
 				} else {
 					router.push(`/user/${user?.uid}/buyer/gigs/${gig.id}/feedback`);
@@ -285,8 +308,7 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 		if (!user?.uid || !gig.id) return;
 
 		// Navigate to the delegate gig page
-		const currentUserId = userId; // This should be the worker's profile ID from props
-		router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/delegate`);
+		router.push(`/gigs/${gig.id}/delegate`);
 	};
 
 	// Handler for viewing terms of agreement
@@ -331,7 +353,7 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 					</div>
 					{/* Hiring Manager Info - Placeholder as it's not in current GigDetails interface */}
 
-					{lastRoleUsed === "GIG_WORKER" && (
+					{role === "worker" && (
 						<div className={styles.gigDetailsRow}>
 							<span className={styles.label}>Hiring manager:</span>
 							<span className={styles.detailValue}>{gig.hiringManager} <br /> {gig.hiringManagerUsername}</span>
@@ -340,17 +362,33 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 
 				</section>
 
-				{lastRoleUsed === "GIG_WORKER" && (
+				{role === "worker" && (
 					<section
 						className={`${styles.gigDetailsSection} ${styles.workerSection}`}
 					>
-						<Image
-							src={gig.workerAvatarUrl || "/images/worker-placeholder.png"}
-							className={styles.workerAvatar}
-							alt={gig.workerName || "Worker"}
-							width={56}
-							height={56}
-						/>
+						{gig.workerAvatarUrl ? (
+							<Image
+								src={gig.workerAvatarUrl}
+								className={styles.workerAvatar}
+								alt={gig.workerName || "Worker"}
+								width={56}
+								height={56}
+								onError={(e) => {
+									// Fallback to placeholder if image fails to load
+									const target = e.target as HTMLImageElement;
+									target.src = "/images/default-avatar.svg";
+								}}
+							/>
+						) : (
+							<div className={styles.workerAvatar}>
+								<Image
+									src="/images/default-avatar.svg"
+									alt={gig.workerName || "Worker"}
+									width={56}
+									height={56}
+								/>
+							</div>
+						)}
 						<div className={styles.workerDetailsContainer}>
 							<div className={styles.workerDetails}>
 								<span className={styles.workerName}>
@@ -385,7 +423,7 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 						label={getButtonLabel('accept')}
 						handleGigAction={() => handleGigAction('accept')}
 						isActive={gig.status === 'PENDING'}
-						isDisabled={lastRoleUsed === "BUYER" || gig.status !== 'PENDING'}
+						isDisabled={role === "buyer" || gig.status !== 'PENDING'}
 					/>
 
 					{/* 2. Start Gig */}
@@ -407,13 +445,13 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 								gig.status === 'CONFIRMED' || 
 								gig.status === 'AWAITING_BUYER_CONFIRMATION'
 							) && (
-								(lastRoleUsed === "GIG_WORKER" && !gig.isWorkerSubmittedFeedback) ||
-								(lastRoleUsed === "BUYER" && !gig.isBuyerSubmittedFeedback)
+								(role === "worker" && !gig.isWorkerSubmittedFeedback) ||
+								(role === "buyer" && !gig.isBuyerSubmittedFeedback)
 							)
 						}
 						isDisabled={
-							(lastRoleUsed === "GIG_WORKER" && gig.isWorkerSubmittedFeedback) ||
-							(lastRoleUsed === "BUYER" && gig.isBuyerSubmittedFeedback)
+							(role === "worker" && gig.isWorkerSubmittedFeedback) ||
+							(role === "buyer" && gig.isBuyerSubmittedFeedback)
 						}
 					/>
 
@@ -422,8 +460,8 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 					<GigStatusIndicator
 						label={getButtonLabel('awaiting')}
 						isActive={
-							(lastRoleUsed === "GIG_WORKER" && gig.isWorkerSubmittedFeedback) ||
-							(lastRoleUsed === "BUYER" && gig.isBuyerSubmittedFeedback)
+							(role === "worker" && gig.isWorkerSubmittedFeedback) ||
+							(role === "buyer" && gig.isBuyerSubmittedFeedback)
 						}
 						isDisabled={true}
 					/>
@@ -437,9 +475,11 @@ const GigDetailsComponent = ({ userId, role, gig, setGig, isAvailableOffer = fal
 					<button onClick={() => handleGigAction('reportIssue')} className={styles.secondaryActionButton} disabled={isActionLoading}>
 						Report an Issue
 					</button>
-					<button onClick={() => handleGigAction('delegate')} className={styles.secondaryActionButton} disabled={isActionLoading}>
-						Delegate gig
-					</button>
+					{canDelegateGig() && (
+						<button onClick={handleDelegateGig} className={styles.secondaryActionButton} disabled={isActionLoading}>
+							Delegate gig
+						</button>
+					)}
 				</section>
 			</main>
 		</div>
