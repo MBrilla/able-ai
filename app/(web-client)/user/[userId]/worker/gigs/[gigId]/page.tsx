@@ -84,21 +84,38 @@ export default function WorkerGigDetailsPage() {
   // Fetch worker user from worker profile ID
   useEffect(() => {
     const fetchWorkerUser = async () => {
-      if (!workerProfileId) return;
+      if (!workerProfileId) {
+        console.log('🔍 DEBUG: No workerProfileId provided');
+        return;
+      }
+      
+      console.log('🔍 DEBUG: Fetching worker user for profile ID:', workerProfileId);
       
       try {
         // Import the function to get worker user from profile ID
         const { getWorkerUserFromProfileId } = await import('@/actions/user/get-worker-user');
         const result = await getWorkerUserFromProfileId(workerProfileId);
         
+        console.log('🔍 DEBUG: Worker user fetch result:', {
+          success: result.success,
+          hasData: !!result.data,
+          error: result.error
+        });
+        
         if (result.success && result.data) {
+          console.log('🔍 DEBUG: Worker user data:', {
+            id: result.data.id,
+            displayName: result.data.displayName,
+            uid: result.data.uid
+          });
           setWorkerUser(result.data);
         } else {
+          console.log('🔍 DEBUG: Worker not found - setting error');
           setError("Worker not found");
           setIsLoadingGig(false);
         }
       } catch (err) {
-        console.error("Error fetching worker user:", err);
+        console.error("🔍 DEBUG: Error fetching worker user:", err);
         setError("Could not load worker information");
         setIsLoadingGig(false);
       }
@@ -109,17 +126,33 @@ export default function WorkerGigDetailsPage() {
 
   // Fetch Gig Details
   useEffect(() => {
-    if (loadingAuth || !workerUser) return; // Wait for auth state and worker user to be clear
+    console.log('🔍 DEBUG: Gig details useEffect triggered:', {
+      loadingAuth,
+      hasWorkerUser: !!workerUser,
+      userRole: user?.claims.role,
+      authUserId,
+      workerUserUid: workerUser?.uid,
+      gigId
+    });
+
+    if (loadingAuth || !workerUser) {
+      console.log('🔍 DEBUG: Skipping gig fetch - loadingAuth:', loadingAuth, 'workerUser:', !!workerUser);
+      return; // Wait for auth state and worker user to be clear
+    }
 
     const shouldFetch = (user?.claims.role === "QA" && workerProfileId && gigId) ||
       (user && authUserId === workerUser.uid && gigId);
 
+    console.log('🔍 DEBUG: Should fetch gig:', shouldFetch);
+
     if (shouldFetch) {
+      console.log('🔍 DEBUG: Starting gig fetch...');
       setIsLoadingGig(true);
       
       // First fetch gig details using the worker user
       fetchWorkerGigDetails(workerUser, gigId)
         .then(data => {
+          console.log('🔍 DEBUG: fetchWorkerGigDetails result:', { hasData: !!data, data });
           if (data) {
             setGig(data);
             
@@ -132,6 +165,7 @@ export default function WorkerGigDetailsPage() {
           }
         })
         .then(isOffer => {
+          console.log('🔍 DEBUG: checkIfGigIsAvailableOffer result:', isOffer);
           setIsAvailableOffer(isOffer);
         })
         .catch(err => {

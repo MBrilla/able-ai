@@ -5,6 +5,7 @@ import { UsersTable, GigWorkerProfilesTable, SkillsTable, GigsTable } from "@/li
 import { eq, and, ne, like, or } from "drizzle-orm";
 import { isUserAuthenticated } from "@/lib/user.server";
 import { ERROR_CODES } from "@/lib/responses/errors";
+import { isWorkerWithinDistance } from "@/lib/utils/distance";
 
 export interface WorkerSearchResult {
   id: string;
@@ -45,7 +46,9 @@ export async function searchWorkersForDelegation(
         id: true,
         buyerUserId: true,
         workerUserId: true,
-        statusInternal: true
+        statusInternal: true,
+        exactLocation: true,
+        addressJson: true
       }
     });
 
@@ -53,13 +56,15 @@ export async function searchWorkersForDelegation(
       return { error: 'Gig not found', status: 404 };
     }
 
-    // Verify user is the buyer of this gig
-    if (gig.buyerUserId !== user.id) {
+
+    // Verify user is either the buyer or the assigned worker of this gig
+    if (gig.buyerUserId !== user.id && gig.workerUserId !== user.id) {
       return { error: 'Unauthorized to delegate this gig', status: 403 };
     }
 
     // Check if gig is in a state that allows delegation
-    const allowedStatuses = ['ACCEPTED', 'IN_PROGRESS'];
+    const allowedStatuses = ['PENDING_WORKER_ACCEPTANCE', 'ACCEPTED', 'IN_PROGRESS'];
+    
     if (!allowedStatuses.includes(gig.statusInternal)) {
       return { 
         error: `Cannot delegate gig with status: ${gig.statusInternal}`, 
@@ -102,17 +107,23 @@ export async function searchWorkersForDelegation(
     
     for (const worker of workers) {
       if (!workerMap.has(worker.id)) {
-        workerMap.set(worker.id, {
-          id: worker.id,
-          name: worker.fullName || 'Unknown Worker',
-          username: worker.email?.split('@')[0] || 'user',
-          avatarUrl: '/images/default-avatar.svg',
-          primarySkill: worker.skillName || 'Professional',
-          experienceYears: parseFloat(String(worker.experienceYears || '0')),
-          hourlyRate: parseFloat(worker.agreedRate || '0'),
-          bio: worker.bio || '',
-          location: worker.location || 'Location not specified'
-        });
+        // Check if worker is within 30km of the gig
+        const gigLocation = gig.exactLocation || gig.addressJson;
+        const isWithinDistance = isWorkerWithinDistance(gigLocation, worker.location, 30);
+        
+        if (isWithinDistance) {
+          workerMap.set(worker.id, {
+            id: worker.id,
+            name: worker.fullName || 'Unknown Worker',
+            username: worker.email?.split('@')[0] || 'user',
+            avatarUrl: '/images/default-avatar.svg',
+            primarySkill: worker.skillName || 'Professional',
+            experienceYears: parseFloat(String(worker.experienceYears || '0')),
+            hourlyRate: parseFloat(worker.agreedRate || '0'),
+            bio: worker.bio || '',
+            location: worker.location || 'Location not specified'
+          });
+        }
       }
     }
 

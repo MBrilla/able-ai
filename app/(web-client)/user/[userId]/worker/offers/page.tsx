@@ -22,6 +22,7 @@ import {
 } from "@/actions/gigs/get-worker-offers";
 import { acceptGigOffer } from "@/actions/gigs/accept-gig-offer";
 import { declineGigOffer } from "@/actions/gigs/decline-gig-offer";
+import { getWorkerProfileIdFromFirebaseUid } from "@/actions/user/get-worker-user";
 
 type GigOffer = WorkerGigOffer;
 
@@ -67,6 +68,53 @@ export default function WorkerOffersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [workerProfileId, setWorkerProfileId] = useState<string | null>(null);
   const uid = authUserId;
+
+  // Fetch worker profile ID when component mounts
+  useEffect(() => {
+    const fetchWorkerProfileId = async () => {
+      if (!uid) return;
+      
+      try {
+        const result = await getWorkerProfileIdFromFirebaseUid(uid);
+        if (result.success && result.data) {
+          setWorkerProfileId(result.data);
+        } else {
+          console.error("Failed to get worker profile ID:", result.error);
+        }
+      } catch (error) {
+        console.error("Error fetching worker profile ID:", error);
+      }
+    };
+
+    fetchWorkerProfileId();
+  }, [uid]);
+
+  // AI Suggestion Banner Hook
+  const {
+    suggestions: aiSuggestions,
+    currentIndex,
+    isLoading: isLoadingSuggestions,
+    error: suggestionsError,
+    dismissed: suggestionsDismissed,
+    dismiss: dismissSuggestions,
+    refresh: refreshSuggestions,
+    goToNext,
+    goToPrev,
+  } = useAiSuggestionBanner({
+    role: "worker",
+    userId: uid || "", // Provide fallback for undefined uid
+    // enabled: true, // Removed duplicate enabled property
+    context: {
+      // Example context for worker, replace with actual relevant data
+      profileCompletion: 0.7,
+      recentActivity: "applied for 2 gigs",
+      platformTrends: [
+        "high demand for photographers",
+        "weekend shifts available",
+      ],
+    },
+    enabled: !!uid, // Only enable if uid is available
+  });
 
   // Fetch worker data (offers and accepted gigs)
   useEffect(() => {
@@ -173,13 +221,12 @@ export default function WorkerOffersPage() {
     }
   };
 
-  const handleViewDetails = (gigId: string) => {
-    const gig =
-      offers.find((o) => o.id === gigId) ||
-      acceptedGigs.find((g) => g.id === gigId);
-    if (gig && workerProfileId) {
-      setSelectedGig(gig);
-      router.push(`/user/${workerProfileId}/worker/gigs/${gigId}`);
+  const handleViewDetails = (offerId: string) => {
+    const offer = offers.find(o => o.id === offerId);
+    if (offer && workerProfileId) {
+      setSelectedGig(offer);
+      router.push(`/user/${workerProfileId}/worker/gigs/${offerId}`);
+      // setIsModalOpen(true);
     } else if (!workerProfileId) {
       console.error("Worker profile ID not available yet");
     }

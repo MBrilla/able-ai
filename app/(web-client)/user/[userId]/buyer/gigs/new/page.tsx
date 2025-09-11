@@ -438,7 +438,8 @@ Create a natural summary that explains what the user wants for this field.`;
         }),
         isStream: false,
       },
-      ai
+      ai,
+      "gemini-2.5-flash-preview-05-20"
     );
 
     if (result.ok && result.data) {
@@ -504,7 +505,8 @@ Create a natural summary that flows well and sounds like a human describing the 
         }),
         isStream: false,
       },
-      ai
+      ai,
+      "gemini-2.5-flash-preview-05-20"
     );
 
     if (result.ok && result.data) {

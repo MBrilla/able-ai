@@ -1,9 +1,9 @@
 "use server";
 
 import { db } from "@/lib/drizzle/db";
-import { and, eq, gt, isNull, ne, or, inArray, isNotNull, lt } from "drizzle-orm";
-import { UsersTable, GigsTable } from "@/lib/drizzle/schema";
-import { parseCoordinates, calculateDistance } from "@/lib/utils/distance";
+import { eq } from "drizzle-orm";
+import { gigStatusEnum, UsersTable, GigsTable, GigWorkerProfilesTable } from "@/lib/drizzle/schema";
+import { isWorkerWithinDistance } from "@/lib/utils/distance";
 
 // Constants
 const DEFAULT_GIG_SEARCH_RADIUS_KM = 30;
@@ -134,22 +134,21 @@ export async function getWorkerOffers(userId: string) {
       columns: { id: true },
       with: {
         gigWorkerProfile: {
-          columns: {
-            id: true,
-            location: true,
-            latitude: true,
-            longitude: true,
-          },
-        },
-      },
-    }); 
+          columns: { location: true }
+        }
+      }
+    });
+
+    console.log("Debug - User found:", user);
 
     if (!user) {
       return { error: "User not found", status: 404 };
     }
 
-    const workerProfile = user.gigWorkerProfile;
-    let workerCoords = null;
+    // Get worker's location for distance filtering
+    const workerLocation = user.gigWorkerProfile?.location;
+
+    console.log("Debug - Using simplified approach...");
 
     if (workerProfile?.latitude && workerProfile?.longitude) {
       const lat = parseFloat(workerProfile.latitude.toString());
@@ -203,28 +202,24 @@ export async function getWorkerOffers(userId: string) {
         })
       : offerGigs;
 
-    const acceptedGigs = await db.query.GigsTable.findMany({
-      columns: {
-        id: true,
-        titleInternal: true,
-        statusInternal: true,
-        workerUserId: true,
-        buyerUserId: true,
-        startTime: true,
-        endTime: true,
-        agreedRate: true,
-        fullDescription: true,
-        notesForWorker: true,
-        addressJson: true,
-        exactLocation: true,
-        expiresAt: true,
-      },
-      where: and(
-        eq(GigsTable.workerUserId, user.id),
-        inArray(GigsTable.statusInternal, ACCEPTED_GIG_STATUSES),
-        gt(GigsTable.endTime, new Date())
-      ),
-    });
+    const offerGigs = allGigs.filter(
+      (gig) => {
+        const basicFilter = gig.statusInternal === PENDING_WORKER_ACCEPTANCE &&
+          !gig.workerUserId &&
+          gig.buyerUserId !== user.id;
+        
+        if (!basicFilter) return false;
+        
+        // If worker has location, filter by distance (30km)
+        if (workerLocation) {
+          const gigLocation = gig.exactLocation || gig.addressJson;
+          return isWorkerWithinDistance(gigLocation, workerLocation, 30);
+        }
+        
+        // If no worker location, include all gigs (fallback)
+        return true;
+      }
+    );
 
     const offers: WorkerGigOffer[] = filteredByDistance.map((gig) =>
       transformGigToWorkerOffer(gig, userId, "pending")

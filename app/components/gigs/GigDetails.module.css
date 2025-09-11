@@ -1,5 +1,5 @@
 .container {
-  background-color: #000000;
+  background-color: var(--background);
   border-radius: 10px;
   color: #fff; /* White text */
   width: 100%;

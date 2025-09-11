@@ -127,8 +127,8 @@ export default function DelegateGigPage() {
         const result = await delegateGigToWorkerAPI(gigId, workerId, user.token);
         if (result.success) {
             toast.success(result.message || "Gig successfully delegated!");
-            // Navigate back to gig details or dashboard
-            router.push(`/gigs/${gigId}`);
+            // Navigate back to the previous page (gig details)
+            router.back();
         } else {
             throw new Error("Failed to delegate gig.");
         }

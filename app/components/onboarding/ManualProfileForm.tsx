@@ -53,6 +53,8 @@ interface FormData {
   videoIntro: string | null;
   references: string;
   jobTitle?: string; // AI extracted job title
+  experienceYears?: number; // Parsed years of experience
+  experienceMonths?: number; // Parsed months of experience
 }
 
 interface ManualProfileFormProps {
@@ -253,6 +255,8 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     },
     videoIntro: null,
     references: workerProfileId ? buildRecommendationLink(workerProfileId) : '',
+    experienceYears: 0,
+    experienceMonths: 0,
     ...initialData
   });
   
@@ -374,7 +378,12 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
       
-
+      // Parse experience in real-time when user types
+      if (name === 'experience' && typeof value === 'string') {
+        const { years, months } = parseExperienceToNumeric(value);
+        newData.experienceYears = years;
+        newData.experienceMonths = months;
+      }
       
       return newData;
     });
@@ -749,6 +758,51 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     }
   };
 
+  // Parse experience text to extract years and months as numeric values
+  const parseExperienceToNumeric = (experienceText: string): { years: number; months: number } => {
+    if (!experienceText || experienceText.trim().length === 0) {
+      return { years: 0, months: 0 };
+    }
+
+    const text = experienceText.toLowerCase();
+    let years = 0;
+    let months = 0;
+
+    // Pattern 1: "25 years" or "25 yrs" or "25y"
+    const yearsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y)\b/);
+    if (yearsMatch) {
+      years = parseFloat(yearsMatch[1]);
+    }
+
+    // Pattern 2: "25 years and 3 months" or "25 years 3 months" or "25y 3m"
+    const yearsAndMonthsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y).*?(\d+)\s*(?:months?|mon|m)\b/);
+    if (yearsAndMonthsMatch) {
+      years = parseFloat(yearsAndMonthsMatch[1]);
+      months = parseInt(yearsAndMonthsMatch[2]);
+    }
+
+    // Pattern 3: "3 months" only (no years mentioned)
+    const monthsOnlyMatch = text.match(/(\d+)\s*(?:months?|mon|m)\b/);
+    if (monthsOnlyMatch && years === 0) {
+      months = parseInt(monthsOnlyMatch[1]);
+      // Convert months to years if more than 12 months
+      if (months >= 12) {
+        years = Math.floor(months / 12);
+        months = months % 12;
+      }
+    }
+
+    // Pattern 4: "2.5 years" (decimal years)
+    const decimalYearsMatch = text.match(/(\d+\.\d+)\s*(?:years?|yrs?|y)\b/);
+    if (decimalYearsMatch && years === 0) {
+      const decimalYears = parseFloat(decimalYearsMatch[1]);
+      years = Math.floor(decimalYears);
+      months = Math.round((decimalYears - years) * 12);
+    }
+
+    return { years, months };
+  };
+
   // AI Sanitization function for specific fields (kept for job title extraction)
   const sanitizeWithAI = async (field: string, value: string): Promise<{ sanitized: string; jobTitle?: string; yearsOfExperience?: number }> => {
     if (!value || value.trim().length === 0) {
@@ -963,15 +1017,24 @@ Experience description: "${value}"`;
         sanitizedData.skills = skillsResult.sanitized;
       }
 
-      // Sanitize Experience field (extract years)
+      // Sanitize Experience field (extract years and months as numeric)
       if (formData.experience) {
         const experienceResult = await sanitizeWithAI('experience', formData.experience);
         sanitizedData.experience = experienceResult.sanitized;
         
-        // If we extracted years of experience, we could use this for other purposes
-        if (experienceResult.yearsOfExperience) {
-          console.log('Extracted years of experience:', experienceResult.yearsOfExperience);
-        }
+        // Parse experience text to get numeric years and months
+        const { years, months } = parseExperienceToNumeric(formData.experience);
+        
+        // Store the parsed numeric values
+        sanitizedData.experienceYears = years;
+        sanitizedData.experienceMonths = months;
+        
+        console.log('Parsed experience:', { 
+          original: formData.experience, 
+          years, 
+          months,
+          totalYears: years + (months / 12)
+        });
       }
 
       // Add extracted job title to the data
@@ -1104,9 +1167,15 @@ Experience description: "${value}"`;
               className={`${styles.textarea} ${errors.experience ? styles.error : ''}`}
               value={formData.experience}
               onChange={(e) => handleInputChange('experience', e.target.value)}
-              placeholder="How many years of experience do you have in your field? (e.g., 5 years in construction, 3 years in plumbing...)"
+              placeholder="How many years of experience do you have? (e.g., '25 years as a baker', '25 years and 3 months', '2.5 years', '18 months')"
               rows={3}
             />
+            {formData.experienceYears && formData.experienceYears > 0 && (
+              <div className={styles.helpText}>
+                Parsed: {formData.experienceYears} years {formData.experienceMonths && formData.experienceMonths > 0 ? `and ${formData.experienceMonths} months` : ''} 
+                (Total: {((formData.experienceYears || 0) + ((formData.experienceMonths || 0) / 12)).toFixed(1)} years)
+              </div>
+            )}
             {errors.experience && <span className={styles.errorText}>{errors.experience}</span>}
           </div>
 
