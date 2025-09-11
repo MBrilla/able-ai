@@ -36,46 +36,36 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;          /* full width */
-  height: 100vh;        /* full height */
-  background: rgba(0, 0, 0, 0.4); /* semi-transparent overlay */
-  backdrop-filter: blur(6px);     /* blur effect */
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
   display: flex;
   justify-content: center;
   align-items: start;
-  z-index: 999;        /* above other elements */
+  z-index: 999;
   padding-top: 1rem;
 }
 
 .recorder, .preview {
-  width: 90%;            /* recorder content width */
-  max-width: 450px;      /* optional max width */
-  background: rgb(47, 47, 47);      /* optional background for recorder itself */
+  width: 90%;
+  max-width: 450px;
+  background: rgb(47, 47, 47);
   border-radius: 8px;
   padding: 1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
 }
-
 
 .webcam {
   border-radius: 0.5rem;
   width: 100%;
 }
 
-.inline {
-  flex-direction: row;
-  gap: 0.5rem;
-}
-
-.column {
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
 .controlButton {
-  background-color: var(--primary-color); /* Tailwind blue-600 */
+  background-color: var(--primary-color);
   color: white;
   padding: 0.5rem 1.5rem;
   border-radius: 1.5rem;
@@ -88,26 +78,13 @@
 
 .note {
   font-size: 0.75rem;
-  color: #9ca3af; /* Tailwind gray-400 */
+  color: #9ca3af;
   align-self: flex-start;
 }
 
 .video {
   border-radius: 0.5rem;
   width: 100%;
-}
-
-.videoPreview {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  width: 100%;
-}
-
-.videoActions {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
 }
 
 .actions {
@@ -117,6 +94,7 @@
 }
 
 .actionButton {
+  background-color: var(--primary-color);
   color: white;
   padding: 0.5rem 1rem;
   border-radius: 0.375rem;
@@ -126,13 +104,12 @@
 }
 
 .rerecordButton {
-  background-color: #ef4444; /* Tailwind red-600 */
+  background-color: #ef4444;
 }
 
 .saveButton {
-  background-color: #16a34a; /* Tailwind green-600 */
+  background-color: #16a34a;
 }
-
 
 .monitorPlay {
   width: 20px;
@@ -140,24 +117,9 @@
 }
 
 .error {
-  color: #ef4444; /* Tailwind red-600 */
+  color: #ef4444;
   font-size: 0.875rem;
   text-align: center;
-}
-
-.fadeOut {
-  animation: fadeOut 0.3s ease-out forwards;
-}
-
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.95);
-  }
 }
 
 .countdownOverlay {
@@ -172,7 +134,7 @@
   align-items: center;
   justify-content: center;
   z-index: 10;
-  border-radius: 8px; /* Adjust to match your video border radius */
+  border-radius: 8px;
 }
 
 .countdown {
@@ -191,4 +153,42 @@
 .countdownSubtext {
   color: rgba(255, 255, 255, 0.8);
   font-size: 1.2rem;
+}
+
+.inline {
+  flex-direction: row;
+  gap: 0.5rem;
+}
+
+.column {
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.videoPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.viewVideoContainer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.fadeOut {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
