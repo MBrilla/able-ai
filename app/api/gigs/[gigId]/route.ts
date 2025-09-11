@@ -3,10 +3,10 @@ import { getGigDetails } from '@/actions/gigs/get-gig-details';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { gigId: string } }
+  { params }: { params: Promise<{ gigId: string }> }
 ) {
   try {
-    const { gigId } = params;
+    const { gigId } = await params;
     
     if (!gigId) {
       return NextResponse.json(
