@@ -3139,18 +3139,6 @@ Share this link to get your reference\n\nSend this link to get your reference: $
     }
   }, [reformulateField, requiredFields]);
 
-  if (loadingAuth) {
-    return (
-      <div className={pageStyles.loadingContainer}>
-        <p>Loading authentication...</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Loader />;
-  }
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   // Handle incident reporting in chat
   const handleIncidentReporting = useCallback(async (message: string) => {
     if (!isReportingIncident) {
@@ -3287,11 +3275,23 @@ Share this link to get your reference\n\nSend this link to get your reference: $
       handleInputChange(currentInputStep.inputConfig!.name, message);
       handleInputSubmit(currentInputStep.id, currentInputStep.inputConfig!.name, message); // Pass message as value
     }
-  }, [chatSteps, handleInputChange, handleInputSubmit, isReportingIncident, incidentType, incidentDetails]);
+  }, [chatSteps, handleInputChange, handleInputSubmit, isReportingIncident, incidentType, incidentDetails, user?.uid]);
 
   const onSendMessage = useCallback((message: string) => {
     handleIncidentReporting(message);
   }, [handleIncidentReporting]);
+
+  if (loadingAuth) {
+    return (
+      <div className={pageStyles.loadingContainer}>
+        <p>Loading authentication...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Loader />;
+  }
 
   // Show setup choice modal if no mode has been selected
   if (showSetupChoice) {
