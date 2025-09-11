@@ -1524,6 +1524,7 @@ Return 3 relevant hashtags like "#bartender", "#mixology", "#events" for hospita
 
     console.log('🔍 Starting manual form submission validation...');
     
+    
     // Validate the form data before proceeding
     const validation = validateWorkerProfileData(formData);
     if (!validation.isValid) {
@@ -1534,6 +1535,8 @@ Return 3 relevant hashtags like "#bartender", "#mixology", "#events" for hospita
 
     console.log('✅ Form validation passed, proceeding with submission');
     setIsSubmitting(true);
+    setError(null);
+    
     setError(null);
     
     try {
@@ -1551,6 +1554,7 @@ Return 3 relevant hashtags like "#bartender", "#mixology", "#events" for hospita
         }
       }
 
+      // Ensure all required fields are present - use sanitized data from form
       // Ensure all required fields are present - use sanitized data from form
       // Parse experience to get numeric values
       const { years: experienceYears, months: experienceMonths } = parseExperienceToNumeric(formData.experience || '');
@@ -1597,6 +1601,7 @@ Return 3 relevant hashtags like "#bartender", "#mixology", "#events" for hospita
       // Save the profile data to database - THIRD OCCURRENCE
       await handleProfileSubmission(requiredData);
     } catch (error) {
+      console.error('❌ Manual form submission error:', error);
       console.error('❌ Manual form submission error:', error);
       setError('Failed to save profile. Please try again.');
     } finally {
@@ -1748,6 +1753,7 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
         ai,
         "gemini-2.5-flash-preview-05-20"
       );
+      
       
       
 
@@ -2836,7 +2842,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
               ends: 'never',
               startDate: new Date().toISOString().split('T')[0],
               endDate: undefined,
-              occurrences: undefined
+              occurrences: undefined,
             }
           }));
         } else {
@@ -2902,6 +2908,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
         },
         () => {
           getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+            updateVideoUrlProfileAction(downloadURL, user.token);
             updateVideoUrlProfileAction(downloadURL, user.token);
             updateVideoUrlProfileAction(downloadURL, user.token);
             handleInputChange(name, downloadURL);

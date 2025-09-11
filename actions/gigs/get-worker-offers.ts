@@ -7,7 +7,7 @@ import { isWorkerWithinDistance } from "@/lib/utils/distance";
 
 // Gig statuses for offers (pending worker acceptance)
 const PENDING_WORKER_ACCEPTANCE = gigStatusEnum.enumValues[0];
-const PAYMENT_HELD_PENDING_ACCEPTANCE = gigStatusEnum.enumValues[1];
+// const PAYMENT_HELD_PENDING_ACCEPTANCE = gigStatusEnum.enumValues[1];
 
 // Gig statuses for accepted gigs
 const ACCEPTED = gigStatusEnum.enumValues[2];

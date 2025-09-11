@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth, User } from '@/context/AuthContext';
-import { WorkerUser } from '@/actions/user/get-worker-user';
+import { getWorkerUserFromProfileId, WorkerUser } from '@/actions/user/get-worker-user';
 import { Loader2 } from 'lucide-react';
 import styles from './GigDetailsPage.module.css';
 import GigDetailsComponent from '@/app/components/gigs/GigDetails';
@@ -12,8 +12,6 @@ import { getGigDetails } from '@/actions/gigs/get-gig-details';
 import { getWorkerOffers } from '@/actions/gigs/get-worker-offers';
 
 async function fetchWorkerGigDetails(user: User | WorkerUser, gigId: string): Promise<GigDetails | null> {
-  console.log("Fetching gig details for worker:", user?.uid, "gig:", gigId);
-
   const isViewQA = false;
   const { gig, status } = await getGigDetails({ gigId, userId: user?.uid, role: 'worker', isViewQA });
 
@@ -62,22 +60,13 @@ export default function WorkerGigDetailsPage() {
       
       try {
         // Import the function to get worker user from profile ID
-        const { getWorkerUserFromProfileId } = await import('@/actions/user/get-worker-user');
-        const result = await getWorkerUserFromProfileId(workerProfileId);
+        const {success, data} = await getWorkerUserFromProfileId(workerProfileId);
         
-        console.log('🔍 DEBUG: Worker user fetch result:', {
-          success: result.success,
-          hasData: !!result.data,
-          error: result.error
-        });
         
-        if (result.success && result.data) {
-          console.log('🔍 DEBUG: Worker user data:', {
-            id: result.data.id,
-            displayName: result.data.displayName,
-            uid: result.data.uid
-          });
-          setWorkerUser(result.data);
+        
+        if (success && data) {
+          
+          setWorkerUser(data);
         } else {
           console.log('🔍 DEBUG: Worker not found - setting error');
           setError("Worker not found");
@@ -149,22 +138,7 @@ export default function WorkerGigDetailsPage() {
     }
   }, [loadingAuth, user, authUserId, workerProfileId, gigId, workerUser]);
 
-
-  /*
-  const getStatusBadgeClass = (status: GigDetails['status']) => {
-    switch (status) {
-        case 'ACCEPTED': return styles.statusAccepted;
-        case 'IN_PROGRESS': return styles.statusInProgress;
-        case 'AWAITING_BUYER_CONFIRMATION': return styles.statusAwaitingConfirmation;
-        case 'COMPLETED': return styles.statusCompleted;
-        case 'CANCELLED': return styles.statusCancelled;
-        default: return '';
-    }
-  }
-  */
-
   if (isLoadingGig) {
-    console.log('Rendering loading screen, isLoadingGig:', isLoadingGig);
     return (
       <div 
         className={styles.loadingContainer}

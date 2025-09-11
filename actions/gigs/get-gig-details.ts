@@ -1,81 +1,10 @@
 "use server";
 
 import { db } from "@/lib/drizzle/db";
-import { and, eq, or, isNull } from "drizzle-orm";
-import { GigsTable, UsersTable, gigStatusEnum } from "@/lib/drizzle/schema";
+import { and, eq, isNull, or } from "drizzle-orm";
+import { GigsTable, GigWorkerProfilesTable, UsersTable, gigStatusEnum } from "@/lib/drizzle/schema";
 import moment from "moment";
 import GigDetails from "@/app/types/GigDetailsTypes";
-
-function getMockedQAData(gigId: string) {
-  // Example Data (should match the actual GigDetails interface)
-
-  if (gigId === "gig123-accepted") {
-    return {
-      id: "gig123-accepted",
-      role: "Lead Bartender",
-      gigTitle: "Corporate Mixer Event",
-      buyerName: "Innovate Solutions Ltd.", buyerAvatarUrl: "/images/logo-placeholder.svg",
-      date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // In 2 days
-      startTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-      endTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000).toISOString(),
-      location: "123 Business Rd, Tech Park, London, EC1A 1BB",
-      hourlyRate: 25,
-      estimatedEarnings: 125,
-      specialInstructions: "Focus on high-quality cocktails. Dress code: smart black. Setup starts 30 mins prior. Contact person on site: Jane (07xxxxxxxxx).",
-      status: "ACCEPTED",
-      statusInternal: "IN_PROGRESS",
-      hiringManager: "Jane Smith",
-      hiringManagerUsername: "@janesmith",
-      isBuyerSubmittedFeedback: false,
-      isWorkerSubmittedFeedback: true,
-    } as GigDetails;
-  }
-  if (gigId === "gig456-inprogress") {
-    return {
-      id: "gig456-inprogress",
-      role: "Event Server",
-      gigTitle: "Wedding Reception",
-      buyerName: "Alice & Bob",
-      date: new Date().toISOString(), // Today
-      startTime: new Date(new Date().setHours(16, 0, 0, 0)).toISOString(),
-      endTime: new Date(new Date().setHours(22, 0, 0, 0)).toISOString(),
-      location: "The Manor House, Countryside Lane, GU21 5ZZ",
-      hourlyRate: 18, estimatedEarnings: 108,
-      specialInstructions: "Silver service required. Liaise with the event coordinator Sarah upon arrival.",
-      status: "ACCEPTED",
-      statusInternal: "IN_PROGRESS",
-      hiringManager: "Sarah Johnson",
-      hiringManagerUsername: "@sarahjohnson",
-      isBuyerSubmittedFeedback: false,
-      isWorkerSubmittedFeedback: true,
-    } as GigDetails;
-  }
-
-  // Fallback generic mock for any other gigId in QA mode
-  const now = new Date();
-  const start = new Date(now.getTime() + 24 * 60 * 60 * 1000); // tomorrow
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000); // +2h
-  return {
-    id: gigId,
-    role: "Bartender",
-    gigTitle: "Pop-up Bar Night",
-    buyerName: "John Doe",
-    date: start.toISOString(),
-    startTime: start.toISOString(),
-    endTime: end.toISOString(),
-    duration: "2 hours",
-    location: "221B Baker Street, London",
-    hourlyRate: 20,
-    estimatedEarnings: 40,
-    specialInstructions: "Arrive 20 mins early for setup.",
-    status: "PENDING",
-    statusInternal: "PENDING_WORKER_ACCEPTANCE",
-    hiringManager: "Alex Doe",
-    hiringManagerUsername: "@alexd",
-    isBuyerSubmittedFeedback: false,
-    isWorkerSubmittedFeedback: false,
-  } as GigDetails;
-}
 
 function getMappedStatus(internalStatus: string): GigDetails['status'] {
 
@@ -355,18 +284,17 @@ function parseGigLocation(gig: any): string {
   return locationDisplay;
 }
 
-export async function getGigDetails({ 
-  gigId, 
-  userId, 
-  role, 
-  isViewQA 
+export async function getGigDetails({
+  gigId,
+  userId,
+  role,
 }: { 
   gigId: string; 
   userId: string; 
   role?: 'buyer' | 'worker'; 
   isViewQA?: boolean; 
 }) {
-  console.log('🔍 DEBUG: getGigDetails called with:', { gigId, userId, role, isViewQA });
+
   
   if (!userId) {
     console.log('🔍 DEBUG: No userId provided');
@@ -467,15 +395,14 @@ export async function getGigDetails({
       });
     }
 
-    if (isViewQA && !gig) return { gig: getMockedQAData(gigId) as GigDetails, status: 200 };
+    const worker = await db.query.GigWorkerProfilesTable.findFirst({
+      where: eq(GigWorkerProfilesTable.userId, gig?.worker?.id || ""),
+    })
 
     if (!gig) {
       console.log('🔍 DEBUG: Gig not found in database');
       return { error: 'gig not found', gig: {} as GigDetails, status: 404 };
     }
-    
-    console.log('🔍 DEBUG: Gig found, processing...');
-    console.log('Gig debug - raw gig object:', JSON.stringify(gig, null, 2));
 
     const startDate = moment(gig.startTime);
     const endDate = moment(gig.endTime);
@@ -486,7 +413,6 @@ export async function getGigDetails({
     const isBuyerSubmittedFeedback = false;
 
     // Parse location using helper function
-    const locationDisplay = parseGigLocation(gig);
     const roleDisplay = gig.titleInternal || 'Gig Worker';
 
     // Calculate worker statistics if there's an assigned worker
@@ -522,8 +448,11 @@ export async function getGigDetails({
       startTime: startDate.toISOString(),
       endTime: endDate.toISOString(),
       duration: `${durationInHours} hours`,
-      location: locationDisplay,
+      location: gig?.addressJson || undefined,
+      workerViderUrl: worker?.videoUrl,
+      workerFullBio: worker?.fullBio,
       hourlyRate: hourlyRate,
+      worker: gig?.worker,
       estimatedEarnings: estimatedEarnings,
       specialInstructions: gig.notesForWorker || undefined,
       status: getMappedStatus(gig.statusInternal),
@@ -540,10 +469,10 @@ export async function getGigDetails({
       isWorkerStar: isWorkerStar,
     };
 
-    return { gig: gigDetails, status: 200 };
+    return { success: true, gig: gigDetails, status: 200 };
 
   } catch (error: unknown) {
     console.error("Error fetching gig:", error);
-    return { error: error instanceof Error ? error.message : 'Unknown error fetching gig', gig: {} as GigDetails, status: 500 };
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error fetching gig', gig: {} as GigDetails, status: 500 };
   }
 }

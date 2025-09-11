@@ -346,6 +346,9 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       case 'qualifications':
         // Qualifications are optional, but if provided, should be meaningful
         return value && value.trim().length > 0 && value.trim().length < 5 ? 'Please provide more details about your qualifications (at least 5 characters)' : '';
+      case 'qualifications':
+        // Qualifications are optional, but if provided, should be meaningful
+        return value && value.trim().length > 0 && value.trim().length < 5 ? 'Please provide more details about your qualifications (at least 5 characters)' : '';
       case 'hourlyRate':
         return !value || value < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE ? `Please enter a valid hourly rate (minimum £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE})` : '';
       case 'location':
@@ -406,7 +409,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
           "state_changed",
           (snapshot) => {
             const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            console.log("Video upload progress:", progress + "%");
+            // Video upload progress: handled elsewhere
           },
           (error) => {
             console.error("Video upload failed:", error);
@@ -415,7 +418,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
           () => {
             getDownloadURL(uploadTask.snapshot.ref)
               .then((url) => {
-                console.log("Video uploaded successfully:", url);
+                // Video uploaded successfully
                 resolve(url);
               })
               .catch(reject);
@@ -620,7 +623,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     try {
       const ai = getAI();
       if (!ai) {
-        console.log('AI not available, returning original value');
+  // AI not available; returning original value
         return { sanitized: value };
       }
 
@@ -730,6 +733,7 @@ Experience description: "${value}"`;
     }
 
     // Validate form before proceeding
+    // Validate form before proceeding
     if (!validateForm()) {
       console.log('❌ Form validation failed, not submitting');
       return;
@@ -837,6 +841,8 @@ Experience description: "${value}"`;
       console.error('Form submission error:', error);
       // Set error state to show user
       setErrors(prev => ({ ...prev, submit: 'Failed to submit form. Please try again.' }));
+      // Set error state to show user
+      setErrors(prev => ({ ...prev, submit: 'Failed to submit form. Please try again.' }));
     } finally {
       setIsSubmitting(false);
     }
@@ -933,6 +939,7 @@ Experience description: "${value}"`;
                      <div className={styles.formGroup}>
              <label className={styles.label}>
                Skills *
+               Skills *
              </label>
              <textarea
                className={`${styles.textarea} ${errors.skills ? styles.error : ''}`}
@@ -942,6 +949,20 @@ Experience description: "${value}"`;
                rows={3}
              />
              {errors.skills && <span className={styles.errorText}>{errors.skills}</span>}
+           </div>
+
+           <div className={styles.formGroup}>
+             <label className={styles.label}>
+               Qualifications & Certifications
+             </label>
+             <textarea
+               className={`${styles.textarea} ${errors.qualifications ? styles.error : ''}`}
+               value={formData.qualifications}
+               onChange={(e) => handleInputChange('qualifications', e.target.value)}
+               placeholder="List your qualifications, certifications, degrees, licenses, etc..."
+               rows={3}
+             />
+             {errors.qualifications && <span className={styles.errorText}>{errors.qualifications}</span>}
            </div>
 
            <div className={styles.formGroup}>
@@ -982,6 +1003,7 @@ Experience description: "${value}"`;
               Hourly Rate (£) *
             </label>
             <div className={styles.inputWrapper}>
+              <span className={styles.currencySymbol}>£</span>
               <span className={styles.currencySymbol}>£</span>
               <input
                 type="number"
@@ -1139,6 +1161,12 @@ Experience description: "${value}"`;
             </div>
           )}
           
+          {errors.submit && (
+            <div className={styles.errorMessage}>
+              {errors.submit}
+            </div>
+          )}
+          
           <button
             type="submit"
             className={styles.submitButton}
@@ -1156,6 +1184,7 @@ Experience description: "${value}"`;
 
           {progress < 100 && (
             <p className={styles.completionNote}>
+              Please fill in about, experience, skills, and equipment sections to complete your profile
               Please fill in about, experience, skills, and equipment sections to complete your profile
             </p>
           )}

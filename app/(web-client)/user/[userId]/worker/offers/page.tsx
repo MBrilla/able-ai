@@ -157,7 +157,7 @@ export default function WorkerOffersPage() {
       setIsLoadingData(false);
       // Redirect to signin after a short delay
       setTimeout(() => {
-        router.push(`/signin?redirect=${pathname}`);
+        router.push(`/?redirect=${pathname}`);
       }, 2000);
     } else if (!loadingAuth && !user) {
       console.log("Debug - No user authenticated");
@@ -165,7 +165,7 @@ export default function WorkerOffersPage() {
       setIsLoadingData(false);
       // Redirect to signin after a short delay
       setTimeout(() => {
-        router.push(`/signin?redirect=${pathname}`);
+        router.push(`/?redirect=${pathname}`);
       }, 2000);
     }
   }, [user, loadingAuth, authUserId, pageUserId, lastRoleUsed]);
@@ -259,19 +259,17 @@ export default function WorkerOffersPage() {
     }
   };
 
-  const handleViewDetails = (offerId: string) => {
-    const offer = offers.find(o => o.id === offerId);
-    if (offer && workerProfileId) {
-      setSelectedGig(offer);
-      router.push(`/user/${workerProfileId}/worker/gigs/${offerId}`);
-      // setIsModalOpen(true);
+ const handleViewDetails = (gigId: string) => {
+  // Search in offers first, then in acceptedGigs
+  const gig = offers.find(o => o.id === gigId) || acceptedGigs.find(g => g.id === gigId);
+  if (gig && workerProfileId) {
+    setSelectedGig(gig);
+    router.push(`/user/${workerProfileId}/worker/gigs/${gigId}`);
+    // setIsModalOpen(true);
     } else if (!workerProfileId) {
       console.error("Worker profile ID not available yet");
-    }
-  };
-  const handleGoToHome = () => {
-    router.push(`/user/${pageUserId}/worker`);
-  };
+  }
+};
 
   const handleModalClose = () => {
     setIsModalOpen(false);
@@ -407,23 +405,6 @@ export default function WorkerOffersPage() {
             )}
           </div>
         )}
-        <footer className={styles.footer}>
-          {" "}
-          {/* Use styles */}
-          <Link href={`/user/${pageUserId}/worker`} passHref>
-            {" "}
-            {/* Use user?.uid */}
-            <button
-              className={styles.homeButton}
-              aria-label="Go to Home"
-              onClick={handleGoToHome}
-            >
-              {" "}
-              {/* Use styles */}
-              <Image src="/images/home.svg" alt="Home" width={40} height={40} />
-            </button>
-          </Link>
-        </footer>
       </div>
 
       {/* Gig Details Modal */}

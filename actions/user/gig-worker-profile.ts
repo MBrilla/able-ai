@@ -23,11 +23,17 @@ import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
 import { BadgeIcon } from "@/app/components/profile/GetBadgeIcon";
 
 
-export const getPublicWorkerProfileAction = async (workerId: string) => {
+export const getPublicWorkerProfileAction = async (
+  workerId: string,
+  useUserId: boolean = false
+) => {
   if (!workerId) throw "Worker ID is required";
 
   const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
-    where: eq(GigWorkerProfilesTable.id, workerId),
+    where: eq(
+      useUserId ? GigWorkerProfilesTable.userId : GigWorkerProfilesTable.id,
+      workerId
+    ),
     with: { user: { columns: { fullName: true, rtwStatus: true } } },
   });
 
@@ -270,7 +276,7 @@ export const getSkillDetailsWorker = async (id: string) => {
       hashtags: Array.isArray(workerProfile?.hashtags)
         ? workerProfile.hashtags
         : [],
-      customerReviewsText: workerProfile?.fullBio,
+      customerReviewsText: "",
       ableGigs: skill?.ableGigs,
       experienceYears: skill?.experienceYears,
       Eph: skill?.agreedRate,
@@ -281,8 +287,8 @@ export const getSkillDetailsWorker = async (id: string) => {
       videoUrl: workerProfile?.videoUrl || "",
       statistics: {
         reviews: reviews?.length,
-        paymentsCollected: "£4899",
-        tipsReceived: "£767",
+        paymentsCollected: "£0",
+        tipsReceived: "£0",
       },
       supportingImages: skill.images ?? [],
       badges: badgeDetails,

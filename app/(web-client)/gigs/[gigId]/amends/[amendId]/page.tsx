@@ -4,23 +4,24 @@ import React, { useState } from "react";
 import styles from "./CancelOrAmendGigDetailsPage.module.css";
 import { useAuth } from "@/context/AuthContext";
 import { getLastRoleUsed } from "@/lib/last-role-used";
-import Logo from "@/app/components/brand/Logo";
 import UpdateGig from "@/app/components/gigs/UpdateGig";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { updateGigOfferStatus } from "@/actions/gigs/update-gig-offer-status";
-import SubmitButton from "@/app/components/form/SubmitButton";
 import ScreenHeaderWithBack from "@/app/components/layout/ScreenHeaderWithBack";
+import { GigReviewDetailsData } from "@/app/types";
 
 // Mock data - replace with actual props or state
 const gigDetailsData = {
-  location: "The Green Tavern, Main Street, Springfield",
+  location: {
+    formatted_address: "123 Main St, Cityville, Country"
+  },
   date: "Saturday, 12th November 2023",
   time: "6:00 PM - 1:00 AM",
   payPerHour: "20",
   totalPay: "140",
   summary:
     "Add one more hour. Total gig value is now 140, with Able and payment provider fees of 14.",
-};
+} as GigReviewDetailsData;
 
 export default function CancelOrAmendGigDetailsPage() {
   const router = useRouter();
@@ -105,13 +106,12 @@ export default function CancelOrAmendGigDetailsPage() {
         {/* Updated Gig Details Block */}
         <UpdateGig
           title="Gig Details"
-          gigDetailsData={gigDetailsData}
           editedGigDetails={editedGigDetails}
           handleEditDetails={handleEditDetails}
           setEditedGigDetails={setEditedGigDetails}
           isEditingDetails={isEditingDetails}
         />
-        {/* Action Button Area */}
+     {/* Action Button Area */}
       <div className={`${styles.actionBtnContainer}`}>
         <button
           type="button"
