@@ -1521,7 +1521,7 @@ Return 3 relevant hashtags like "#bartender", "#mixology", "#events" for hospita
         skills: formData.skills || '', // This is now the sanitized version from the form
         qualifications: formData.qualifications || '', // Add qualifications field
         equipment: typeof formData.equipment === 'string' && formData.equipment.trim().length > 0
-          ? formData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined }))
+          ? formData.equipment.split(/[,\n;]/).map((item: string) => ({ name: item.trim(), description: undefined })).filter((item: { name: string; description: undefined }) => item.name.length > 0)
           : [],
         hourlyRate: String(formData.hourlyRate || ''),
         location: formData.location || '',
@@ -3536,7 +3536,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                           experience: step.summaryData?.experience || '',
                           skills: step.summaryData?.skills || '',
                           equipment: typeof step.summaryData?.equipment === 'string' && step.summaryData.equipment.trim().length > 0
-                            ? step.summaryData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined }))
+                            ? step.summaryData.equipment.split(/[,\n;]/).map((item: string) => ({ name: item.trim(), description: undefined })).filter((item: { name: string; description: undefined }) => item.name.length > 0)
                             : [],
                           hourlyRate: String(step.summaryData?.hourlyRate || ''),
                           location: step.summaryData?.location || '',

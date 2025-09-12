@@ -3,7 +3,7 @@
 import { db } from "@/lib/drizzle/db";
 import { eq } from "drizzle-orm";
 import { gigStatusEnum, UsersTable, GigsTable, GigWorkerProfilesTable } from "@/lib/drizzle/schema";
-import { isWorkerWithinDistance } from "@/lib/utils/distance";
+import { isWorkerWithinDistance, parseCoordinates, calculateDistance } from "@/lib/utils/distance";
 
 // Constants
 const DEFAULT_GIG_SEARCH_RADIUS_KM = 30;
@@ -131,7 +131,11 @@ export async function getWorkerOffers(userId: string) {
       columns: { id: true },
       with: {
         gigWorkerProfile: {
-          columns: { location: true }
+          columns: { 
+            location: true,
+            latitude: true,
+            longitude: true
+          }
         }
       }
     });
@@ -141,7 +145,26 @@ export async function getWorkerOffers(userId: string) {
     }
 
     // Get worker's location for distance filtering
-    const workerLocation = user.gigWorkerProfile?.location;
+    const workerProfile = user.gigWorkerProfile;
+    let workerCoords = null;
+    
+    // Try to get coordinates from latitude/longitude fields first
+    if (workerProfile?.latitude && workerProfile?.longitude) {
+      const lat = parseFloat(workerProfile.latitude.toString());
+      const lng = parseFloat(workerProfile.longitude.toString());
+      if (!isNaN(lat) && !isNaN(lng)) {
+        workerCoords = { lat, lon: lng };
+        console.log(`🔍 DEBUG: Worker coordinates from lat/lng: ${lat}, ${lng}`);
+      }
+    }
+    
+    // Fallback to parsing location string
+    if (!workerCoords && workerProfile?.location) {
+      workerCoords = parseCoordinates(workerProfile.location);
+      console.log(`🔍 DEBUG: Worker coordinates from location string:`, workerCoords);
+    }
+    
+    console.log(`🔍 DEBUG: Final worker coordinates:`, workerCoords);
 
     const allGigs = await db.query.GigsTable.findMany({
       columns: {
@@ -168,13 +191,30 @@ export async function getWorkerOffers(userId: string) {
         
         if (!basicFilter) return false;
         
-        // If worker has location, filter by distance
-        if (workerLocation) {
+        // If worker has coordinates, filter by distance
+        if (workerCoords) {
           const gigLocation = gig.exactLocation || gig.addressJson;
-          return isWorkerWithinDistance(gigLocation, workerLocation, DEFAULT_GIG_SEARCH_RADIUS_KM);
+          const gigCoords = parseCoordinates(gigLocation);
+          
+          if (gigCoords) {
+            const distance = calculateDistance(
+              workerCoords.lat,
+              workerCoords.lon,
+              gigCoords.lat,
+              gigCoords.lon
+            );
+            
+            const withinRange = distance <= DEFAULT_GIG_SEARCH_RADIUS_KM;
+            console.log(`🔍 DEBUG: Gig ${gig.id} - Distance: ${distance.toFixed(2)}km, Within range: ${withinRange}`);
+            return withinRange;
+          } else {
+            console.log(`🔍 DEBUG: Gig ${gig.id} - No valid gig coordinates, including anyway`);
+            return true; // Include gigs without coordinates
+          }
         }
         
-        // If no worker location, include all gigs (fallback)
+        // If no worker coordinates, include all gigs (fallback)
+        console.log(`🔍 DEBUG: No worker coordinates, including all gigs`);
         return true;
       }
     );
