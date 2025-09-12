@@ -399,7 +399,7 @@ What would you like help with?`;
         setChatSteps(prev => [
           ...prev,
           {
-            id: generateUniqueId(),
+            id: Date.now(),
             type: "user",
             content: userMessage,
             isNew: true,
@@ -407,7 +407,7 @@ What would you like help with?`;
         ]);
         
         // Add rejection message
-        addBotMessage(setChatSteps, `I'm sorry, but "${preValidation.reason}" is not appropriate for our professional platform. Please ask about gigs, platform features, or other work-related topics.`, generateUniqueId);
+        addBotMessage(setChatSteps, `I'm sorry, but "${preValidation.reason}" is not appropriate for our professional platform. Please ask about gigs, platform features, or other work-related topics.`);
         return;
       }
     } catch (error) {

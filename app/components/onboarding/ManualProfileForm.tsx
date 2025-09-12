@@ -84,8 +84,13 @@ export const validateWorkerProfileData = (formData: FormData): { isValid: boolea
         }
         break;
       case 'experience':
-        if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH) {
-          errors.experience = `Experience section must be at least ${VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH} characters`;
+        // Allow simple numeric input (just a number) or descriptive text
+        const trimmedValue = value.trim();
+        const isNumeric = /^\d+(\.\d+)?$/.test(trimmedValue);
+        const isDescriptive = trimmedValue.length >= VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH;
+        
+        if (!trimmedValue || (!isNumeric && !isDescriptive)) {
+          errors.experience = `Please enter your years of experience (e.g., "5" or "5 years" or "5 years of experience")`;
           isValid = false;
         }
         break;
@@ -198,11 +203,17 @@ export const validateContentWithAI = async (field: string, value: string): Promi
         required: ["isValid", "reason", "sanitized"]
       });
     } else if (field === 'experience') {
-      prompt = `Validate this experience description. Check if it's professional and relevant. Reject if it contains:
+      prompt = `Validate this experience description. Check if it's professional and relevant. REJECT if it contains:
+      - Video game references: "mario", "luigi", "peach", "bowser", "sonic", "link", "zelda", "pokemon", etc.
+      - Fictional characters: "batman", "superman", "spiderman", "wonder woman", etc.
+      - Memes and internet culture: "its a me mario", "hello there", "general kenobi", etc.
+      - Jokes and humor: "i am the best at nothing", "i can fly", "i am a wizard", etc.
+      - Nonsense and gibberish: "asdf", "qwerty", "random text", "blah blah", etc.
       - Personal names of celebrities, athletes, or fictional characters
-      - Jokes, memes, or inappropriate content
+      - Inappropriate content, profanity, sexual content, violence
       - Non-professional information
-      - Gibberish or random text
+      
+      ACCEPT legitimate work experience like: "5 years", "2.5 years", "5 years of experience", "I have 5 years of experience in customer service", etc.
       
       If valid, return the cleaned version. If invalid, explain why it's inappropriate.
       
@@ -465,7 +476,15 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       case 'about':
         return value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_ABOUT_LENGTH ? `Please provide at least ${VALIDATION_CONSTANTS.WORKER.MIN_ABOUT_LENGTH} characters about yourself` : '';
       case 'experience':
-        return value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH ? `Please describe your years of experience (at least ${VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH} characters)` : '';
+        // Allow simple numeric input (just a number) or descriptive text
+        const trimmedValue = value.trim();
+        const isNumeric = /^\d+(\.\d+)?$/.test(trimmedValue);
+        const isDescriptive = trimmedValue.length >= VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH;
+        
+        if (!trimmedValue || (!isNumeric && !isDescriptive)) {
+          return `Please enter your years of experience (e.g., "5" or "5 years" or "5 years of experience")`;
+        }
+        return '';
       case 'skills':
         return value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH ? `Please list your skills (at least ${VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH} characters)` : '';
       case 'equipment':
@@ -878,6 +897,23 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       return { sanitized: value };
     }
 
+    // Pre-validation: Check for inappropriate content before AI processing
+    try {
+      const { preValidateContent } = await import('../../../lib/utils/contentModeration');
+      const preValidation = preValidateContent(value);
+      
+      // If pre-validation rejects with high confidence, return sanitized rejection
+      if (!preValidation.isAppropriate && preValidation.confidence > 0.8) {
+        return { 
+          sanitized: `[Content rejected: ${preValidation.reason}]`,
+          yearsOfExperience: 0
+        };
+      }
+    } catch (error) {
+      console.error('Pre-validation failed:', error);
+      // Continue with AI validation if pre-validation fails
+    }
+
     try {
       const ai = getAI();
       if (!ai) {
@@ -912,7 +948,20 @@ Skills: "${value}"`;
           required: ["sanitized"]
         });
       } else if (field === 'experience') {
-        prompt = `Extract the years of experience from this text. Look for numbers followed by "years", "yrs", or similar. Return the number of years as an integer.
+        prompt = `Extract the years of experience from this text. REJECT if it contains:
+- Video game references: "mario", "luigi", "peach", "bowser", "sonic", "link", "zelda", "pokemon", etc.
+- Fictional characters: "batman", "superman", "spiderman", "wonder woman", etc.
+- Memes and internet culture: "its a me mario", "hello there", "general kenobi", etc.
+- Jokes and humor: "i am the best at nothing", "i can fly", "i am a wizard", etc.
+- Nonsense and gibberish: "asdf", "qwerty", "random text", "blah blah", etc.
+
+ACCEPT legitimate formats including:
+- Simple numbers (e.g., "5", "2.5")
+- Numbers with "years" (e.g., "5 years", "2.5 years")
+- Numbers with "yrs" or "y" (e.g., "5 yrs", "2y")
+- Descriptive text (e.g., "5 years of experience", "I have 5 years")
+
+Return the number of years as a number (can be decimal). If content is inappropriate or no clear number is found, return 0.
 
 Experience description: "${value}"`;
         
@@ -1253,7 +1302,7 @@ Qualifications: "${value}"`;
               className={`${styles.textarea} ${errors.experience ? styles.error : ''}`}
               value={formData.experience}
               onChange={(e) => handleInputChange('experience', e.target.value)}
-              placeholder="How many years of experience do you have? (e.g., '25 years as a baker', '25 years and 3 months', '2.5 years', '18 months')"
+              placeholder="How many years of experience do you have? (e.g., '5', '5 years', '2.5 years', '5 years and 3 months')"
               rows={3}
             />
             {formData.experienceYears && formData.experienceYears > 0 && (
