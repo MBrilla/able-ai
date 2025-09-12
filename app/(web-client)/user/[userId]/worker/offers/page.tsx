@@ -89,32 +89,7 @@ export default function WorkerOffersPage() {
     fetchWorkerProfileId();
   }, [uid]);
 
-  // AI Suggestion Banner Hook
-  const {
-    suggestions: aiSuggestions,
-    currentIndex,
-    isLoading: isLoadingSuggestions,
-    error: suggestionsError,
-    dismissed: suggestionsDismissed,
-    dismiss: dismissSuggestions,
-    refresh: refreshSuggestions,
-    goToNext,
-    goToPrev,
-  } = useAiSuggestionBanner({
-    role: "worker",
-    userId: uid || "", // Provide fallback for undefined uid
-    // enabled: true, // Removed duplicate enabled property
-    context: {
-      // Example context for worker, replace with actual relevant data
-      profileCompletion: 0.7,
-      recentActivity: "applied for 2 gigs",
-      platformTrends: [
-        "high demand for photographers",
-        "weekend shifts available",
-      ],
-    },
-    enabled: !!uid, // Only enable if uid is available
-  });
+  
 
   // Fetch worker data (offers and accepted gigs)
   useEffect(() => {
@@ -257,8 +232,8 @@ export default function WorkerOffersPage() {
 
   return (
     <div className={styles.container}>
-      <ScreenHeaderWithBack title="Gig Offers" />
-
+      <ScreenHeaderWithBack title="Gig Offers" onBackClick={() => router.back()} />
+    
       <div className={styles.pageWrapper}>
         {isLoadingData ? (
           <div className={styles.loadingContainer}>

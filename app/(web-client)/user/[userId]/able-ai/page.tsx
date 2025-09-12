@@ -143,11 +143,11 @@ interface AIResponse {
 }
 
 // Helper function to add a bot message to chat steps
-const addBotMessage = (setChatSteps: React.Dispatch<React.SetStateAction<ChatStep[]>>, content: string) => {
+const addBotMessage = (setChatSteps: React.Dispatch<React.SetStateAction<ChatStep[]>>, content: string, generateUniqueId: () => number) => {
   setChatSteps(prev => [
     ...prev,
     {
-      id: Date.now() + 1,
+      id: generateUniqueId(),
       type: "bot",
       content,
       isNew: true,
@@ -321,6 +321,8 @@ What would you like help with?`;
   const [isReportingIncident, setIsReportingIncident] = useState(false);
   const [incidentType, setIncidentType] = useState<string | null>(null);
   const [incidentDetails, setIncidentDetails] = useState<string>('');
+  const [waitingForIncidentConfirmation, setWaitingForIncidentConfirmation] = useState(false);
+  const [incidentConfirmationTargetId, setIncidentConfirmationTargetId] = useState<number | null>(null);
 
   const SUPPORT_EMAIL = 'support@ableai.com';
 
@@ -399,7 +401,7 @@ What would you like help with?`;
         setChatSteps(prev => [
           ...prev,
           {
-            id: Date.now(),
+            id: generateUniqueId(),
             type: "user",
             content: userMessage,
             isNew: true,
@@ -407,7 +409,7 @@ What would you like help with?`;
         ]);
         
         // Add rejection message
-        addBotMessage(setChatSteps, `I'm sorry, but "${preValidation.reason}" is not appropriate for our professional platform. Please ask about gigs, platform features, or other work-related topics.`);
+        addBotMessage(setChatSteps, `I'm sorry, but "${preValidation.reason}" is not appropriate for our professional platform. Please ask about gigs, platform features, or other work-related topics.`, generateUniqueId);
         return;
       }
     } catch (error) {
@@ -604,151 +606,23 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
     }, 0);
   }, [feedbackPending, notHelpfulCount, generateUniqueId]);
 
-  // Handle incident reporting in chat
-  const handleIncidentReporting = useCallback(async (message: string) => {
-    if (!isReportingIncident) {
-      // Start incident reporting flow with AI validation
-      try {
-        const incidentDetection = await detectIncidentEnhanced(message, ai);
-        console.log('🔍 AI Incident Detection Result:', incidentDetection);
-        
-        if (incidentDetection.isIncident) {
-          console.log('🚨 Incident detected in Able AI chat:', incidentDetection);
-          setIncidentType(incidentDetection.incidentType || 'other');
-          setIsReportingIncident(true);
-          
-          // Add user message
-          setChatSteps(prev => [
-            ...prev,
-            {
-              id: Date.now(),
-              type: "user",
-              content: message,
-              isNew: true,
-            },
-          ]);
+  // Incident confirmation handlers
+  const handleIncidentConfirm = useCallback(() => {
+    if (!waitingForIncidentConfirmation) return;
+    
+    setWaitingForIncidentConfirmation(false);
+    setIncidentConfirmationTargetId(null);
+    setIsReportingIncident(true);
+    
+    const responseMessage = `Thank you for confirming. I'll help you report this ${incidentType?.replace('_', ' ')} incident properly. 
 
-          // Add AI response for incident reporting
-          const responseMessage = incidentDetection.requiresImmediateAttention 
-            ? `🚨 URGENT: I understand you're experiencing a ${incidentDetection.incidentType?.replace('_', ' ')} issue. This is serious and requires immediate attention. Can you please provide more details about what happened? Please include when and where this occurred, and any other relevant information.`
-            : `I understand you may be experiencing a ${incidentDetection.incidentType?.replace('_', ' ')} issue. This is serious and I want to help you report this properly. Can you please provide more details about what happened? Please include when and where this occurred, and any other relevant information.`;
+Can you please provide more details about what happened? Please include:
+- When and where this occurred
+- Who was involved (if anyone)
+- Any other relevant information
 
-          addBotMessage(setChatSteps, responseMessage);
-          return;
-        } else {
-          // Not an incident - provide helpful response based on context
-          if (incidentDetection.context === 'exit_request') {
-            // User wants to exit incident reporting
-            setIsReportingIncident(false);
-            setIncidentType(null);
-            setIncidentDetails('');
-            addBotMessage(setChatSteps, incidentDetection.suggestedAction);
-            return;
-          } else if (incidentDetection.context === 'professional' || incidentDetection.context === 'educational') {
-            addBotMessage(setChatSteps, 
-              `I see you're discussing this from a ${incidentDetection.context} perspective. If you need to report an actual incident or have questions about our platform, I'm here to help!`
-            );
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Error in AI incident detection:', error);
-        // Continue with normal processing if AI detection fails
-      }
-    } else {
-      // Continue incident reporting flow - check for exit requests first
-      try {
-        const incidentDetection = await detectIncidentEnhanced(message, ai);
-        
-        if (incidentDetection.isExitRequest) {
-          // User wants to exit incident reporting
-          setIsReportingIncident(false);
-          setIncidentType(null);
-          setIncidentDetails('');
-          
-          // Add user message
-          setChatSteps(prev => [
-            ...prev,
-            {
-              id: Date.now(),
-              type: "user",
-              content: message,
-              isNew: true,
-            },
-          ]);
-          
-          addBotMessage(setChatSteps, incidentDetection.suggestedAction);
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking for exit request:', error);
-        // Continue with normal incident reporting if AI fails
-      }
-      
-      // Continue incident reporting flow
-      setIncidentDetails(prev => prev + (prev ? ' ' : '') + message);
-      
-      // Add user message
-      setChatSteps(prev => [
-        ...prev,
-        {
-          id: Date.now(),
-          type: "user",
-          content: message,
-          isNew: true,
-        },
-      ]);
-
-      // Check if we have enough details
-      if (incidentDetails.length + message.length > MIN_INCIDENT_DETAILS_LENGTH_FOR_SUBMISSION) {
-        // Submit incident report to database
-        const finalDetails = incidentDetails + (incidentDetails ? ' ' : '') + message;
-        
-        try {
-          const escalationResult = await createEscalatedIssueClient({
-            userId: user?.uid || '',
-            issueType: `incident_${incidentType}`,
-            description: `Incident Report - ${incidentType?.replace('_', ' ')}: ${finalDetails}`,
-            contextType: 'ai_chat'
-          });
-
-          if (escalationResult.success) {
-            addBotMessage(setChatSteps, 
-              `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report (ID: ${escalationResult.issueId}). This has been escalated to our support team who will review it within 24 hours. You should receive a confirmation email shortly. Is there anything else I can help you with?`
-            );
-          } else {
-            addBotMessage(setChatSteps, 
-              `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report. There was a technical issue saving it to our system, but I've noted it down. Please contact support directly if needed. Is there anything else I can help you with?`
-            );
-          }
-        } catch (error) {
-          console.error('Error saving incident report:', error);
-          addBotMessage(setChatSteps, 
-            `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report. There was a technical issue saving it to our system, but I've noted it down. Please contact support directly if needed. Is there anything else I can help you with?`
-          );
-        }
-        
-        // Reset incident reporting state
-        setIsReportingIncident(false);
-        setIncidentType(null);
-        setIncidentDetails('');
-        return;
-      } else {
-        // Ask for more details
-        setChatSteps(prev => [
-          ...prev,
-          {
-            id: Date.now() + 1,
-            type: "bot",
-            content: `Thank you for that information. Can you provide more specific details about the incident? For example, who was involved, what exactly happened, and any witnesses?`,
-            isNew: true,
-          },
-        ]);
-        return;
-      }
-    }
-
-    // Normal message processing
+The more details you can provide, the better we can help you.`;
+    
     setChatSteps(prev => [
       ...prev,
       {
@@ -974,7 +848,7 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
 
     // Get AI response
     handleAIResponse(message);
-  }, [handleAIResponse, isReportingIncident, incidentType, incidentDetails]);
+  }, [handleAIResponse, isReportingIncident, incidentType, incidentDetails, waitingForIncidentConfirmation, incidentConfirmationTargetId, ai, setChatSteps, generateUniqueId]);
 
   // Handle sending messages
   const onSendMessage = useCallback((message: string) => {
