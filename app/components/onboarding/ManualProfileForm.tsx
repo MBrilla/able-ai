@@ -62,6 +62,8 @@ interface FormData {
   videoIntro: string | null;
   references: string;
   jobTitle?: string; // AI extracted job title
+  experienceYears?: number; // Parsed years of experience
+  experienceMonths?: number; // Parsed months of experience
 }
 
 interface ManualProfileFormProps {
@@ -122,7 +124,7 @@ export const validateContentWithAI = async (field: string, value: string): Promi
   try {
     const ai = getAI();
     if (!ai) {
-  // AI not available; skipping content validation
+      console.log('AI not available, skipping content validation');
       return { isValid: true, sanitized: value };
     }
 
@@ -262,6 +264,8 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     },
     videoIntro: null,
     references: workerProfileId ? buildRecommendationLink(workerProfileId) : '',
+    experienceYears: 0,
+    experienceMonths: 0,
     ...initialData
   });
   
@@ -342,6 +346,9 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       case 'qualifications':
         // Qualifications are optional, but if provided, should be meaningful
         return value && value.trim().length > 0 && value.trim().length < 5 ? 'Please provide more details about your qualifications (at least 5 characters)' : '';
+      case 'qualifications':
+        // Qualifications are optional, but if provided, should be meaningful
+        return value && value.trim().length > 0 && value.trim().length < 5 ? 'Please provide more details about your qualifications (at least 5 characters)' : '';
       case 'hourlyRate':
         return !value || value < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE ? `Please enter a valid hourly rate (minimum £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE})` : '';
       case 'location':
@@ -360,7 +367,12 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
       
-
+      // Parse experience in real-time when user types
+      if (name === 'experience' && typeof value === 'string') {
+        const { years, months } = parseExperienceToNumeric(value);
+        newData.experienceYears = years;
+        newData.experienceMonths = months;
+      }
       
       return newData;
     });
@@ -446,7 +458,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     try {
       const ai = getAI();
       if (!ai) {
-  // AI not available; skipping content validation
+        console.log('AI not available, skipping content validation');
         return { isValid: true, sanitized: value };
       }
 
@@ -557,6 +569,51 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     }
   };
 
+  // Parse experience text to extract years and months as numeric values
+  const parseExperienceToNumeric = (experienceText: string): { years: number; months: number } => {
+    if (!experienceText || experienceText.trim().length === 0) {
+      return { years: 0, months: 0 };
+    }
+
+    const text = experienceText.toLowerCase();
+    let years = 0;
+    let months = 0;
+
+    // Pattern 1: "25 years" or "25 yrs" or "25y"
+    const yearsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y)\b/);
+    if (yearsMatch) {
+      years = parseFloat(yearsMatch[1]);
+    }
+
+    // Pattern 2: "25 years and 3 months" or "25 years 3 months" or "25y 3m"
+    const yearsAndMonthsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y).*?(\d+)\s*(?:months?|mon|m)\b/);
+    if (yearsAndMonthsMatch) {
+      years = parseFloat(yearsAndMonthsMatch[1]);
+      months = parseInt(yearsAndMonthsMatch[2]);
+    }
+
+    // Pattern 3: "3 months" only (no years mentioned)
+    const monthsOnlyMatch = text.match(/(\d+)\s*(?:months?|mon|m)\b/);
+    if (monthsOnlyMatch && years === 0) {
+      months = parseInt(monthsOnlyMatch[1]);
+      // Convert months to years if more than 12 months
+      if (months >= 12) {
+        years = Math.floor(months / 12);
+        months = months % 12;
+      }
+    }
+
+    // Pattern 4: "2.5 years" (decimal years)
+    const decimalYearsMatch = text.match(/(\d+\.\d+)\s*(?:years?|yrs?|y)\b/);
+    if (decimalYearsMatch && years === 0) {
+      const decimalYears = parseFloat(decimalYearsMatch[1]);
+      years = Math.floor(decimalYears);
+      months = Math.round((decimalYears - years) * 12);
+    }
+
+    return { years, months };
+  };
+
   // AI Sanitization function for specific fields (kept for job title extraction)
   const sanitizeWithAI = async (field: string, value: string): Promise<{ sanitized: string; jobTitle?: string; yearsOfExperience?: number }> => {
     if (!value || value.trim().length === 0) {
@@ -640,7 +697,7 @@ Experience description: "${value}"`;
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
-  // starting form validation
+    console.log('🔍 Starting form validation...');
 
     // Only validate about, experience, skills, and equipment
     const fieldsToValidate = ['about', 'experience', 'skills', 'equipment'];
@@ -652,15 +709,15 @@ Experience description: "${value}"`;
       if (error) {
         newErrors[fieldName] = error;
         isValid = false;
-  // validation failed for field
+        console.log(`❌ Validation failed for ${fieldName}:`, error);
       } else {
-  // validation passed for field
+        console.log(`✅ Validation passed for ${fieldName}`);
       }
     });
 
-  // form validation result
+    console.log(`🔍 Form validation result: ${isValid ? 'PASSED' : 'FAILED'}`);
     if (!isValid) {
-  // validation errors present
+      console.log('❌ Validation errors:', newErrors);
     }
 
     setErrors(newErrors);
@@ -676,12 +733,13 @@ Experience description: "${value}"`;
     }
 
     // Validate form before proceeding
+    // Validate form before proceeding
     if (!validateForm()) {
-  // form validation failed, not submitting
+      console.log('❌ Form validation failed, not submitting');
       return;
     }
 
-  // form validation passed; proceeding with AI validation
+    console.log('✅ Form validation passed, proceeding with AI content validation');
     setIsSubmitting(true);
     
     try {
@@ -695,28 +753,28 @@ Experience description: "${value}"`;
       for (const field of fieldsToValidate) {
         const value = formData[field as keyof FormData];
         if (value && typeof value === 'string' && value.trim().length > 0) {
-          // validating field content with AI
+          console.log(`🤖 Validating ${field} content with AI...`);
           const validation = await validateContentWithAI(field, value);
           
           if (!validation.isValid) {
-            // AI rejected field
+            console.log(`❌ AI rejected ${field}:`, validation.error);
             validationErrors[field] = validation.error || 'Content is inappropriate for professional use';
             hasContentErrors = true;
           } else {
-            // AI approved field
+            console.log(`✅ AI approved ${field}`);
           }
         }
       }
 
       // If AI found inappropriate content, show errors and stop submission
       if (hasContentErrors) {
-  // AI content validation failed, blocking submission
+        console.log('❌ AI content validation failed, blocking submission');
         setErrors(prev => ({ ...prev, ...validationErrors }));
         setIsSubmitting(false);
         return;
       }
 
-  // AI content validation passed, proceeding with sanitization
+      console.log('✅ AI content validation passed, proceeding with sanitization');
       
       // AI Sanitization for specific fields (only if content is valid)
       const sanitizedData = { ...formData };
@@ -737,15 +795,24 @@ Experience description: "${value}"`;
         sanitizedData.skills = skillsResult.sanitized;
       }
 
-      // Sanitize Experience field (extract years)
+      // Sanitize Experience field (extract years and months as numeric)
       if (formData.experience) {
         const experienceResult = await sanitizeWithAI('experience', formData.experience);
         sanitizedData.experience = experienceResult.sanitized;
         
-        // If we extracted years of experience, we could use this for other purposes
-        if (experienceResult.yearsOfExperience) {
-          // extracted years of experience
-        }
+        // Parse experience text to get numeric years and months
+        const { years, months } = parseExperienceToNumeric(formData.experience);
+        
+        // Store the parsed numeric values
+        sanitizedData.experienceYears = years;
+        sanitizedData.experienceMonths = months;
+        
+        console.log('Parsed experience:', { 
+          original: formData.experience, 
+          years, 
+          months,
+          totalYears: years + (months / 12)
+        });
       }
 
       // Add extracted job title to the data
@@ -756,12 +823,24 @@ Experience description: "${value}"`;
       // Update form data with sanitized values
       setFormData(sanitizedData);
       
-  // submitting validated and sanitized data to backend (metadata prepared)
+      console.log('📤 Submitting validated and sanitized data to backend:', {
+        about: sanitizedData.about?.substring(0, 50) + '...',
+        experience: sanitizedData.experience?.substring(0, 50) + '...',
+        skills: sanitizedData.skills?.substring(0, 50) + '...',
+        equipment: sanitizedData.equipment?.substring(0, 50) + '...',
+        hourlyRate: sanitizedData.hourlyRate,
+        hasLocation: !!sanitizedData.location,
+        availabilityDays: sanitizedData.availability.days.length,
+        hasVideo: !!sanitizedData.videoIntro,
+        jobTitle: sanitizedData.jobTitle
+      });
       
       // Submit the validated and sanitized data
       await onSubmit(sanitizedData);
     } catch (error) {
       console.error('Form submission error:', error);
+      // Set error state to show user
+      setErrors(prev => ({ ...prev, submit: 'Failed to submit form. Please try again.' }));
       // Set error state to show user
       setErrors(prev => ({ ...prev, submit: 'Failed to submit form. Please try again.' }));
     } finally {
@@ -845,14 +924,21 @@ Experience description: "${value}"`;
               className={`${styles.textarea} ${errors.experience ? styles.error : ''}`}
               value={formData.experience}
               onChange={(e) => handleInputChange('experience', e.target.value)}
-              placeholder="How many years of experience do you have in your field? (e.g., 5 years in construction, 3 years in plumbing...)"
+              placeholder="How many years of experience do you have? (e.g., '25 years as a baker', '25 years and 3 months', '2.5 years', '18 months')"
               rows={3}
             />
+            {formData.experienceYears && formData.experienceYears > 0 && (
+              <div className={styles.helpText}>
+                Parsed: {formData.experienceYears} years {formData.experienceMonths && formData.experienceMonths > 0 ? `and ${formData.experienceMonths} months` : ''} 
+                (Total: {((formData.experienceYears || 0) + ((formData.experienceMonths || 0) / 12)).toFixed(1)} years)
+              </div>
+            )}
             {errors.experience && <span className={styles.errorText}>{errors.experience}</span>}
           </div>
 
                      <div className={styles.formGroup}>
              <label className={styles.label}>
+               Skills *
                Skills *
              </label>
              <textarea
@@ -863,6 +949,20 @@ Experience description: "${value}"`;
                rows={3}
              />
              {errors.skills && <span className={styles.errorText}>{errors.skills}</span>}
+           </div>
+
+           <div className={styles.formGroup}>
+             <label className={styles.label}>
+               Qualifications & Certifications
+             </label>
+             <textarea
+               className={`${styles.textarea} ${errors.qualifications ? styles.error : ''}`}
+               value={formData.qualifications}
+               onChange={(e) => handleInputChange('qualifications', e.target.value)}
+               placeholder="List your qualifications, certifications, degrees, licenses, etc..."
+               rows={3}
+             />
+             {errors.qualifications && <span className={styles.errorText}>{errors.qualifications}</span>}
            </div>
 
            <div className={styles.formGroup}>
@@ -903,6 +1003,7 @@ Experience description: "${value}"`;
               Hourly Rate (£) *
             </label>
             <div className={styles.inputWrapper}>
+              <span className={styles.currencySymbol}>£</span>
               <span className={styles.currencySymbol}>£</span>
               <input
                 type="number"
@@ -1060,6 +1161,12 @@ Experience description: "${value}"`;
             </div>
           )}
           
+          {errors.submit && (
+            <div className={styles.errorMessage}>
+              {errors.submit}
+            </div>
+          )}
+          
           <button
             type="submit"
             className={styles.submitButton}
@@ -1077,6 +1184,7 @@ Experience description: "${value}"`;
 
           {progress < 100 && (
             <p className={styles.completionNote}>
+              Please fill in about, experience, skills, and equipment sections to complete your profile
               Please fill in about, experience, skills, and equipment sections to complete your profile
             </p>
           )}

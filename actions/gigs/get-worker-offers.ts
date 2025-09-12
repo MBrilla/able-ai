@@ -2,7 +2,8 @@
 
 import { db } from "@/lib/drizzle/db";
 import { eq } from "drizzle-orm";
-import { gigStatusEnum, UsersTable, GigsTable } from "@/lib/drizzle/schema";
+import { gigStatusEnum, UsersTable, GigsTable, GigWorkerProfilesTable } from "@/lib/drizzle/schema";
+import { isWorkerWithinDistance } from "@/lib/utils/distance";
 
 // Gig statuses for offers (pending worker acceptance)
 const PENDING_WORKER_ACCEPTANCE = gigStatusEnum.enumValues[0];
@@ -133,6 +134,11 @@ export async function getWorkerOffers(userId: string) {
     const user = await db.query.UsersTable.findFirst({
       where: eq(UsersTable.firebaseUid, userId),
       columns: { id: true },
+      with: {
+        gigWorkerProfile: {
+          columns: { location: true }
+        }
+      }
     });
 
     console.log("Debug - User found:", user);
@@ -140,6 +146,9 @@ export async function getWorkerOffers(userId: string) {
     if (!user) {
       return { error: "User not found", status: 404 };
     }
+
+    // Get worker's location for distance filtering
+    const workerLocation = user.gigWorkerProfile?.location;
 
     console.log("Debug - Using simplified approach...");
 
@@ -163,10 +172,22 @@ export async function getWorkerOffers(userId: string) {
     console.log("Debug - Total gigs fetched:", allGigs.length);
 
     const offerGigs = allGigs.filter(
-      (gig) =>
-        gig.statusInternal === PENDING_WORKER_ACCEPTANCE &&
-        !gig.workerUserId &&
-        gig.buyerUserId !== user.id
+      (gig) => {
+        const basicFilter = gig.statusInternal === PENDING_WORKER_ACCEPTANCE &&
+          !gig.workerUserId &&
+          gig.buyerUserId !== user.id;
+        
+        if (!basicFilter) return false;
+        
+        // If worker has location, filter by distance (30km)
+        if (workerLocation) {
+          const gigLocation = gig.exactLocation || gig.addressJson;
+          return isWorkerWithinDistance(gigLocation, workerLocation, 30);
+        }
+        
+        // If no worker location, include all gigs (fallback)
+        return true;
+      }
     );
 
     const acceptedGigs = allGigs.filter(
