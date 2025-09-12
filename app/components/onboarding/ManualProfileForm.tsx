@@ -1140,10 +1140,11 @@ Qualifications: "${value}"`;
         }
       }
 
-      // Sanitize Skills field
+      // Skills field is for display only - jobTitle is THE skill saved to database
       if (formData.skills) {
         const skillsResult = await sanitizeWithAI('skills', formData.skills);
         sanitizedData.skills = skillsResult.sanitized;
+        console.log('ℹ️ Skills field sanitized for display only - jobTitle is THE skill');
       }
 
       // Sanitize Qualifications field
@@ -1325,6 +1326,9 @@ Qualifications: "${value}"`;
                placeholder="List your professional skills..."
                rows={3}
              />
+             <div className={styles.helpText}>
+               Note: Your main skill will be determined from your job title above
+             </div>
              {errors.skills && <span className={styles.errorText}>{errors.skills}</span>}
            </div>
 

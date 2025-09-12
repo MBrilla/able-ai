@@ -1568,41 +1568,54 @@ Return 3 relevant hashtags like "#bartender", "#mixology", "#events" for hospita
     const trimmedValue = String(value).trim();
     
     // Pre-validation: Check for inappropriate content before AI processing with context
-    const { preValidateContentWithContext } = await import('../../../../../../lib/utils/contentModeration');
-    
-    // Build chat context from conversation history
-    const chatContext = {
-      conversationHistory: chatSteps
-        .filter(step => step.type === 'user' || step.type === 'bot')
-        .map(step => ({
-          type: step.type as 'user' | 'bot',
-          content: step.content || '',
-          timestamp: step.id
-        })),
-      currentField: field,
-      userRole: 'worker' as const,
-      sessionDuration: Date.now() - (chatSteps[0]?.id || Date.now())
+    // Skip pre-validation for numeric fields like hourlyRate to avoid false positives
+    const numericFields = ['hourlyRate', 'experienceYears', 'experienceMonths'];
+    let preValidation: any = { 
+      isAppropriate: true, 
+      confidence: 0, 
+      reason: '', 
+      category: 'clean' as const, 
+      suggestedAction: 'accept' as const,
+      contextAnalysis: undefined 
     };
     
-    const preValidation = preValidateContentWithContext(trimmedValue, chatContext);
-    
-    // If pre-validation rejects with high confidence, reject immediately
-    if (!preValidation.isAppropriate && preValidation.confidence > 0.8) {
-      // Log rejected content for monitoring
-      console.warn('🚫 Content rejected by pre-validation:', {
-        field,
-        input: trimmedValue,
-        reason: preValidation.reason,
-        category: preValidation.category,
-        confidence: preValidation.confidence,
-        userId: user?.uid || 'unknown',
-        timestamp: new Date().toISOString()
-      });
+    if (!numericFields.includes(field)) {
+      const { preValidateContentWithContext } = await import('../../../../../../lib/utils/contentModeration');
       
-      return {
-        sufficient: false,
-        clarificationPrompt: `I'm sorry, but "${preValidation.reason}" is not appropriate for a professional worker profile. Please provide legitimate work-related information.`
+      // Build chat context from conversation history
+      const chatContext = {
+        conversationHistory: chatSteps
+          .filter(step => step.type === 'user' || step.type === 'bot')
+          .map(step => ({
+            type: step.type as 'user' | 'bot',
+            content: step.content || '',
+            timestamp: step.id
+          })),
+        currentField: field,
+        userRole: 'worker' as const,
+        sessionDuration: Date.now() - (chatSteps[0]?.id || Date.now())
       };
+      
+      preValidation = preValidateContentWithContext(trimmedValue, chatContext);
+      
+      // If pre-validation rejects with high confidence, reject immediately
+      if (!preValidation.isAppropriate && preValidation.confidence > 0.8) {
+        // Log rejected content for monitoring
+        console.warn('🚫 Content rejected by pre-validation:', {
+          field,
+          input: trimmedValue,
+          reason: preValidation.reason,
+          category: preValidation.category,
+          confidence: preValidation.confidence,
+          userId: user?.uid || 'unknown',
+          timestamp: new Date().toISOString()
+        });
+        
+        return {
+          sufficient: false,
+          clarificationPrompt: `I'm sorry, but "${preValidation.reason}" is not appropriate for a professional worker profile. Please provide legitimate work-related information.`
+        };
+      }
     }
     
     // Use AI for all validation
@@ -1684,8 +1697,12 @@ ENHANCED AI-POWERED VALIDATION & SANITIZATION:
      Example: "Fondant building, cake decorating" → "Fondant building and cake decorating, that sounds amazing! Those are great skills for a baker, correct?"
    - **equipment**: Extract equipment list, validate relevance, suggest additions
      Example: "Stand mixer, piping bags, cake tins" → "Perfect! You have a stand mixer, piping bags, and cake tins. That's a solid setup for baking, is that right?"
-   - **hourlyRate**: Convert to pounds (£), validate against experience level, suggest competitive rates
+   - **hourlyRate**: Convert to pounds (£), validate against experience level, suggest competitive rates (BE VERY LENIENT with numeric inputs)
      Example: "20" → "Perfect! You're charging £20 per hour, is that right?"
+     Example: "20.50" → "Great! £20.50 per hour, is that correct?"
+     Example: "£20" → "Excellent! £20 per hour, is that right?"
+     Example: "20 pounds" → "Perfect! £20 per hour, is that correct?"
+     ACCEPT: Any reasonable numeric value, currency symbols, "pounds", "per hour", etc.
    - **location**: Extract coordinates, validate against job market, suggest nearby areas
    - **availability**: Extract days/times, validate against job requirements, suggest optimizations
 
@@ -1826,23 +1843,43 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
     } catch (error) {
       console.error('AI validation failed:', error);
       
-      // Fallback validation when AI fails (with context)
-      const fallbackValidation = preValidateContentWithContext(trimmedValue, chatContext);
-      if (!fallbackValidation.isAppropriate && fallbackValidation.confidence > 0.7) {
-        console.warn('🚫 Content rejected by fallback validation:', {
-          field,
-          input: trimmedValue,
-          reason: fallbackValidation.reason,
-          category: fallbackValidation.category,
-          confidence: fallbackValidation.confidence,
-          userId: user?.uid || 'unknown',
-          timestamp: new Date().toISOString()
-        });
+      // Fallback validation when AI fails (with context) - skip for numeric fields
+      let fallbackValidation: any = { isAppropriate: true, confidence: 0, reason: '', category: 'clean' as const };
+      
+      if (!numericFields.includes(field)) {
+        const { preValidateContentWithContext } = await import('../../../../../../lib/utils/contentModeration');
         
-        return {
-          sufficient: false,
-          clarificationPrompt: `I'm sorry, but "${fallbackValidation.reason}" is not appropriate for a professional worker profile. Please provide legitimate work-related information.`
+        // Build chat context from conversation history
+        const chatContext = {
+          conversationHistory: chatSteps
+            .filter(step => step.type === 'user' || step.type === 'bot')
+            .map(step => ({
+              type: step.type as 'user' | 'bot',
+              content: step.content || '',
+              timestamp: step.id
+            })),
+          currentField: field,
+          userRole: 'worker' as const,
+          sessionDuration: Date.now() - (chatSteps[0]?.id || Date.now())
         };
+        
+        fallbackValidation = preValidateContentWithContext(trimmedValue, chatContext);
+        if (!fallbackValidation.isAppropriate && fallbackValidation.confidence > 0.7) {
+          console.warn('🚫 Content rejected by fallback validation:', {
+            field,
+            input: trimmedValue,
+            reason: fallbackValidation.reason,
+            category: fallbackValidation.category,
+            confidence: fallbackValidation.confidence,
+            userId: user?.uid || 'unknown',
+            timestamp: new Date().toISOString()
+          });
+          
+          return {
+            sufficient: false,
+            clarificationPrompt: `I'm sorry, but "${fallbackValidation.reason}" is not appropriate for a professional worker profile. Please provide legitimate work-related information.`
+          };
+        }
       }
       
       // If fallback validation passes, accept with warning

@@ -890,58 +890,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
       console.log('ℹ️ No equipment provided');
     }
 
-    // Save skills from the skills field if provided
-    if (profileData.skills && profileData.skills.trim().length > 0) {
-      try {
-        console.log('🛠️ Processing skills from skills field:', profileData.skills);
-        
-        // Parse skills from the text input
-        // Split by common delimiters and clean up
-        const skillsList = profileData.skills
-          .split(/[,\n;]/)
-          .map(skill => skill.trim())
-          .filter(skill => skill.length > 0);
-        
-        console.log('🛠️ Parsed skills:', skillsList);
-
-        // Get existing skills to avoid duplicates
-        const existingSkills = await db.query.SkillsTable.findMany({
-          where: eq(SkillsTable.workerProfileId, workerProfileId),
-        });
-
-        // Create skills that don't already exist
-        for (const skillName of skillsList) {
-          const skillExists = existingSkills.some(
-            (skill) => skill.name.toLowerCase().trim() === skillName.toLowerCase().trim()
-          );
-
-          if (!skillExists) {
-            try {
-              await db.insert(SkillsTable).values({
-                workerProfileId: workerProfileId,
-                name: skillName,
-                experienceMonths: profileData.experienceMonths || 0,
-                experienceYears: profileData.experienceYears || 0,
-                agreedRate: String(parseFloat(profileData.hourlyRate) || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
-                skillVideoUrl: typeof profileData.videoIntro === 'string' ? profileData.videoIntro : null,
-                adminTags: null,
-                ableGigs: null,
-                images: [],
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              });
-              console.log(`✅ Created skill from skills field: ${skillName}`);
-            } catch (insertError) {
-              console.error(`❌ Error creating skill "${skillName}":`, insertError);
-            }
-          } else {
-            console.log(`⚠️ Skill already exists, skipping: ${skillName}`);
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error processing skills from skills field:', error);
-      }
-    }
+    // Skills field is ignored - only jobTitle is saved as THE skill
+    console.log('ℹ️ Skills field ignored - using jobTitle as THE skill only');
 
     // Save qualifications data to qualifications table
     if (profileData.qualifications && profileData.qualifications.trim().length > 0) {
@@ -1101,49 +1051,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
       console.log('🎓 No qualifications provided, skipping qualifications save');
     }
 
-    // Save job title as a skill if provided (check for duplicates first)
-    if (profileData.jobTitle) {
-      // Check if this job title already exists as a skill for this worker profile
-      const existingJobTitleSkills = await db.query.SkillsTable.findMany({
-        where: eq(SkillsTable.workerProfileId, workerProfileId),
-      });
-      
-      const jobTitleExists = existingJobTitleSkills.some(skill => 
-        skill.name.toLowerCase().trim() === (profileData.jobTitle || '').toLowerCase().trim()
-      );
-      
-      if (!jobTitleExists) {
-        try {
-          await db.insert(SkillsTable).values({
-            workerProfileId: workerProfileId,
-            name: profileData.jobTitle,
-            experienceMonths: profileData.experienceMonths || 0,
-            experienceYears: profileData.experienceYears || 0,
-            agreedRate: String(
-              parseFloat(profileData.hourlyRate) ||
-                VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE
-            ),
-            skillVideoUrl: typeof profileData.videoIntro === 'string' ? profileData.videoIntro : null,
-            adminTags: null,
-            ableGigs: null,
-            images: [],
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          console.log('✅ Job title saved as new skill:', profileData.jobTitle);
-        } catch (insertError) {
-          console.error('❌ Error inserting job title as skill:', insertError);
-          console.error('❌ Job title insert data that failed:', {
-            workerProfileId,
-            name: profileData.jobTitle,
-            agreedRate: String(parseFloat(profileData.hourlyRate) || VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE),
-          });
-          throw insertError;
-        }
-      } else {
-        console.log('⚠️ Job title already exists as skill, skipping insert:', profileData.jobTitle);
-      }
-    }
+    // Job title is already saved as THE skill above - no duplicate saving needed
+    console.log('ℹ️ Job title already saved as THE skill - no duplicate saving needed');
 
     // Save worker skills data to gig_worker_skills table
     let skillName = '';
