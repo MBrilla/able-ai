@@ -25,13 +25,23 @@ async function fetchWorkerGigDetails(user: User | WorkerUser, gigId: string): Pr
     // This is a WorkerUser - use the database user ID
     userId = user.id;
     isDatabaseUserId = true;
+    console.log('🔍 DEBUG: Using WorkerUser database ID:', userId);
   } else {
     // This is a regular User - use the Firebase UID
     userId = user?.uid || '';
     isDatabaseUserId = false;
+    console.log('🔍 DEBUG: Using regular User Firebase UID:', userId);
   }
   
-  const { data, status } = await getGigDetails({ 
+  console.log('🔍 DEBUG: fetchWorkerGigDetails called with:', { 
+    userId, 
+    gigId, 
+    userType: user?.constructor?.name,
+    isDatabaseUserId,
+    userObject: user
+  });
+  
+  const { gig, status } = await getGigDetails({ 
     gigId, 
     userId, 
     role: 'worker', 

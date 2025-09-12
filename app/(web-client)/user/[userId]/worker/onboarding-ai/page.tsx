@@ -116,51 +116,7 @@ import {
 import { firebaseApp } from "@/lib/firebase/clientApp";
 import { updateVideoUrlProfileAction, saveWorkerProfileFromOnboardingAction, createWorkerProfileAction } from "@/actions/user/gig-worker-profile";
 import { VALIDATION_CONSTANTS } from "@/app/constants/validation";
-
-// Parse experience text to extract years and months as numeric values
-const parseExperienceToNumeric = (experienceText: string): { years: number; months: number } => {
-  if (!experienceText || experienceText.trim().length === 0) {
-    return { years: 0, months: 0 };
-  }
-
-  const text = experienceText.toLowerCase();
-  let years = 0;
-  let months = 0;
-
-  // Pattern 1: "25 years" or "25 yrs" or "25y"
-  const yearsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y)\b/);
-  if (yearsMatch) {
-    years = parseFloat(yearsMatch[1]);
-  }
-
-  // Pattern 2: "25 years and 3 months" or "25 years 3 months" or "25y 3m"
-  const yearsAndMonthsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y).*?(\d+)\s*(?:months?|mon|m)\b/);
-  if (yearsAndMonthsMatch) {
-    years = parseFloat(yearsAndMonthsMatch[1]);
-    months = parseInt(yearsAndMonthsMatch[2]);
-  }
-
-  // Pattern 3: "3 months" only (no years mentioned)
-  const monthsOnlyMatch = text.match(/(\d+)\s*(?:months?|mon|m)\b/);
-  if (monthsOnlyMatch && years === 0) {
-    months = parseInt(monthsOnlyMatch[1]);
-    // Convert months to years if more than 12 months
-    if (months >= 12) {
-      years = Math.floor(months / 12);
-      months = months % 12;
-    }
-  }
-
-  // Pattern 4: "2.5 years" (decimal years)
-  const decimalYearsMatch = text.match(/(\d+\.\d+)\s*(?:years?|yrs?|y)\b/);
-  if (decimalYearsMatch && years === 0) {
-    const decimalYears = parseFloat(decimalYearsMatch[1]);
-    years = Math.floor(decimalYears);
-    months = Math.round((decimalYears - years) * 12);
-  }
-
-  return { years, months };
-};
+import { parseExperienceToNumeric } from "@/lib/utils/experienceParsing";
 
 // Define required fields and their configs - matching gig creation pattern
 const requiredFields: RequiredField[] = [

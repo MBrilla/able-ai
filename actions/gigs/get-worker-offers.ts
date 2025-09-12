@@ -8,17 +8,17 @@ import { isWorkerWithinDistance } from "@/lib/utils/distance";
 // Constants
 const DEFAULT_GIG_SEARCH_RADIUS_KM = 30;
 
-const ACCEPTED_GIG_STATUSES = [
-  "ACCEPTED",
-  "IN_PROGRESS",
-  "PENDING_COMPLETION_WORKER",
-  "PENDING_COMPLETION_BUYER",
-  "COMPLETED",
-  "AWAITING_PAYMENT",
-  "PAID",
-] as const;
+// Gig statuses for offers (pending worker acceptance)
+const PENDING_WORKER_ACCEPTANCE = 'PENDING_WORKER_ACCEPTANCE';
 
-const PENDING_WORKER_ACCEPTANCE = "PENDING_WORKER_ACCEPTANCE";
+// Gig statuses for accepted gigs
+const ACCEPTED = 'ACCEPTED';
+const IN_PROGRESS = 'IN_PROGRESS';
+const PENDING_COMPLETION_WORKER = 'PENDING_COMPLETION_WORKER';
+const PENDING_COMPLETION_BUYER = 'PENDING_COMPLETION_BUYER';
+const COMPLETED = 'COMPLETED';
+const AWAITING_PAYMENT = 'AWAITING_PAYMENT';
+const PAID = 'PAID';
 
 export interface WorkerGigOffer {
   id: string;
@@ -139,8 +139,6 @@ export async function getWorkerOffers(userId: string) {
       }
     });
 
-    console.log("Debug - User found:", user);
-
     if (!user) {
       return { error: "User not found", status: 404 };
     }
@@ -148,21 +146,7 @@ export async function getWorkerOffers(userId: string) {
     // Get worker's location for distance filtering
     const workerLocation = user.gigWorkerProfile?.location;
 
-    console.log("Debug - Using simplified approach...");
-
-    if (workerProfile?.latitude && workerProfile?.longitude) {
-      const lat = parseFloat(workerProfile.latitude.toString());
-      const lng = parseFloat(workerProfile.longitude.toString());
-      if (!isNaN(lat) && !isNaN(lng)) {
-        workerCoords = { lat, lon: lng };
-      }
-    }
-
-    if (!workerCoords && workerProfile?.location) {
-      workerCoords = parseCoordinates(workerProfile.location);
-    }
-
-    const offerGigs = await db.query.GigsTable.findMany({
+    const allGigs = await db.query.GigsTable.findMany({
       columns: {
         id: true,
         titleInternal: true,
@@ -187,21 +171,6 @@ export async function getWorkerOffers(userId: string) {
       ),
     });
 
-    const filteredByDistance = workerCoords
-      ? offerGigs.filter((gig) => {
-          const gigLocation = gig.exactLocation || gig.addressJson;
-          const gigCoords = parseCoordinates(gigLocation);
-          if (!gigCoords) return true;
-          const distance = calculateDistance(
-            workerCoords.lat,
-            workerCoords.lon,
-            gigCoords.lat,
-            gigCoords.lon
-          );
-          return distance <= DEFAULT_GIG_SEARCH_RADIUS_KM;
-        })
-      : offerGigs;
-
     const offerGigs = allGigs.filter(
       (gig) => {
         const basicFilter = gig.statusInternal === PENDING_WORKER_ACCEPTANCE &&
@@ -210,10 +179,10 @@ export async function getWorkerOffers(userId: string) {
         
         if (!basicFilter) return false;
         
-        // If worker has location, filter by distance (30km)
+        // If worker has location, filter by distance
         if (workerLocation) {
           const gigLocation = gig.exactLocation || gig.addressJson;
-          return isWorkerWithinDistance(gigLocation, workerLocation, 30);
+          return isWorkerWithinDistance(gigLocation, workerLocation, DEFAULT_GIG_SEARCH_RADIUS_KM);
         }
         
         // If no worker location, include all gigs (fallback)

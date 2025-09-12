@@ -4,6 +4,7 @@
  */
 
 import { geminiAIAgent } from '@/lib/firebase/ai';
+import { getAI } from '@firebase/ai';
 import { Schema } from '@firebase/ai';
 
 export interface AIIncidentDetectionResult {
@@ -58,9 +59,7 @@ IMPORTANT CONTEXT VALIDATION RULES:
 2. General Discussion: If someone is discussing harassment, discrimination, or safety in general terms without describing a personal experience - this is NOT an incident report
 3. Questions: If someone is asking questions about policies, procedures, or how to handle situations - this is NOT an incident report
 4. Hypothetical: If someone is discussing hypothetical scenarios or examples - this is NOT an incident report
-5. Technical Issues: If someone mentions "can't login", "login problems", "technical issues", "app not working", "website issues", "password problems", "account issues", "system errors", etc. - this is NOT an incident report
-6. General Help Requests: If someone is asking for general help, support, or assistance without describing a personal incident - this is NOT an incident report
-7. Exit Requests: If someone says "nevermind", "cancel", "stop", "I don't want to report", "forget it", "actually no", "false alarm", etc. - this is an exit request
+5. Exit Requests: If someone says "nevermind", "cancel", "stop", "I don't want to report", "forget it", "actually no", "false alarm", etc. - this is an exit request
 
 ONLY flag as an incident if:
 - The user is describing a personal experience they had
@@ -83,9 +82,6 @@ Examples:
 - "I am an expert in harassment prevention" → isIncident: false, context: professional
 - "I experienced harassment at work" → isIncident: true, incidentType: harassment, context: personal_report
 - "What are the harassment policies?" → isIncident: false, context: general
-- "I can't login to my account" → isIncident: false, context: general
-- "The app is not working" → isIncident: false, context: general
-- "I need help with my password" → isIncident: false, context: general
 - "Someone threatened me" → isIncident: true, incidentType: threats, context: personal_report, requiresImmediateAttention: true
 - "Nevermind, I don't want to report" → isIncident: false, context: exit_request, isExitRequest: true
 - "Cancel that, it was a misunderstanding" → isIncident: false, context: exit_request, isExitRequest: true`;

@@ -448,31 +448,6 @@ export const recommendations = pgTable("recommendations", {
 	unique("recommendations_recommendation_code_key").on(table.recommendationCode),
 ]);
 
-export const recommendations = pgTable("recommendations", {
-	id: uuid().defaultRandom().primaryKey().notNull(),
-	workerUserId: uuid("worker_user_id").notNull(),
-	recommendationCode: varchar("recommendation_code", { length: 50 }).notNull(),
-	recommendationText: text("recommendation_text").notNull(),
-	relationship: text().notNull(),
-	recommenderName: varchar("recommender_name", { length: 100 }).notNull(),
-	recommenderEmail: varchar("recommender_email", { length: 255 }).notNull(),
-	isVerified: boolean("is_verified").default(false).notNull(),
-	// TODO: failed to parse database type 'moderation_status_enum'
-	moderationStatus: text("moderation_status").notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-}, (table) => [
-	index("recommendations_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
-	index("recommendations_recommendation_code_idx").using("btree", table.recommendationCode.asc().nullsLast().op("text_ops")),
-	index("recommendations_worker_user_id_idx").using("btree", table.workerUserId.asc().nullsLast().op("uuid_ops")),
-	foreignKey({
-			columns: [table.workerUserId],
-			foreignColumns: [users.id],
-			name: "recommendations_worker_user_id_users_id_fk"
-		}).onDelete("cascade"),
-	unique("recommendations_recommendation_code_key").on(table.recommendationCode),
-]);
-
 export const reviews = pgTable("reviews", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	gigId: uuid("gig_id"),

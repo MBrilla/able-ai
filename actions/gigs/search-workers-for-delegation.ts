@@ -7,6 +7,9 @@ import { isUserAuthenticated } from "@/lib/user.server";
 import { ERROR_CODES } from "@/lib/responses/errors";
 import { isWorkerWithinDistance } from "@/lib/utils/distance";
 
+// Constants
+const DELEGATION_SEARCH_RADIUS_KM = 30;
+
 export interface WorkerSearchResult {
   id: string;
   name: string;
@@ -107,9 +110,9 @@ export async function searchWorkersForDelegation(
     
     for (const worker of workers) {
       if (!workerMap.has(worker.id)) {
-        // Check if worker is within 30km of the gig
+        // Check if worker is within the delegation search radius of the gig
         const gigLocation = gig.exactLocation || gig.addressJson;
-        const isWithinDistance = isWorkerWithinDistance(gigLocation, worker.location, 30);
+        const isWithinDistance = isWorkerWithinDistance(gigLocation, worker.location, DELEGATION_SEARCH_RADIUS_KM);
         
         if (isWithinDistance) {
           workerMap.set(worker.id, {
