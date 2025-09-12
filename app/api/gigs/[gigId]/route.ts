@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGigDetails } from '@/actions/gigs/get-gig-details';
+<<<<<<< HEAD
 import { isUserAuthenticated } from '@/lib/user.server';
 import { db } from '@/lib/drizzle/db';
 import { UsersTable } from '@/lib/drizzle/schema';
 import { eq } from 'drizzle-orm';
+=======
+>>>>>>> 6b7766586d65e05ba05885453a6ab62d9e9219b3
 
 export async function GET(
   request: NextRequest,
@@ -19,6 +22,7 @@ export async function GET(
       );
     }
 
+<<<<<<< HEAD
     // Get the JWT token from the Authorization header
     const token = request.headers.get('authorization')?.replace('Bearer ', '') || '';
     
@@ -67,6 +71,24 @@ export async function GET(
       gigId,
       userId: firebaseUid, // Use Firebase UID as expected by getGigDetails
       role,
+=======
+    // For now, we'll need to get the user ID from the request
+    // This is a simplified version - in production you'd get this from auth
+    const url = new URL(request.url);
+    const userId = url.searchParams.get('userId');
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const result = await getGigDetails({
+      gigId,
+      userId,
+      role: 'worker',
+>>>>>>> 6b7766586d65e05ba05885453a6ab62d9e9219b3
       isViewQA: false
     });
 

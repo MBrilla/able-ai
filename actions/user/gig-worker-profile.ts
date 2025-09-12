@@ -227,6 +227,7 @@ export const getSkillDetailsWorker = async (id: string) => {
         eq(ReviewsTable.targetUserId, workerProfile?.userId || ""),
         eq(ReviewsTable.type, "INTERNAL_PLATFORM")
       ),
+      with: {author: {columns: {fullName: true}}}
     });
 
     const recommendations = await db.query.ReviewsTable.findMany({
@@ -271,6 +272,7 @@ export const getSkillDetailsWorker = async (id: string) => {
 
     const skillProfile = {
       workerProfileId: workerProfile?.id ?? "",
+      socialLink: workerProfile?.socialLink,
       name: user?.fullName,
       title: skill?.name,
       hashtags: Array.isArray(workerProfile?.hashtags)

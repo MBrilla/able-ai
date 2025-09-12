@@ -244,6 +244,8 @@ export async function getGigDetails({
       isDatabaseUserId
     });
 
+    console.log('🔍 DEBUG: User lookup result:', { found: !!user, userId: user?.id });
+
     if (!user) {
       console.log('🔍 DEBUG: User not found in database for ID:', userId);
       return { error: 'User is not found', gig: {} as GigDetails, status: 404 };
@@ -282,7 +284,7 @@ export async function getGigDetails({
             eq(GigsTable.workerUserId, user.id),
             // Available offers (PENDING_WORKER_ACCEPTANCE status with no assigned worker)
             and(
-              eq(GigsTable.statusInternal, 'PENDING_WORKER_ACCEPTANCE'),
+              eq(GigsTable.statusInternal, gigStatusEnum.enumValues[0]), // PENDING_WORKER_ACCEPTANCE
               isNull(GigsTable.workerUserId)
             )
           )

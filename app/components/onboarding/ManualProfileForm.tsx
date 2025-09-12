@@ -828,6 +828,7 @@ Qualifications: "${value}"`;
     }
 
     // Validate form before proceeding
+    // Validate form before proceeding
     if (!validateForm()) {
       console.log('❌ Form validation failed, not submitting');
       return;
@@ -939,6 +940,8 @@ Qualifications: "${value}"`;
       await onSubmit(sanitizedData);
     } catch (error) {
       console.error('Form submission error:', error);
+      // Set error state to show user
+      setErrors(prev => ({ ...prev, submit: 'Failed to submit form. Please try again.' }));
       // Set error state to show user
       setErrors(prev => ({ ...prev, submit: 'Failed to submit form. Please try again.' }));
     } finally {
@@ -1244,10 +1247,16 @@ Qualifications: "${value}"`;
             </div>
           )}
           
+          {errors.submit && (
+            <div className={styles.errorMessage}>
+              {errors.submit}
+            </div>
+          )}
+          
           <button
             type="submit"
             className={styles.submitButton}
-            disabled={isSubmitting || progress < 100}
+            disabled={isSubmitting || progress < 75}
           >
             {isSubmitting ? (
               <>
@@ -1259,7 +1268,7 @@ Qualifications: "${value}"`;
             )}
           </button>
 
-          {progress < 100 && (
+          {progress < 75 && (
             <p className={styles.completionNote}>
               Please fill in all required fields to complete your profile: about, experience, skills, equipment, qualifications, hourly rate, location, availability, video introduction, and references
             </p>
