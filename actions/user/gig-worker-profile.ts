@@ -913,83 +913,9 @@ export const saveWorkerProfileFromOnboardingAction = async (
           note: 'Using jobTitle field as main skill for database entry (skills form field ignored)'
         });
       }
-    } catch (skillError) {
-      console.error("❌ Error saving worker skills:", skillError);
-      console.error("❌ Error details:", {
-        message:
-          skillError instanceof Error ? skillError.message : "Unknown error",
-        stack:
-          skillError instanceof Error ? skillError.stack : "No stack trace",
-        skillName: skillName || "undefined",
-        userId: user.id,
-      });
-      // Don't fail the entire profile save if skills saving fails
-    }
 
-    // Debug: Log the equipment data received
-
-    // Save equipment data if provided
-    if (profileData.equipment && profileData.equipment.length > 0) {
-      try {
-        console.log('🔧 Processing equipment:', profileData.equipment);
-        
-        // Get existing equipment to avoid duplicates
-        const existingEquipment = await db.query.EquipmentTable.findMany({
-          where: eq(EquipmentTable.workerProfileId, workerProfileId),
-        });
-
-        // Filter out duplicates and prepare equipment for insertion
-        const equipmentToInsert = [];
-        const processedNames = new Set<string>();
-
-        for (const equipment of profileData.equipment as NonNullable<typeof profileData.equipment>) {
-          const normalizedName = equipment.name.toLowerCase().trim();
-          
-          // Check if this equipment already exists (case-insensitive)
-          const equipmentExists = existingEquipment.some(
-            (existing) => existing.name.toLowerCase().trim() === normalizedName
-          );
-          
-          // Also check if we've already processed this name in the current batch
-          const alreadyProcessed = processedNames.has(normalizedName);
-          
-          if (!equipmentExists && !alreadyProcessed) {
-            equipmentToInsert.push({
-              workerProfileId: workerProfileId,
-              name: equipment.name,
-              description: equipment.description || null,
-              isVerifiedByAdmin: false,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
-            processedNames.add(normalizedName);
-            console.log(`✅ Adding new equipment: ${equipment.name}`);
-          } else {
-            console.log(`⚠️ Equipment already exists or duplicate in batch, skipping: ${equipment.name}`);
-          }
-        }
-
-        // Insert only new equipment
-        if (equipmentToInsert.length > 0) {
-          await db.insert(EquipmentTable).values(equipmentToInsert);
-          console.log(`✅ Inserted ${equipmentToInsert.length} new equipment items`);
-        } else {
-          console.log('ℹ️ No new equipment to insert (all were duplicates)');
-        }
-      } catch (dbError) {
-        console.error('❌ Error processing equipment:', dbError);
-        throw dbError;
-      }
-    } else {
-      console.log('ℹ️ No equipment provided');
-    }
-
-    // Skills field is ignored - only jobTitle is saved as THE skill
-    console.log('ℹ️ Skills field ignored - using jobTitle as THE skill only');
-
-    // Save qualifications data to qualifications table
-    if (profileData.qualifications && profileData.qualifications.trim().length > 0) {
-      try {
+      // Save qualifications data to qualifications table (only after skills are saved)
+      if (profileData.qualifications && profileData.qualifications.trim().length > 0) {
         console.log('🎓 Saving qualifications data to database...');
         
         // Parse qualifications from the text input
@@ -1117,9 +1043,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
             });
             
             processedTitles.add(normalizedTitle);
-            console.log(`✅ Adding new qualification: ${title || qualification}`);
           } else {
-            console.log(`⚠️ Qualification already exists or duplicate in batch, skipping: ${title || qualification}`);
+            console.log(`⏭️ Skipping duplicate qualification: "${qualification}"`);
           }
         }
 
@@ -1137,13 +1062,82 @@ export const saveWorkerProfileFromOnboardingAction = async (
           where: eq(QualificationsTable.workerProfileId, workerProfileId),
         });
         console.log('🎓 Final qualifications in database:', finalQualifications.map(q => ({ id: q.id, title: q.title, skillId: q.skillId })));
+      } else {
+        console.log('🎓 No qualifications provided, skipping qualifications save');
+      }
+    } catch (skillError) {
+      console.error("❌ Error saving worker skills:", skillError);
+      console.error("❌ Error details:", {
+        message:
+          skillError instanceof Error ? skillError.message : "Unknown error",
+        stack:
+          skillError instanceof Error ? skillError.stack : "No stack trace",
+        skillName: skillName || "undefined",
+        userId: user.id,
+      });
+      // Don't fail the entire profile save if skills saving fails
+    }
+
+    // Debug: Log the equipment data received
+
+    // Save equipment data if provided
+    if (profileData.equipment && profileData.equipment.length > 0) {
+      try {
+        console.log('🔧 Processing equipment:', profileData.equipment);
+        
+        // Get existing equipment to avoid duplicates
+        const existingEquipment = await db.query.EquipmentTable.findMany({
+          where: eq(EquipmentTable.workerProfileId, workerProfileId),
+        });
+
+        // Filter out duplicates and prepare equipment for insertion
+        const equipmentToInsert = [];
+        const processedNames = new Set<string>();
+
+        for (const equipment of profileData.equipment as NonNullable<typeof profileData.equipment>) {
+          const normalizedName = equipment.name.toLowerCase().trim();
+          
+          // Check if this equipment already exists (case-insensitive)
+          const equipmentExists = existingEquipment.some(
+            (existing) => existing.name.toLowerCase().trim() === normalizedName
+          );
+          
+          // Also check if we've already processed this name in the current batch
+          const alreadyProcessed = processedNames.has(normalizedName);
+          
+          if (!equipmentExists && !alreadyProcessed) {
+            equipmentToInsert.push({
+              workerProfileId: workerProfileId,
+              name: equipment.name,
+              description: equipment.description || null,
+              isVerifiedByAdmin: false,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+            processedNames.add(normalizedName);
+            console.log(`✅ Adding new equipment: ${equipment.name}`);
+          } else {
+            console.log(`⚠️ Equipment already exists or duplicate in batch, skipping: ${equipment.name}`);
+          }
+        }
+
+        // Insert only new equipment
+        if (equipmentToInsert.length > 0) {
+          await db.insert(EquipmentTable).values(equipmentToInsert);
+          console.log(`✅ Inserted ${equipmentToInsert.length} new equipment items`);
+        } else {
+          console.log('ℹ️ No new equipment to insert (all were duplicates)');
+        }
       } catch (dbError) {
-        console.error('❌ Error saving qualifications:', dbError);
-        // Don't fail the entire profile save if qualifications saving fails
+        console.error('❌ Error processing equipment:', dbError);
+        throw dbError;
       }
     } else {
-      console.log('🎓 No qualifications provided, skipping qualifications save');
+      console.log('ℹ️ No equipment provided');
     }
+
+    // Skills field is ignored - only jobTitle is saved as THE skill
+    console.log('ℹ️ Skills field ignored - using jobTitle as THE skill only');
 
     // Job title is already saved as THE skill above - no duplicate saving needed
     console.log('ℹ️ Job title already saved as THE skill - no duplicate saving needed');

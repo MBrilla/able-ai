@@ -93,13 +93,11 @@ export const validateWorkerProfileData = (formData: FormData): { isValid: boolea
         }
         break;
       case 'experience':
-        // Allow simple numeric input (just a number) or descriptive text
+        // Allow any non-empty input - very lenient validation
         const trimmedValue = value.trim();
-        const isNumeric = /^\d+(\.\d+)?$/.test(trimmedValue);
-        const isDescriptive = trimmedValue.length >= VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH;
         
-        if (!trimmedValue || (!isNumeric && !isDescriptive)) {
-          errors.experience = `Please enter your years of experience (e.g., "5" or "5 years" or "5 years of experience")`;
+        if (!trimmedValue) {
+          errors.experience = `Please enter your years of experience (e.g., "1", "5", "2.5 years")`;
           isValid = false;
         }
         break;
@@ -212,7 +210,7 @@ export const validateContentWithAI = async (field: string, value: string): Promi
         required: ["isValid", "reason", "sanitized"]
       });
     } else if (field === 'experience') {
-      prompt = `Validate this experience description. Check if it's professional and relevant. REJECT if it contains:
+      prompt = `Validate this experience description. Be VERY LENIENT - accept any reasonable input including single numbers. REJECT only if it contains:
       - Video game references: "mario", "luigi", "peach", "bowser", "sonic", "link", "zelda", "pokemon", etc.
       - Fictional characters: "batman", "superman", "spiderman", "wonder woman", etc.
       - Memes and internet culture: "its a me mario", "hello there", "general kenobi", etc.
@@ -222,7 +220,7 @@ export const validateContentWithAI = async (field: string, value: string): Promi
       - Inappropriate content, profanity, sexual content, violence
       - Non-professional information
       
-      ACCEPT legitimate work experience like: "5 years", "2.5 years", "5 years of experience", "I have 5 years of experience in customer service", etc.
+      ACCEPT ANY reasonable input including: "1", "5", "2.5", "1 year", "5 years", "2.5 years", "I have 1 year of experience", "5 years of experience in customer service", etc.
       
       If valid, return the cleaned version. If invalid, explain why it's inappropriate.
       
@@ -437,7 +435,18 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
         return isValid;
       }
       
-      // For text fields, check minimum length
+      // For experience field, just check if it's not empty (very lenient)
+      if (field === 'experience') {
+        const isValid = value && typeof value === 'string' && value.trim().length > 0;
+        console.log(`🔍 Progress check for ${field}:`, {
+          value: value?.substring(0, 20) + '...',
+          length: value?.length || 0,
+          isValid
+        });
+        return isValid;
+      }
+      
+      // For other text fields, check minimum length
       const minLength = VALIDATION_CONSTANTS.WORKER[`MIN_${field.toUpperCase()}_LENGTH` as keyof typeof VALIDATION_CONSTANTS.WORKER];
       const isValid = value && typeof value === 'string' && value.trim().length >= minLength;
       
@@ -462,13 +471,11 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       case 'about':
         return value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_ABOUT_LENGTH ? `Please provide at least ${VALIDATION_CONSTANTS.WORKER.MIN_ABOUT_LENGTH} characters about yourself` : '';
       case 'experience':
-        // Allow simple numeric input (just a number) or descriptive text
+        // Allow any non-empty input - very lenient validation
         const trimmedValue = value.trim();
-        const isNumeric = /^\d+(\.\d+)?$/.test(trimmedValue);
-        const isDescriptive = trimmedValue.length >= VALIDATION_CONSTANTS.WORKER.MIN_EXPERIENCE_LENGTH;
         
-        if (!trimmedValue || (!isNumeric && !isDescriptive)) {
-          return `Please enter your years of experience (e.g., "5" or "5 years" or "5 years of experience")`;
+        if (!trimmedValue) {
+          return `Please enter your years of experience (e.g., "1", "5", "2.5 years")`;
         }
         return '';
       case 'skills':
@@ -759,18 +766,18 @@ Skills: "${value}"`;
           required: ["sanitized"]
         });
       } else if (field === 'experience') {
-        prompt = `Extract the years of experience from this text. REJECT if it contains:
+        prompt = `Extract the years of experience from this text. Be VERY LENIENT - accept any reasonable input including single numbers. REJECT only if it contains:
 - Video game references: "mario", "luigi", "peach", "bowser", "sonic", "link", "zelda", "pokemon", etc.
 - Fictional characters: "batman", "superman", "spiderman", "wonder woman", etc.
 - Memes and internet culture: "its a me mario", "hello there", "general kenobi", etc.
 - Jokes and humor: "i am the best at nothing", "i can fly", "i am a wizard", etc.
 - Nonsense and gibberish: "asdf", "qwerty", "random text", "blah blah", etc.
 
-ACCEPT legitimate formats including:
-- Simple numbers (e.g., "5", "2.5")
-- Numbers with "years" (e.g., "5 years", "2.5 years")
-- Numbers with "yrs" or "y" (e.g., "5 yrs", "2y")
-- Descriptive text (e.g., "5 years of experience", "I have 5 years")
+ACCEPT ANY reasonable input including:
+- Single numbers (e.g., "1", "5", "2.5")
+- Numbers with "years" (e.g., "1 year", "5 years", "2.5 years")
+- Numbers with "yrs" or "y" (e.g., "1 yr", "5 yrs", "2y")
+- Descriptive text (e.g., "1 year of experience", "I have 5 years", "5 years of experience")
 
 Return the number of years as a number (can be decimal). If content is inappropriate or no clear number is found, return 0.
 

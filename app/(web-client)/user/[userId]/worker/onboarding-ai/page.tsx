@@ -124,6 +124,7 @@ const requiredFields: RequiredField[] = [
   { name: "experience", type: "text", placeholder: "How many years of experience do you have?", defaultPrompt: "How many years of experience do you have in your field?", rows: 1 },
   { name: "skills", type: "text", placeholder: "List your skills and certifications...", defaultPrompt: "What skills and certifications do you have?", rows: 3 },
   { name: "equipment", type: "text", placeholder: "List any equipment you have...", defaultPrompt: "What equipment do you have that you can use for your work?", rows: 3 },
+  { name: "qualifications", type: "text", placeholder: "List your qualifications and certifications...", defaultPrompt: "What qualifications and certifications do you have?", rows: 3 },
   { name: "hourlyRate", type: "number", placeholder: "£15", defaultPrompt: "What's your preferred hourly rate?" },
   { name: "location", type: "location", defaultPrompt: "Where are you based? This helps us find gigs near you!" },
   { name: "availability", type: "availability", defaultPrompt: "When are you available to work? Let's set up your weekly schedule!" },
@@ -3671,6 +3672,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                           about: step.summaryData?.about || '',
                           experience: step.summaryData?.experience || '',
                           skills: step.summaryData?.skills || '',
+                          qualifications: step.summaryData?.qualifications || '',
                           equipment: typeof step.summaryData?.equipment === 'string' && step.summaryData.equipment.trim().length > 0
                             ? step.summaryData.equipment.split(/[,\n;]/).map((item: string) => ({ name: item.trim(), description: undefined })).filter((item: { name: string; description: undefined }) => item.name.length > 0)
                             : [],
@@ -4152,6 +4154,7 @@ Share this link to get your reference\n\nSend this link to get your reference: $
                                  about: summaryData.about || '',
                                  experience: summaryData.experience || '',
                                  skills: summaryData.skills || '',
+                                 qualifications: summaryData.qualifications || '',
                                  equipment: summaryData.equipment ? summaryData.equipment.split(',').map((item: string) => ({ name: item.trim(), description: undefined })) : [],
                                  hourlyRate: String(summaryData.hourlyRate || ''),
                                  location: summaryData.location || '',
