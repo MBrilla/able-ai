@@ -11,6 +11,7 @@ import { firebaseApp } from "@/lib/firebase/clientApp";
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { getAI } from '@firebase/ai';
 import { Schema } from '@firebase/ai';
+import { parseExperienceToNumeric } from '@/lib/utils/experienceParsing';
 
 // Helper: generate a compact random code and build a recommendation URL
 function generateRandomCode(length = 8): string {
@@ -78,8 +79,8 @@ export const validateWorkerProfileData = (formData: FormData): { isValid: boolea
   const errors: Record<string, string> = {};
   let isValid = true;
 
-  // Only validate about, experience, skills, and equipment
-  const fieldsToValidate = ['about', 'experience', 'skills', 'equipment'];
+  // Validate all required fields
+  const fieldsToValidate = ['about', 'experience', 'skills', 'equipment', 'qualifications', 'hourlyRate', 'location', 'availability', 'videoIntro', 'references'];
   
   fieldsToValidate.forEach(fieldName => {
     const value = formData[fieldName as keyof FormData];
@@ -106,6 +107,42 @@ export const validateWorkerProfileData = (formData: FormData): { isValid: boolea
       case 'equipment':
         if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH) {
           errors.equipment = `Equipment section must be at least ${VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH} characters`;
+          isValid = false;
+        }
+        break;
+      case 'qualifications':
+        if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_QUALIFICATIONS_LENGTH) {
+          errors.qualifications = `Qualifications section must be at least ${VALIDATION_CONSTANTS.WORKER.MIN_QUALIFICATIONS_LENGTH} characters`;
+          isValid = false;
+        }
+        break;
+      case 'hourlyRate':
+        if (!value || value < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE) {
+          errors.hourlyRate = `Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}`;
+          isValid = false;
+        }
+        break;
+      case 'location':
+        if (!value || !value.lat || !value.lng) {
+          errors.location = 'Please select your location';
+          isValid = false;
+        }
+        break;
+      case 'availability':
+        if (!value || !value.days || value.days.length === 0) {
+          errors.availability = 'Please select at least one day of availability';
+          isValid = false;
+        }
+        break;
+      case 'videoIntro':
+        if (!value || typeof value !== 'string' || value.trim().length === 0) {
+          errors.videoIntro = 'Please record a video introduction';
+          isValid = false;
+        }
+        break;
+      case 'references':
+        if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_REFERENCES_LENGTH) {
+          errors.references = 'References link is required';
           isValid = false;
         }
         break;
@@ -198,6 +235,25 @@ export const validateContentWithAI = async (field: string, value: string): Promi
       If valid, return the cleaned list. If invalid, explain why it's inappropriate.
       
       Equipment: "${value}"`;
+      
+      schema = Schema.object({
+        properties: {
+          isValid: Schema.boolean(),
+          reason: Schema.string(),
+          sanitized: Schema.string()
+        },
+        required: ["isValid", "reason", "sanitized"]
+      });
+    } else if (field === 'qualifications') {
+      prompt = `Validate this qualifications list. Check if it contains only professional qualifications, certifications, degrees, or licenses relevant to gig work. Reject if it contains:
+      - Personal names of celebrities, athletes, or fictional characters
+      - Jokes, memes, or inappropriate content
+      - Non-professional qualifications
+      - Random text or gibberish
+      
+      If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+      
+      Qualifications: "${value}"`;
       
       schema = Schema.object({
         properties: {
@@ -320,16 +376,73 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     fetchExistingProfile();
   }, [user?.claims?.role, user?.token, formData.references]);
 
-  // Calculate progress based on filled fields (only the validated fields)
+  // Calculate progress based on filled fields (all required fields)
   useEffect(() => {
-    const validatedFields = ['about', 'experience', 'skills', 'equipment'];
+    const validatedFields = ['about', 'experience', 'skills', 'equipment', 'qualifications', 'hourlyRate', 'location', 'availability', 'videoIntro', 'references'];
  
     const filledFields = validatedFields.filter(field => {
       const value = formData[field as keyof FormData];
-      return value && typeof value === 'string' && value.trim().length >= VALIDATION_CONSTANTS.WORKER[`MIN_${field.toUpperCase()}_LENGTH` as keyof typeof VALIDATION_CONSTANTS.WORKER];
+      
+      // Special handling for different field types
+      if (field === 'hourlyRate') {
+        const isValid = value && typeof value === 'number' && value >= VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE;
+        console.log(`🔍 Progress check for ${field}:`, {
+          value,
+          minRate: VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE,
+          isValid
+        });
+        return isValid;
+      }
+      
+      if (field === 'location') {
+        const isValid = value && value.lat && value.lng;
+        console.log(`🔍 Progress check for ${field}:`, {
+          hasLocation: !!value,
+          hasLat: !!value?.lat,
+          hasLng: !!value?.lng,
+          isValid
+        });
+        return isValid;
+      }
+      
+      if (field === 'availability') {
+        const isValid = value && value.days && value.days.length > 0;
+        console.log(`🔍 Progress check for ${field}:`, {
+          hasAvailability: !!value,
+          daysCount: value?.days?.length || 0,
+          isValid
+        });
+        return isValid;
+      }
+      
+      if (field === 'videoIntro') {
+        const isValid = value && typeof value === 'string' && value.trim().length > 0;
+        console.log(`🔍 Progress check for ${field}:`, {
+          hasVideo: !!value,
+          isString: typeof value === 'string',
+          length: value?.length || 0,
+          isValid
+        });
+        return isValid;
+      }
+      
+      // For text fields, check minimum length
+      const minLength = VALIDATION_CONSTANTS.WORKER[`MIN_${field.toUpperCase()}_LENGTH` as keyof typeof VALIDATION_CONSTANTS.WORKER];
+      const isValid = value && typeof value === 'string' && value.trim().length >= minLength;
+      
+      console.log(`🔍 Progress check for ${field}:`, {
+        value: value?.substring(0, 20) + '...',
+        length: value?.length || 0,
+        minLength,
+        isValid
+      });
+      
+      return isValid;
     });
     
-    setProgress((filledFields.length / validatedFields.length) * 100);
+    const progressPercentage = (filledFields.length / validatedFields.length) * 100;
+    console.log(`📊 Form progress: ${filledFields.length}/${validatedFields.length} = ${progressPercentage}%`);
+    setProgress(progressPercentage);
   }, [formData]);
 
   const validateField = (name: keyof FormData, value: any): string => {
@@ -569,50 +682,6 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     }
   };
 
-  // Parse experience text to extract years and months as numeric values
-  const parseExperienceToNumeric = (experienceText: string): { years: number; months: number } => {
-    if (!experienceText || experienceText.trim().length === 0) {
-      return { years: 0, months: 0 };
-    }
-
-    const text = experienceText.toLowerCase();
-    let years = 0;
-    let months = 0;
-
-    // Pattern 1: "25 years" or "25 yrs" or "25y"
-    const yearsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y)\b/);
-    if (yearsMatch) {
-      years = parseFloat(yearsMatch[1]);
-    }
-
-    // Pattern 2: "25 years and 3 months" or "25 years 3 months" or "25y 3m"
-    const yearsAndMonthsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y).*?(\d+)\s*(?:months?|mon|m)\b/);
-    if (yearsAndMonthsMatch) {
-      years = parseFloat(yearsAndMonthsMatch[1]);
-      months = parseInt(yearsAndMonthsMatch[2]);
-    }
-
-    // Pattern 3: "3 months" only (no years mentioned)
-    const monthsOnlyMatch = text.match(/(\d+)\s*(?:months?|mon|m)\b/);
-    if (monthsOnlyMatch && years === 0) {
-      months = parseInt(monthsOnlyMatch[1]);
-      // Convert months to years if more than 12 months
-      if (months >= 12) {
-        years = Math.floor(months / 12);
-        months = months % 12;
-      }
-    }
-
-    // Pattern 4: "2.5 years" (decimal years)
-    const decimalYearsMatch = text.match(/(\d+\.\d+)\s*(?:years?|yrs?|y)\b/);
-    if (decimalYearsMatch && years === 0) {
-      const decimalYears = parseFloat(decimalYearsMatch[1]);
-      years = Math.floor(decimalYears);
-      months = Math.round((decimalYears - years) * 12);
-    }
-
-    return { years, months };
-  };
 
   // AI Sanitization function for specific fields (kept for job title extraction)
   const sanitizeWithAI = async (field: string, value: string): Promise<{ sanitized: string; jobTitle?: string; yearsOfExperience?: number }> => {
@@ -665,6 +734,17 @@ Experience description: "${value}"`;
           },
           required: ["yearsOfExperience", "sanitized"]
         });
+      } else if (field === 'qualifications') {
+        prompt = `Clean and format this qualifications list. Remove duplicates, fix typos, and organize into a clean comma-separated list. Keep only relevant professional qualifications, certifications, degrees, or licenses.
+
+Qualifications: "${value}"`;
+        
+        schema = Schema.object({
+          properties: {
+            sanitized: Schema.string()
+          },
+          required: ["sanitized"]
+        });
       } else {
         return { sanitized: value };
       }
@@ -699,8 +779,8 @@ Experience description: "${value}"`;
 
     console.log('🔍 Starting form validation...');
 
-    // Only validate about, experience, skills, and equipment
-    const fieldsToValidate = ['about', 'experience', 'skills', 'equipment'];
+    // Validate all required fields
+    const fieldsToValidate = ['about', 'experience', 'skills', 'equipment', 'qualifications', 'hourlyRate', 'location', 'availability', 'videoIntro', 'references'];
     
     fieldsToValidate.forEach(fieldName => {
       const value = formData[fieldName as keyof FormData];
@@ -727,12 +807,26 @@ Experience description: "${value}"`;
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    console.log('🚀 Form submit triggered');
+    console.log('📊 Current form state:', {
+      progress,
+      isSubmitting,
+      formData: {
+        about: formData.about?.substring(0, 20) + '...',
+        experience: formData.experience?.substring(0, 20) + '...',
+        skills: formData.skills?.substring(0, 20) + '...',
+        equipment: formData.equipment?.substring(0, 20) + '...',
+        hourlyRate: formData.hourlyRate,
+        hasLocation: !!formData.location,
+        hasVideo: !!formData.videoIntro
+      }
+    });
+
     if (!user) {
-      console.error('User not authenticated');
+      console.error('❌ User not authenticated');
       return;
     }
 
-    // Validate form before proceeding
     // Validate form before proceeding
     if (!validateForm()) {
       console.log('❌ Form validation failed, not submitting');
@@ -748,7 +842,7 @@ Experience description: "${value}"`;
       let hasContentErrors = false;
 
       // Validate each field with AI
-      const fieldsToValidate = ['about', 'experience', 'skills', 'equipment'];
+      const fieldsToValidate = ['about', 'experience', 'skills', 'equipment', 'qualifications'];
       
       for (const field of fieldsToValidate) {
         const value = formData[field as keyof FormData];
@@ -795,6 +889,12 @@ Experience description: "${value}"`;
         sanitizedData.skills = skillsResult.sanitized;
       }
 
+      // Sanitize Qualifications field
+      if (formData.qualifications) {
+        const qualificationsResult = await sanitizeWithAI('qualifications', formData.qualifications);
+        sanitizedData.qualifications = qualificationsResult.sanitized;
+      }
+
       // Sanitize Experience field (extract years and months as numeric)
       if (formData.experience) {
         const experienceResult = await sanitizeWithAI('experience', formData.experience);
@@ -839,8 +939,6 @@ Experience description: "${value}"`;
       await onSubmit(sanitizedData);
     } catch (error) {
       console.error('Form submission error:', error);
-      // Set error state to show user
-      setErrors(prev => ({ ...prev, submit: 'Failed to submit form. Please try again.' }));
       // Set error state to show user
       setErrors(prev => ({ ...prev, submit: 'Failed to submit form. Please try again.' }));
     } finally {
@@ -939,7 +1037,6 @@ Experience description: "${value}"`;
                      <div className={styles.formGroup}>
              <label className={styles.label}>
                Skills *
-               Skills *
              </label>
              <textarea
                className={`${styles.textarea} ${errors.skills ? styles.error : ''}`}
@@ -953,21 +1050,7 @@ Experience description: "${value}"`;
 
            <div className={styles.formGroup}>
              <label className={styles.label}>
-               Qualifications & Certifications
-             </label>
-             <textarea
-               className={`${styles.textarea} ${errors.qualifications ? styles.error : ''}`}
-               value={formData.qualifications}
-               onChange={(e) => handleInputChange('qualifications', e.target.value)}
-               placeholder="List your qualifications, certifications, degrees, licenses, etc..."
-               rows={3}
-             />
-             {errors.qualifications && <span className={styles.errorText}>{errors.qualifications}</span>}
-           </div>
-
-           <div className={styles.formGroup}>
-             <label className={styles.label}>
-               Qualifications & Certifications
+               Qualifications & Certifications *
              </label>
              <textarea
                className={`${styles.textarea} ${errors.qualifications ? styles.error : ''}`}
@@ -1161,12 +1244,6 @@ Experience description: "${value}"`;
             </div>
           )}
           
-          {errors.submit && (
-            <div className={styles.errorMessage}>
-              {errors.submit}
-            </div>
-          )}
-          
           <button
             type="submit"
             className={styles.submitButton}
@@ -1184,8 +1261,7 @@ Experience description: "${value}"`;
 
           {progress < 100 && (
             <p className={styles.completionNote}>
-              Please fill in about, experience, skills, and equipment sections to complete your profile
-              Please fill in about, experience, skills, and equipment sections to complete your profile
+              Please fill in all required fields to complete your profile: about, experience, skills, equipment, qualifications, hourly rate, location, availability, video introduction, and references
             </p>
           )}
         </div>

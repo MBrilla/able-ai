@@ -13,7 +13,39 @@ import { getWorkerOffers } from '@/actions/gigs/get-worker-offers';
 
 async function fetchWorkerGigDetails(user: User | WorkerUser, gigId: string): Promise<GigDetails | null> {
   const isViewQA = false;
-  const { gig, status } = await getGigDetails({ gigId, userId: user?.uid, role: 'worker', isViewQA });
+  
+  // For WorkerUser, use the database user ID directly
+  // For regular User, use the Firebase UID
+  let userId: string;
+  let isDatabaseUserId = false;
+  
+  if ('id' in user && 'uid' in user) {
+    // This is a WorkerUser - use the database user ID
+    userId = user.id;
+    isDatabaseUserId = true;
+    console.log('🔍 DEBUG: Using WorkerUser database ID:', userId);
+  } else {
+    // This is a regular User - use the Firebase UID
+    userId = user?.uid || '';
+    isDatabaseUserId = false;
+    console.log('🔍 DEBUG: Using regular User Firebase UID:', userId);
+  }
+  
+  console.log('🔍 DEBUG: fetchWorkerGigDetails called with:', { 
+    userId, 
+    gigId, 
+    userType: user?.constructor?.name,
+    isDatabaseUserId,
+    userObject: user
+  });
+  
+  const { gig, status } = await getGigDetails({ 
+    gigId, 
+    userId, 
+    role: 'worker', 
+    isViewQA, 
+    isDatabaseUserId 
+  });
 
   if (!gig || status !== 200) return null;
 

@@ -11,22 +11,18 @@ export interface WorkerUser {
   id: string;
 }
 
-export async function getWorkerUserFromProfileId(uid: string): Promise<{
+export async function getWorkerUserFromProfileId(profileId: string): Promise<{
   success: boolean;
   data?: WorkerUser;
   error?: string;
 }> {
   try {
-    const user = await db.query.UsersTable.findFirst({
-      where: eq(UsersTable.firebaseUid, uid),
-    });
+    if (!profileId) throw new Error("Worker profile ID is required");
 
-    if (!user) throw new Error("User not found");
-
-    if (!uid) throw new Error("User profile ID is required");
+    console.log('🔍 DEBUG: Looking up worker profile with ID:', profileId);
 
     const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
-      where: eq(GigWorkerProfilesTable.userId, user.id),
+      where: eq(GigWorkerProfilesTable.id, profileId),
       with: {
         user: {
           columns: {
@@ -38,6 +34,7 @@ export async function getWorkerUserFromProfileId(uid: string): Promise<{
         },
       },
     });
+    
     console.log('🔍 DEBUG: Worker profile query result:', {
       found: !!workerProfile,
       hasUser: !!workerProfile?.user,
@@ -55,6 +52,15 @@ export async function getWorkerUserFromProfileId(uid: string): Promise<{
       email: workerProfile.user.email || undefined,
       id: workerProfile.user.id,
     };
+
+    console.log('🔍 DEBUG: Created WorkerUser object:', {
+      uid: workerUser.uid,
+      id: workerUser.id,
+      displayName: workerUser.displayName,
+      email: workerUser.email,
+      originalFirebaseUid: workerProfile.user.firebaseUid,
+      originalUserId: workerProfile.user.id
+    });
 
     return {
       success: true,

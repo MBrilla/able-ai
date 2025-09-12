@@ -979,6 +979,11 @@ export const saveWorkerProfileFromOnboardingAction = async (
 
           // Insert new qualifications
           if (qualificationsList.length > 0) {
+            // Get all skills for this worker to match qualifications
+            const workerSkills = await tx.query.SkillsTable.findMany({
+              where: eq(SkillsTable.workerProfileId, workerProfileId),
+            });
+            
             const qualificationsToInsert = qualificationsList.map((qualification) => {
               // Try to extract year from qualification text (e.g., "Bachelor's Degree 2020")
               const yearMatch = qualification.match(/(\d{4})/);
@@ -997,6 +1002,22 @@ export const saveWorkerProfileFromOnboardingAction = async (
                 title = title.replace(/(?:from|at|@)\s+[^,]+/i, '').trim();
               }
               
+              // Try to match this qualification to an existing skill
+              // Look for skills that have similar names or are related to the qualification
+              const matchedSkill = workerSkills.find(skill => {
+                const skillName = skill.name.toLowerCase();
+                const qualTitle = (title || qualification).toLowerCase();
+                
+                // Check for exact match or partial match
+                return skillName === qualTitle || 
+                       skillName.includes(qualTitle) || 
+                       qualTitle.includes(skillName) ||
+                       // Check for common skill-related keywords
+                       (qualTitle.includes('degree') && skillName.includes('education')) ||
+                       (qualTitle.includes('certificate') && skillName.includes('certification')) ||
+                       (qualTitle.includes('diploma') && skillName.includes('education'));
+              });
+              
               return {
                 workerProfileId: workerProfileId,
                 title: title || qualification, // Fallback to original if cleaning fails
@@ -1005,7 +1026,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
                 description: null, // Could be enhanced to extract more details
                 documentUrl: null, // Could be enhanced to handle document uploads
                 isVerifiedByAdmin: false,
-                skillId: null, // Could be enhanced to link to specific skills
+                skillId: matchedSkill?.id || null, // Link to matched skill if found
                 createdAt: new Date(),
                 updatedAt: new Date(),
               };

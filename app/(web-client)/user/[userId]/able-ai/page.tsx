@@ -14,8 +14,11 @@ import pageStyles from "./AbleAIPage.module.css";
 import { useFirebase } from '@/context/FirebaseContext';
 import { geminiAIAgent } from '@/lib/firebase/ai';
 import { Schema } from '@firebase/ai';
-import { detectIncident } from '@/lib/incident-detection';
+import { detectIncidentEnhanced } from '@/lib/ai-incident-detection';
 import { createEscalatedIssueClient } from '@/utils/client-escalation';
+
+// Constants
+const MIN_INCIDENT_DETAILS_LENGTH_FOR_SUBMISSION = 100;
 
 type WorkerGigOffer = {
   id: string;
@@ -137,6 +140,19 @@ interface AIResponse {
   gigs?: WorkerGigOffer[];
   needsLiveAgent?: boolean;
 }
+
+// Helper function to add a bot message to chat steps
+const addBotMessage = (setChatSteps: React.Dispatch<React.SetStateAction<ChatStep[]>>, content: string) => {
+  setChatSteps(prev => [
+    ...prev,
+    {
+      id: Date.now() + 1,
+      type: "bot",
+      content,
+      isNew: true,
+    },
+  ]);
+};
 
 export default function AbleAIPage() {
   const { user, loading: loadingAuth } = useAuth();
@@ -407,37 +423,84 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
   // Handle incident reporting in chat
   const handleIncidentReporting = useCallback(async (message: string) => {
     if (!isReportingIncident) {
-      // Start incident reporting flow
-      const incidentDetection = detectIncident(message);
-      if (incidentDetection.isIncident) {
-        console.log('🚨 Incident detected in Able AI chat:', incidentDetection);
-        setIncidentType(incidentDetection.incidentType || 'other');
-        setIsReportingIncident(true);
+      // Start incident reporting flow with AI validation
+      try {
+        const incidentDetection = await detectIncidentEnhanced(message, ai);
+        console.log('🔍 AI Incident Detection Result:', incidentDetection);
         
-        // Add user message
-        setChatSteps(prev => [
-          ...prev,
-          {
-            id: Date.now(),
-            type: "user",
-            content: message,
-            isNew: true,
-          },
-        ]);
+        if (incidentDetection.isIncident) {
+          console.log('🚨 Incident detected in Able AI chat:', incidentDetection);
+          setIncidentType(incidentDetection.incidentType || 'other');
+          setIsReportingIncident(true);
+          
+          // Add user message
+          setChatSteps(prev => [
+            ...prev,
+            {
+              id: Date.now(),
+              type: "user",
+              content: message,
+              isNew: true,
+            },
+          ]);
 
-        // Add AI response for incident reporting
-        setChatSteps(prev => [
-          ...prev,
-          {
-            id: Date.now() + 1,
-            type: "bot",
-            content: `I understand you may be experiencing a ${incidentDetection.incidentType?.replace('_', ' ')} issue. This is serious and I want to help you report this properly. Can you please provide more details about what happened? Please include when and where this occurred, and any other relevant information.`,
-            isNew: true,
-          },
-        ]);
-        return;
+          // Add AI response for incident reporting
+          const responseMessage = incidentDetection.requiresImmediateAttention 
+            ? `🚨 URGENT: I understand you're experiencing a ${incidentDetection.incidentType?.replace('_', ' ')} issue. This is serious and requires immediate attention. Can you please provide more details about what happened? Please include when and where this occurred, and any other relevant information.`
+            : `I understand you may be experiencing a ${incidentDetection.incidentType?.replace('_', ' ')} issue. This is serious and I want to help you report this properly. Can you please provide more details about what happened? Please include when and where this occurred, and any other relevant information.`;
+
+          addBotMessage(setChatSteps, responseMessage);
+          return;
+        } else {
+          // Not an incident - provide helpful response based on context
+          if (incidentDetection.context === 'exit_request') {
+            // User wants to exit incident reporting
+            setIsReportingIncident(false);
+            setIncidentType(null);
+            setIncidentDetails('');
+            addBotMessage(setChatSteps, incidentDetection.suggestedAction);
+            return;
+          } else if (incidentDetection.context === 'professional' || incidentDetection.context === 'educational') {
+            addBotMessage(setChatSteps, 
+              `I see you're discussing this from a ${incidentDetection.context} perspective. If you need to report an actual incident or have questions about our platform, I'm here to help!`
+            );
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error in AI incident detection:', error);
+        // Continue with normal processing if AI detection fails
       }
     } else {
+      // Continue incident reporting flow - check for exit requests first
+      try {
+        const incidentDetection = await detectIncidentEnhanced(message, ai);
+        
+        if (incidentDetection.isExitRequest) {
+          // User wants to exit incident reporting
+          setIsReportingIncident(false);
+          setIncidentType(null);
+          setIncidentDetails('');
+          
+          // Add user message
+          setChatSteps(prev => [
+            ...prev,
+            {
+              id: Date.now(),
+              type: "user",
+              content: message,
+              isNew: true,
+            },
+          ]);
+          
+          addBotMessage(setChatSteps, incidentDetection.suggestedAction);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking for exit request:', error);
+        // Continue with normal incident reporting if AI fails
+      }
+      
       // Continue incident reporting flow
       setIncidentDetails(prev => prev + (prev ? ' ' : '') + message);
       
@@ -453,7 +516,7 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
       ]);
 
       // Check if we have enough details
-      if (incidentDetails.length + message.length > 100) {
+      if (incidentDetails.length + message.length > MIN_INCIDENT_DETAILS_LENGTH_FOR_SUBMISSION) {
         // Submit incident report to database
         const finalDetails = incidentDetails + (incidentDetails ? ' ' : '') + message;
         
@@ -466,37 +529,19 @@ For gig requests, provide a helpful response and set hasGigs to true.`;
           });
 
           if (escalationResult.success) {
-            setChatSteps(prev => [
-              ...prev,
-              {
-                id: Date.now() + 1,
-                type: "bot",
-                content: `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report (ID: ${escalationResult.issueId}). This has been escalated to our support team who will review it within 24 hours. You should receive a confirmation email shortly. Is there anything else I can help you with?`,
-                isNew: true,
-              },
-            ]);
+            addBotMessage(setChatSteps, 
+              `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report (ID: ${escalationResult.issueId}). This has been escalated to our support team who will review it within 24 hours. You should receive a confirmation email shortly. Is there anything else I can help you with?`
+            );
           } else {
-            setChatSteps(prev => [
-              ...prev,
-              {
-                id: Date.now() + 1,
-                type: "bot",
-                content: `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report. There was a technical issue saving it to our system, but I've noted it down. Please contact support directly if needed. Is there anything else I can help you with?`,
-                isNew: true,
-              },
-            ]);
+            addBotMessage(setChatSteps, 
+              `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report. There was a technical issue saving it to our system, but I've noted it down. Please contact support directly if needed. Is there anything else I can help you with?`
+            );
           }
         } catch (error) {
           console.error('Error saving incident report:', error);
-          setChatSteps(prev => [
-            ...prev,
-            {
-              id: Date.now() + 1,
-              type: "bot",
-              content: `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report. There was a technical issue saving it to our system, but I've noted it down. Please contact support directly if needed. Is there anything else I can help you with?`,
-              isNew: true,
-            },
-          ]);
+          addBotMessage(setChatSteps, 
+            `Thank you for providing those details. I've documented your ${incidentType?.replace('_', ' ')} report. There was a technical issue saving it to our system, but I've noted it down. Please contact support directly if needed. Is there anything else I can help you with?`
+          );
         }
         
         // Reset incident reporting state
