@@ -1582,6 +1582,44 @@ Return 3 relevant hashtags like "#bartender", "#mixology", "#events" for hospita
 
     const trimmedValue = String(value).trim();
     
+    // Pre-validation: Check for inappropriate content before AI processing with context
+    const { preValidateContentWithContext } = await import('../../../../../../lib/utils/contentModeration');
+    
+    // Build chat context from conversation history
+    const chatContext = {
+      conversationHistory: chatSteps
+        .filter(step => step.type === 'user' || step.type === 'bot')
+        .map(step => ({
+          type: step.type as 'user' | 'bot',
+          content: step.content || '',
+          timestamp: step.id
+        })),
+      currentField: field,
+      userRole: 'worker' as const,
+      sessionDuration: Date.now() - (chatSteps[0]?.id || Date.now())
+    };
+    
+    const preValidation = preValidateContentWithContext(trimmedValue, chatContext);
+    
+    // If pre-validation rejects with high confidence, reject immediately
+    if (!preValidation.isAppropriate && preValidation.confidence > 0.8) {
+      // Log rejected content for monitoring
+      console.warn('🚫 Content rejected by pre-validation:', {
+        field,
+        input: trimmedValue,
+        reason: preValidation.reason,
+        category: preValidation.category,
+        confidence: preValidation.confidence,
+        userId: user?.uid || 'unknown',
+        timestamp: new Date().toISOString()
+      });
+      
+      return {
+        sufficient: false,
+        clarificationPrompt: `I'm sorry, but "${preValidation.reason}" is not appropriate for a professional worker profile. Please provide legitimate work-related information.`
+      };
+    }
+    
     // Use AI for all validation
     try {
       if (!ai) {
@@ -1622,6 +1660,12 @@ CURRENT VALIDATION:
 - User input: "${trimmedValue}"
 - Input type: "${type}"
 
+CONTEXT ANALYSIS:
+- User behavior pattern: ${preValidation.contextAnalysis?.userBehaviorPattern || 'normal'}
+- Conversation theme: ${preValidation.contextAnalysis?.conversationTheme || 'general'}
+- Previous inappropriate attempts: ${preValidation.contextAnalysis?.previousInappropriateCount || 0}
+- Is follow-up to rejection: ${preValidation.contextAnalysis?.isFollowUp ? 'Yes' : 'No'}
+
 ENHANCED AI-POWERED VALIDATION & SANITIZATION:
 
 1. **AI-Powered Context Analysis:**
@@ -1631,10 +1675,15 @@ ENHANCED AI-POWERED VALIDATION & SANITIZATION:
    - Identify patterns in user communication style
 
 2. **Intelligent Validation:**
-   - isAppropriate: Check if content is appropriate for professional worker profile
-   - isWorkerRelated: Check if content relates to worker skills/experience (be VERY lenient)
+   - isAppropriate: Check if content is appropriate for professional worker profile (REJECT nonsense, jokes, memes, fictional characters, inappropriate content)
+   - isWorkerRelated: Check if content relates to worker skills/experience (be lenient for legitimate worker content, but STRICT against nonsense)
    - isSufficient: Check if content provides basic information
    - Consider context: If user mentioned job title earlier, validate against it
+   - REJECT: Video game references, fictional characters, memes, jokes, gibberish, random text
+   - CONTEXT AWARENESS: 
+     * If user behavior pattern is "testing" (multiple previous rejections), be EXTRA strict
+     * If user behavior pattern is "confused" and this is a follow-up, be more lenient for legitimate attempts
+     * If conversation theme is clear (experience, skills, etc.), validate against that context
 
 3. **Enhanced Sanitization & Data Extraction:**
    - naturalSummary: Create a natural, conversational summary that shows understanding
@@ -1642,8 +1691,10 @@ ENHANCED AI-POWERED VALIDATION & SANITIZATION:
    - Cross-reference with existing profile data for consistency
 
 4. **Field-Specific AI Intelligence:**
-   - **experience**: Extract years, validate against job title, suggest improvements
+   - **experience**: Extract years, validate against job title, suggest improvements (accept simple numbers but REJECT nonsense)
+     Example: "5" → "Great! You have 5 years of experience, is that right?"
      Example: "25 years of experience" → "Wow, 25 years of experience! That's fantastic. You've been working as a baker for that long, correct?"
+     REJECT: "its a me mario", "super mario", "luigi", "peach", "bowser", "mushroom kingdom", "jumpman", etc.
    - **skills**: Extract skill names, categorize by industry, suggest additional relevant skills
      Example: "Fondant building, cake decorating" → "Fondant building and cake decorating, that sounds amazing! Those are great skills for a baker, correct?"
    - **equipment**: Extract equipment list, validate relevance, suggest additions
@@ -1693,6 +1744,21 @@ If validation fails, respond with:
 - naturalSummary: string
 - extractedData: string
 
+CONTENT MODERATION RULES - REJECT THE FOLLOWING:
+- Video game references: "mario", "luigi", "peach", "bowser", "sonic", "link", "zelda", "pokemon", "pikachu", etc.
+- Fictional characters: "batman", "superman", "spiderman", "wonder woman", etc.
+- Memes and internet culture: "its a me mario", "hello there", "general kenobi", "this is fine", etc.
+- Jokes and humor: "i am the best at nothing", "i can fly", "i am a wizard", etc.
+- Nonsense and gibberish: "asdf", "qwerty", "random text", "blah blah", etc.
+- Inappropriate content: profanity, sexual content, violence, etc.
+- Non-professional content: personal information, unrelated topics, etc.
+
+ACCEPT THE FOLLOWING:
+- Legitimate work experience: "5 years", "2.5 years", "5 years of experience", etc.
+- Professional skills: "customer service", "cooking", "cleaning", "driving", etc.
+- Real equipment: "stand mixer", "car", "tools", "computer", etc.
+- Professional qualifications: "certified", "licensed", "degree", etc.
+
 WORKER ONBOARDING CONTEXT: Remember, this user is creating a worker profile to find gig opportunities. They are the worker/employee looking to be hired. Keep responses focused on worker onboarding only.
 
 Be conversational, intelligent, and always ask for confirmation in natural language.`;
@@ -1716,10 +1782,14 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
       if (result.ok && result.data) {
         const validation = result.data as AIValidationResponse;
         
-        if (!validation.isAppropriate || !validation.isWorkerRelated || !validation.isSufficient) {
+        // Enhance AI validation with pre-validation results
+        const { enhanceAIValidation } = await import('../../../../../../lib/utils/contentModeration');
+        const enhancedValidation = enhanceAIValidation(validation, preValidation);
+        
+        if (!enhancedValidation.isAppropriate || !enhancedValidation.isWorkerRelated || !enhancedValidation.isSufficient) {
           return {
             sufficient: false,
-            clarificationPrompt: validation.clarificationPrompt || 'Please provide appropriate worker-related information.',
+            clarificationPrompt: enhancedValidation.clarificationPrompt || 'Please provide appropriate worker-related information.',
           };
         }
         
@@ -1772,6 +1842,35 @@ Be conversational, intelligent, and always ask for confirmation in natural langu
       }
     } catch (error) {
       console.error('AI validation failed:', error);
+      
+      // Fallback validation when AI fails (with context)
+      const fallbackValidation = preValidateContentWithContext(trimmedValue, chatContext);
+      if (!fallbackValidation.isAppropriate && fallbackValidation.confidence > 0.7) {
+        console.warn('🚫 Content rejected by fallback validation:', {
+          field,
+          input: trimmedValue,
+          reason: fallbackValidation.reason,
+          category: fallbackValidation.category,
+          confidence: fallbackValidation.confidence,
+          userId: user?.uid || 'unknown',
+          timestamp: new Date().toISOString()
+        });
+        
+        return {
+          sufficient: false,
+          clarificationPrompt: `I'm sorry, but "${fallbackValidation.reason}" is not appropriate for a professional worker profile. Please provide legitimate work-related information.`
+        };
+      }
+      
+      // If fallback validation passes, accept with warning
+      console.warn('⚠️ AI validation failed, using fallback validation:', {
+        field,
+        input: trimmedValue,
+        fallbackResult: fallbackValidation,
+        userId: user?.uid || 'unknown',
+        timestamp: new Date().toISOString()
+      });
+      
       setError('AI validation failed. Please try again.');
       
       // Check if we should escalate due to AI failure

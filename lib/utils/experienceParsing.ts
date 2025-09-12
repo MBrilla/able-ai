@@ -23,6 +23,15 @@ export const parseExperienceToNumeric = (experienceText: string): ExperienceData
   let years = 0;
   let months = 0;
 
+  // Pattern 0: Simple number only (e.g., "5", "2.5") - most lenient
+  const simpleNumberMatch = text.match(/^\s*(\d+(?:\.\d+)?)\s*$/);
+  if (simpleNumberMatch) {
+    const num = parseFloat(simpleNumberMatch[1]);
+    years = Math.floor(num);
+    months = Math.round((num - years) * 12);
+    return { years, months };
+  }
+
   // Pattern 1: "25 years" or "25 yrs" or "25y"
   const yearsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y)\b/);
   if (yearsMatch) {

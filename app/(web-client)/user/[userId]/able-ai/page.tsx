@@ -228,6 +228,57 @@ export default function AbleAIPage() {
       return;
     }
 
+    // Pre-validation: Check for inappropriate content before AI processing
+    try {
+      const { preValidateContentWithContext } = await import('../../../../../lib/utils/contentModeration');
+      
+      // Build chat context from conversation history
+      const chatContext = {
+        conversationHistory: chatSteps
+          .filter(step => step.type === 'user' || step.type === 'bot')
+          .map(step => ({
+            type: step.type as 'user' | 'bot',
+            content: step.content || '',
+            timestamp: step.id
+          })),
+        currentField: 'general_chat',
+        userRole: 'worker' as const,
+        sessionDuration: Date.now() - (chatSteps[0]?.id || Date.now())
+      };
+      
+      const preValidation = preValidateContentWithContext(userMessage, chatContext);
+      
+      // If pre-validation rejects with high confidence, reject immediately
+      if (!preValidation.isAppropriate && preValidation.confidence > 0.8) {
+        console.warn('🚫 Content rejected by pre-validation in Able AI chat:', {
+          input: userMessage,
+          reason: preValidation.reason,
+          category: preValidation.category,
+          confidence: preValidation.confidence,
+          userId: user?.uid || 'unknown',
+          timestamp: new Date().toISOString()
+        });
+        
+        // Add user message
+        setChatSteps(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            type: "user",
+            content: userMessage,
+            isNew: true,
+          },
+        ]);
+        
+        // Add rejection message
+        addBotMessage(setChatSteps, `I'm sorry, but "${preValidation.reason}" is not appropriate for our professional platform. Please ask about gigs, platform features, or other work-related topics.`);
+        return;
+      }
+    } catch (error) {
+      console.error('Pre-validation failed in Able AI chat:', error);
+      // Continue with normal processing if pre-validation fails
+    }
+
     try {
       // Add typing indicator
       setChatSteps(prev => [

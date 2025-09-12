@@ -809,11 +809,11 @@ export const saveWorkerProfileFromOnboardingAction = async (
     // Log call stack to see where this is being called from
     console.log(`🚀 [${callId}] Call stack:`, new Error().stack?.split('\n').slice(1, 4).join('\n'));
     
-          try {
-        // Use jobTitle field as the main skill for database entry
-        skillName = profileData.jobTitle || profileData.about || '';
-        
-        // Extract years of experience from experience field
+    try {
+      // Use jobTitle field as the main skill for database entry (not the skills form field)
+      skillName = profileData.jobTitle || profileData.about || '';
+      
+      // Extract years of experience from experience field
       const experienceText = profileData.experience || '';
       const yearsMatch = experienceText.match(/(\d+)\s*(?:years?|yrs?|y)/i);
       yearsOfExperience = yearsMatch ? parseFloat(yearsMatch[1]) : undefined;
@@ -835,7 +835,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
         about_field: profileData.about,
         experience_field: profileData.experience,
         hourlyRate_field: profileData.hourlyRate,
-        note: 'Using jobTitle field as main skill for database entry'
+        note: 'Using jobTitle field as main skill for database entry (skills form field ignored)'
       });
 
       if (skillName) {
@@ -905,12 +905,12 @@ export const saveWorkerProfileFromOnboardingAction = async (
           console.log("🔍 Attempted to add skill:", skillName);
         }
       } else {
-        console.log('⚠️ No about field found, skipping worker skills save');
+        console.log('⚠️ No jobTitle or about field found, skipping worker skills save');
         console.log('🔍 Available data:', {
           about: profileData.about,
           experience: profileData.experience,
           hourlyRate: profileData.hourlyRate,
-          note: 'Using jobTitle field as main skill for database entry'
+          note: 'Using jobTitle field as main skill for database entry (skills form field ignored)'
         });
       }
     } catch (skillError) {
