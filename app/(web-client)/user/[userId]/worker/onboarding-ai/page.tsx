@@ -1444,6 +1444,14 @@ Return 3 relevant hashtags like "#bartender", "#mixology", "#events" for hospita
 
   // Helper to get next required field not in formData - matching gig creation
   const getNextRequiredField = useCallback((formData: FormData) => {
+    // Check if user already has location and availability data
+    const hasLocationAndAvailability = !!(formData.location && formData.availability);
+    
+    if (hasLocationAndAvailability) {
+      // Skip location and availability fields if user already has them
+      return requiredFields.find(f => !formData[f.name] && f.name !== 'location' && f.name !== 'availability');
+    }
+    
     return requiredFields.find(f => !formData[f.name]);
   }, []);
 

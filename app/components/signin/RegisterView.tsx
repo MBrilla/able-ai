@@ -12,6 +12,8 @@ import { isPasswordCommon } from "@/app/actions/password-check";
 import { authClient } from "@/lib/firebase/clientApp";
 import { toast } from "sonner";
 import PasswordInputField from "@/app/components/form/PasswodInputField";
+import PhoneNumberInput from "@/app/components/auth/PhoneNumberInput";
+import PhoneVerification from "@/app/components/auth/PhoneVerification";
 
 interface RegisterViewProps {
   onToggleRegister: () => void;
@@ -40,10 +42,13 @@ const registrationInputs: StepInputConfig[] = [
   },
 ];
 
+type RegistrationStep = 'form' | 'phone-verification' | 'email-verification';
+
 const RegisterView: React.FC<RegisterViewProps> = ({
   onToggleRegister,
   onError,
 }) => {
+  const [currentStep, setCurrentStep] = useState<RegistrationStep>('form');
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -51,11 +56,16 @@ const RegisterView: React.FC<RegisterViewProps> = ({
     password: "",
   });
   const [loading, setLoading] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handlePhoneChange = (phoneNumber: string) => {
+    setFormData((prev) => ({ ...prev, phone: phoneNumber }));
   };
 
   const validatePassword = async (password: string) => {
@@ -74,96 +84,227 @@ const RegisterView: React.FC<RegisterViewProps> = ({
     return { isValid: true, error: null };
   };
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    onError(null); // Clear previous errors
-    setLoading(true);
-
+  const validateForm = async () => {
     const { name, phone, email, password } = formData;
 
-    // Validate email with RFC 5322 standard complaint regex
+    // Validate name
+    if (!name.trim()) {
+      onError("Name is required");
+      return false;
+    }
+
+    // Validate phone
+    if (!phone.trim()) {
+      onError("Phone number is required");
+      return false;
+    }
+
+    if (phoneError) {
+      onError(phoneError);
+      return false;
+    }
+
+    // Validate email
     const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailPattern.test(email.trim())) {
       onError("Invalid email address");
-      setLoading(false);
-      return;
+      return false;
     }
+
     // Validate password
     const { isValid, error } = await validatePassword(password);
     if (!isValid) {
       onError(error);
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    onError(null);
+    setLoading(true);
+
+    const isValid = await validateForm();
+    if (!isValid) {
       setLoading(false);
       return;
     }
-    const result = await registerUserAction({
-      email: email.trim(),
-      password: password.trim(),
-      name: name.trim(),
-      phone: phone.trim(),
-    });
 
-    const host =
-      window?.location.origin || "https://able-ai-mvp-able-ai-team.vercel.app";
-    const actionCodeSettings = {
-      // URL you want to redirect back to. The domain (www.example.com) for this
-      // URL must be in the authorized domains list in the Firebase Console.
-      url: host + "/usermgmt",
-      handleCodeInApp: true,
-    };
+    // Move to phone verification step
+    setCurrentStep('phone-verification');
+    setLoading(false);
+  };
 
-    sendSignInLinkToEmail(authClient, email, actionCodeSettings)
-      .then(() => {
-        // The link was successfully sent. Inform the user.
-        // Save the email locally so you don't need to ask the user for it again
-        // if they open the link on the same device.
-        if (result.ok) {
-          window.localStorage.setItem("emailForSignIn", email);
-          toast.success(
-            "Registration successful! Please check your email to sign in."
-          );
-        }
-      })
-      .catch((error) => {
-        const errorCode = error.code;
-        console.error("Error sending email:", errorCode);
-        const errorMessage = error.message;
-        toast.error(`Error sending email: ${errorMessage}`);
+  const handlePhoneVerificationSuccess = async (verifiedPhone: string) => {
+    try {
+      setLoading(true);
+      onError(null);
+
+      // Update form data with verified phone
+      setFormData(prev => ({ ...prev, phone: verifiedPhone }));
+
+      // Register user with verified phone
+      const result = await registerUserAction({
+        email: formData.email.trim(),
+        password: formData.password.trim(),
+        name: formData.name.trim(),
+        phone: verifiedPhone,
       });
 
-    setLoading(false);
+      if (!result.ok) {
+        onError(result.error);
+        setLoading(false);
+        return;
+      }
 
-    if (!result.ok) {
-      console.log("Registration error:", result.error);
-      onError(result.error);
+      // Move to email verification step
+      setCurrentStep('email-verification');
       setLoading(false);
-      return;
-    } else {
-      // Assuming successful registration/sign-in should redirect
-      router.push("/select-role"); // Or your desired post-registration page
+
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      onError(error.message || 'Registration failed');
+      setLoading(false);
     }
   };
 
+  const handleEmailVerification = async () => {
+    try {
+      setLoading(true);
+      onError(null);
+
+      const host = window?.location.origin || "https://able-ai-mvp-able-ai-team.vercel.app";
+      const actionCodeSettings = {
+        url: host + "/usermgmt",
+        handleCodeInApp: true,
+      };
+
+      await sendSignInLinkToEmail(authClient, formData.email, actionCodeSettings);
+      
+      window.localStorage.setItem("emailForSignIn", formData.email);
+      toast.success("Registration successful! Please check your email to sign in.");
+      
+      router.push("/select-role");
+
+    } catch (error: any) {
+      console.error("Error sending email:", error);
+      onError(`Error sending email: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToForm = () => {
+    setCurrentStep('form');
+    onError(null);
+  };
+
+  const handleBackToPhoneVerification = () => {
+    setCurrentStep('phone-verification');
+    onError(null);
+  };
+
+  // Render different steps
+  if (currentStep === 'phone-verification') {
+    return (
+      <PhoneVerification
+        phoneNumber={formData.phone}
+        onVerificationSuccess={handlePhoneVerificationSuccess}
+        onError={onError}
+        onBack={handleBackToForm}
+      />
+    );
+  }
+
+  if (currentStep === 'email-verification') {
+    return (
+      <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-lg">
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Verify Your Email
+          </h2>
+          <p className="text-gray-600">
+            We've sent a verification link to
+          </p>
+          <p className="font-semibold text-gray-900">
+            {formData.email}
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 text-center">
+            Please check your email and click the verification link to complete your registration.
+          </p>
+
+          <button
+            onClick={handleEmailVerification}
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Sending...' : 'Resend Verification Email'}
+          </button>
+
+          <div className="text-center">
+            <button
+              onClick={handleBackToPhoneVerification}
+              className="text-sm text-gray-600 hover:text-gray-800"
+            >
+              ← Back to phone verification
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
-      {registrationInputs.map((input) => (
-        <div className={styles.inputGroup} key={input.name}>
-          <label htmlFor={`${input.name}-register`} className={styles.label}>
-            {input.label}
-          </label>
-          <InputField
-            type={input.type as string}
-            id={`${input.name}-register`}
-            name={input.name}
-            placeholder={input.placeholder}
-            value={formData[input.name as keyof typeof formData]}
-            onChange={handleInputChange}
-            required={input.required}
-          />
-        </div>
-      ))}
+      <div className={styles.inputGroup}>
+        <label htmlFor="name-register" className={styles.label}>
+          Name
+        </label>
+        <InputField
+          type="text"
+          id="name-register"
+          name="name"
+          placeholder="Enter your name"
+          value={formData.name}
+          onChange={handleInputChange}
+          required
+        />
+      </div>
 
       <div className={styles.inputGroup}>
-        <label htmlFor={`password-register`} className={styles.label}>
+        <PhoneNumberInput
+          value={formData.phone}
+          onChange={handlePhoneChange}
+          onError={setPhoneError}
+          disabled={loading}
+        />
+        {phoneError && (
+          <p className="text-red-500 text-sm mt-1">{phoneError}</p>
+        )}
+      </div>
+
+      <div className={styles.inputGroup}>
+        <label htmlFor="email-register" className={styles.label}>
+          Email Address
+        </label>
+        <InputField
+          type="email"
+          id="email-register"
+          name="email"
+          placeholder="Enter your email"
+          value={formData.email}
+          onChange={handleInputChange}
+          required
+        />
+      </div>
+
+      <div className={styles.inputGroup}>
+        <label htmlFor="password-register" className={styles.label}>
           Password
         </label>
         <PasswordInputField
@@ -171,15 +312,16 @@ const RegisterView: React.FC<RegisterViewProps> = ({
           setPassword={(value: string) =>
             setFormData((prev) => ({ ...prev, password: value }))
           }
-          id={`password-register`}
-          name={`password-register`}
-          placeholder={`Make it secure...`}
+          id="password-register"
+          name="password-register"
+          placeholder="Make it secure..."
           required
         />
-    </div>
+      </div>
+
       <div className={styles.submitWrapper}>
         <SubmitButton loading={loading} disabled={loading}>
-          Register
+          Continue to Phone Verification
         </SubmitButton>
       </div>
 
