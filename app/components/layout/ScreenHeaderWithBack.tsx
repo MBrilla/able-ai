@@ -1,15 +1,15 @@
-"use client";
-import React from "react";
-import { ArrowLeft } from "lucide-react";
-import styles from "./ScreenHeaderWithBack.module.css";
-import Link from "next/link";
-import { useAuth } from "@/context/AuthContext";
-import Logo from "../brand/Logo";
-import { usePathname, useRouter } from "next/navigation";
-import Notification from "../shared/Notification";
-import Image from "next/image";
-import { detectPageContext, getContextForURL } from "@/lib/context-detection";
-import { getLastRoleUsed } from "@/lib/last-role-used";
+import React from 'react';
+import { ArrowLeft } from 'lucide-react';
+import styles from './ScreenHeaderWithBack.module.css';
+import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
+import Logo from '../brand/Logo';
+import { usePathname } from 'next/navigation';
+import Notification from '../shared/Notification';
+import Image from 'next/image';
+import { detectPageContext, getContextForURL } from '@/lib/context-detection';
+
+
 
 type OtherpageProps = {
   isHomePage?: boolean;
@@ -109,6 +109,11 @@ const ScreenHeaderWithBack: React.FC<ScreenHeaderWithBackProps> = (props) => {
     }
   };
 
+  // Detect current page context and create chat URL with context
+  const pageContext = detectPageContext(route);
+  const contextParams = getContextForURL(pageContext);
+  const chatUrl = `/user/${user?.uid}/able-ai?${new URLSearchParams(contextParams).toString()}`;
+
   return (
     <header className={styles.header}>
       {!isHomePage ? (
@@ -123,15 +128,11 @@ const ScreenHeaderWithBack: React.FC<ScreenHeaderWithBackProps> = (props) => {
         <Image src="/images/home.svg" alt="Back" width={40} height={40} />
       )}
       {title && <h1 className={styles.title}>{title}</h1>}
-      <Link href={getChatUrl()} className={styles.chat}>
-        {!isChatPage ? (
-          <>
-            <span>Chat with Able</span>
-            <Logo width={30} height={30} />
-          </>
-        ) : (
-          <Logo width={40} height={40} />
-        )}
+      <Link href={chatUrl} className={styles.chat}>
+          {!isChatPage ? (
+            <><span>Chat with Able</span><Logo width={30} height={30} /></> ) : (
+            <Logo width={40} height={40} />
+          )}   
       </Link>
       {isHomePage && (
         <Notification

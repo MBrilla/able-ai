@@ -16,6 +16,7 @@ interface FindOrCreatePgUserInput {
   displayName: string;
   photoURL?: string | null;
   phone?: string | null;
+  phoneVerified?: boolean;
   initialRoleContext?:
     | (typeof activeRoleContextEnum.enumValues)[number]
     | undefined;
@@ -33,7 +34,7 @@ type PgUserSelect = typeof UsersTable.$inferSelect;
 export async function findOrCreatePgUserAndUpdateRole(
   input: FindOrCreatePgUserInput
 ): Promise<PgUserSelect | null> {
-  const { firebaseUid, email, displayName, initialRoleContext, phone } = input;
+  const { firebaseUid, email, displayName, initialRoleContext, phone, phoneVerified } = input;
 
   try {
     // Try to find the user by firebaseUid with notificationPreferences
@@ -57,6 +58,12 @@ export async function findOrCreatePgUserAndUpdateRole(
         updates.phone = phone;
       }
 
+      if (phoneVerified !== undefined && pgUser.phoneVerified !== phoneVerified) {
+        updates.phoneVerified = phoneVerified;
+        if (phoneVerified) {
+          updates.phoneVerifiedAt = new Date().toISOString();
+        }
+      }
 
       if (initialRoleContext === "BUYER" && !pgUser.isBuyer) {
         updates.isBuyer = true;
@@ -128,6 +135,8 @@ export async function findOrCreatePgUserAndUpdateRole(
           isGigWorker: newUserIsGigWorker,
           lastRoleUsed: initialRoleContext || null,
           phone,
+          phoneVerified: phoneVerified || false,
+          phoneVerifiedAt: phoneVerified ? new Date().toISOString() : null,
         })
         .returning();
 

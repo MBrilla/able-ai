@@ -525,7 +525,10 @@ export const saveWorkerProfileFromOnboardingAction = async (
   token: string
 ) => {
   try {
-
+    console.log('🚀 saveWorkerProfileFromOnboardingAction called with:', {
+      profileData: profileData,
+      token: token ? 'present' : 'missing'
+    });
     
     if (!token) {
       throw new Error("Token is required");
@@ -534,6 +537,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
 
     const { uid } = await isUserAuthenticated(token);
     if (!uid) throw ERROR_CODES.UNAUTHORIZED;
+    
+    console.log('✅ User authenticated, UID:', uid);
 
     const user = await db.query.UsersTable.findFirst({
       where: eq(UsersTable.firebaseUid, uid),
@@ -614,13 +619,18 @@ export const saveWorkerProfileFromOnboardingAction = async (
         hashtagsType: typeof profileUpdateData.hashtags,
         isArray: Array.isArray(profileUpdateData.hashtags)
       });
-      const updateResult = await db
-        .update(GigWorkerProfilesTable)
-        .set(profileUpdateData)
-        .where(eq(GigWorkerProfilesTable.userId, user.id))
-        .returning();
-      console.log('🔄 Database update result:', updateResult);
-      workerProfileId = workerProfile.id;
+      try {
+        const updateResult = await db
+          .update(GigWorkerProfilesTable)
+          .set(profileUpdateData)
+          .where(eq(GigWorkerProfilesTable.userId, user.id))
+          .returning();
+        console.log('🔄 Database update result:', updateResult);
+        workerProfileId = workerProfile.id;
+      } catch (updateError) {
+        console.error('❌ Error updating worker profile:', updateError);
+        throw updateError;
+      }
     } else {
       // Create new profile
       console.log('➕ Creating new worker profile with hashtags...');
@@ -629,16 +639,21 @@ export const saveWorkerProfileFromOnboardingAction = async (
         hashtagsType: typeof profileUpdateData.hashtags,
         isArray: Array.isArray(profileUpdateData.hashtags)
       });
-      const newProfile = await db
-        .insert(GigWorkerProfilesTable)
-        .values({
-          userId: user.id,
-          ...profileUpdateData,
-          createdAt: new Date(),
-        })
-        .returning();
-      console.log('➕ Database insert result:', newProfile);
-      workerProfileId = newProfile[0].id;
+      try {
+        const newProfile = await db
+          .insert(GigWorkerProfilesTable)
+          .values({
+            userId: user.id,
+            ...profileUpdateData,
+            createdAt: new Date(),
+          })
+          .returning();
+        console.log('➕ Database insert result:', newProfile);
+        workerProfileId = newProfile[0].id;
+      } catch (insertError) {
+        console.error('❌ Error inserting worker profile:', insertError);
+        throw insertError;
+      }
     }
     
     // Verify hashtags were saved
@@ -1191,9 +1206,20 @@ export const saveWorkerProfileFromOnboardingAction = async (
       })
       .where(eq(UsersTable.id, user.id));
 
-    return { success: true, data: "Worker profile saved successfully", workerProfileId };
+    return {
+      success: true,
+      data: workerProfileId,
+      workerProfileId,
+    };
   } catch (error) {
-
+    console.error('❌ Error in saveWorkerProfileFromOnboardingAction:', error);
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      name: error instanceof Error ? error.name : 'Unknown',
+      cause: error instanceof Error ? error.cause : undefined
+    });
+    
     return {
       success: false,
       data: null,
