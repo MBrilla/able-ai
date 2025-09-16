@@ -3,7 +3,7 @@
 "use client";
 
 import Image from "next/image";
-import { Star, Paperclip, CheckCircle, Copy } from "lucide-react";
+import { Paperclip, CheckCircle, Copy } from "lucide-react";
 import styles from "./SkillSplashScreen.module.css";
 import AwardDisplayBadge from "./AwardDisplayBadge";
 import ReviewCardItem from "@/app/components/shared/ReviewCardItem";
@@ -78,7 +78,7 @@ const SkillSplashScreen = ({
   skillId,
   fetchSkillData,
   isSelfView,
-  onBackClick,
+  // onBackClick,
 }: {
   profile: SkillProfile | null;
   skillId: string;
@@ -224,7 +224,7 @@ const SkillSplashScreen = ({
 
   return (
     <div className={styles.pageWrapper}>
-      <ScreenHeaderWithBack onBackClick={onBackClick} />
+      <ScreenHeaderWithBack />
       <div className={styles.skillSplashContainer}>
         <div className={styles.header}>
           <div className={styles.videoContainer}>
