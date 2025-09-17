@@ -4,16 +4,17 @@ import { eq } from "drizzle-orm";
 import { isUserAuthenticated } from "@/lib/user.server";
 
 export interface ExistingProfileData {
+  hasName: boolean;
   hasLocation: boolean;
   hasAvailability: boolean;
+  hasBio: boolean;
   hasSkills: boolean;
-  hasFullBio: boolean;
   profileData: {
     fullName?: string;
     location?: string;
     availabilityJson?: any;
-    skills?: string;
     fullBio?: string;
+    skills?: any[];
   };
 }
 
@@ -45,23 +46,22 @@ export async function checkExistingProfileData(token: string): Promise<{
     }
 
     const profile = user.gigWorkerProfile;
-    const skills = profile?.skills?.map(skill => skill.name).join(', ') || '';
-    
     const profileData = {
       fullName: user.fullName,
       location: profile?.location || undefined,
       availabilityJson: profile?.availabilityJson,
-      skills: skills || undefined,
-      fullBio: profile?.fullBio || undefined
+      fullBio: profile?.fullBio || undefined,
+      skills: profile?.skills || []
     };
 
     const existingData: ExistingProfileData = {
+      hasName: !!user.fullName && user.fullName.trim().length > 0,
       hasLocation: !!(profile?.location && profile.location.trim().length > 0),
       hasAvailability: !!(profile?.availabilityJson && 
         Array.isArray(profile.availabilityJson) && 
         profile.availabilityJson.length > 0),
-      hasSkills: !!(skills && skills.trim().length > 0),
-      hasFullBio: !!(profile?.fullBio && profile.fullBio.trim().length > 0),
+      hasBio: !!(profile?.fullBio && profile.fullBio.trim().length > 0),
+      hasSkills: !!(profile?.skills && profile.skills.length > 0),
       profileData
     };
 

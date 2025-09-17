@@ -2112,6 +2112,18 @@ Make the conversation feel natural and build on what they've already told you, b
       // Get gig data from form
       const gigData = getGigDataFromForm();
       
+      // Calculate actual hours from gig data
+      let actualHours: number = VALIDATION_CONSTANTS.GIG_DEFAULTS.DEFAULT_TOTAL_HOURS; // fallback
+      
+      if (gigData.time) {
+        // Parse the time range to get duration
+        const timeRange = parseTimeRange(gigData.time);
+        if (timeRange.duration && timeRange.duration > 0) {
+          actualHours = timeRange.duration;
+          console.log(`Calculated hours from gig time: ${actualHours} hours`);
+        }
+      }
+      
       // Create the gig first
       console.log('Creating gig for selected worker...');
       const gigPayload = {
@@ -2141,8 +2153,8 @@ Make the conversation feel natural and build on what they've already told you, b
           gigTitle: gigData.title || 'Your gig',
           gigId: gigResult.gigId, // Use the real gigId
           hourlyRate: selectedWorker.hourlyRate,
-          totalHours: VALIDATION_CONSTANTS.GIG_DEFAULTS.DEFAULT_TOTAL_HOURS, // Default hours as shown in the UI
-          totalAmount: selectedWorker.hourlyRate * VALIDATION_CONSTANTS.GIG_DEFAULTS.DEFAULT_TOTAL_HOURS,
+          totalHours: actualHours, // Use calculated hours from gig data
+          totalAmount: selectedWorker.hourlyRate * actualHours,
           gigDate: gigData.date || 'TBD',
           gigLocation: gigData.location || 'TBD',
         },

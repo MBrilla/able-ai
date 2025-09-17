@@ -75,6 +75,26 @@ const ScreenHeaderWithBack: React.FC<ScreenHeaderWithBackProps> = (props) => {
     return baseUrl;
   };
 
+  // Generate context-aware chat URL
+  const getChatUrl = () => {
+    if (!user?.uid) return '#';
+    
+    const baseUrl = `/user/${user.uid}/able-ai`;
+    
+    // Don't add context if already on chat page
+    if (isChatPage) return baseUrl;
+    
+    // Detect current page context
+    const context = detectPageContext(route);
+    
+    // Use simplified context parameter
+    if (context.contextId) {
+      return `${baseUrl}?context=${context.contextId}`;
+    }
+    
+    return baseUrl;
+  };
+
   const handleBackClick = () => {
     if (onBackClick) {
       onBackClick();
@@ -128,7 +148,7 @@ const ScreenHeaderWithBack: React.FC<ScreenHeaderWithBackProps> = (props) => {
         <Image src="/images/home.svg" alt="Back" width={40} height={40} />
       )}
       {title && <h1 className={styles.title}>{title}</h1>}
-      <Link href={chatUrl} className={styles.chat}>
+      <Link href={getChatUrl()} className={styles.chat}>
           {!isChatPage ? (
             <><span>Chat with Able</span><Logo width={30} height={30} /></> ) : (
             <Logo width={40} height={40} />

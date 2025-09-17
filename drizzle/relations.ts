@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { users, discountCodes, notificationPreferences, gigs, gigSkillsRequired, skills, passwordRecoveryRequests, chatMessages, gigWorkerProfiles, qualifications, equipment, payments, teamMembers, buyerProfiles, adminLogs, reviews, aiPrompts, userBadgesLink, badgeDefinitions, mockPayments, userAiUsage, escalatedIssues, recommendations, gigAmendmentRequests } from "./schema";
+import { users, discountCodes, notificationPreferences, gigs, gigSkillsRequired, skills, passwordRecoveryRequests, chatMessages, gigWorkerProfiles, qualifications, equipment, payments, teamMembers, buyerProfiles, adminLogs, reviews, aiPrompts, userBadgesLink, badgeDefinitions, mockPayments, userAiUsage, escalatedIssues, recommendations } from "./schema";
 
 export const discountCodesRelations = relations(discountCodes, ({one}) => ({
 	user: one(users, {
@@ -54,9 +54,8 @@ export const usersRelations = relations(users, ({many}) => ({
 	escalatedIssues_userId: many(escalatedIssues, {
 		relationName: "escalatedIssues_userId_users_id"
 	}),
-	buyerProfiles: many(buyerProfiles),
-	recommendations: many(recommendations),
-	gigAmendmentRequests: many(gigAmendmentRequests),
+  buyerProfiles: many(buyerProfiles),
+  recommendations: many(recommendations),
 }));
 
 export const notificationPreferencesRelations = relations(notificationPreferences, ({one}) => ({
@@ -93,7 +92,6 @@ export const gigsRelations = relations(gigs, ({one, many}) => ({
 	}),
 	reviews: many(reviews),
 	userBadgesLinks: many(userBadgesLink),
-	gigAmendmentRequests: many(gigAmendmentRequests),
 }));
 
 export const skillsRelations = relations(skills, ({one, many}) => ({
@@ -285,16 +283,5 @@ export const recommendationsRelations = relations(recommendations, ({one}) => ({
 	user: one(users, {
 		fields: [recommendations.workerUserId],
 		references: [users.id]
-	}),
-}));
-
-export const gigAmendmentRequestsRelations = relations(gigAmendmentRequests, ({one}) => ({
-	user: one(users, {
-		fields: [gigAmendmentRequests.requesterId],
-		references: [users.id]
-	}),
-	gig: one(gigs, {
-		fields: [gigAmendmentRequests.gigId],
-		references: [gigs.id]
 	}),
 }));

@@ -7,7 +7,6 @@ type RegisterUserData = {
   password: string;
   name: string;
   phone: string;
-  phoneVerified?: boolean;
 };
 
 export async function registerUserWithPhoneVerificationAction(data: RegisterUserData) {
@@ -28,7 +27,7 @@ export async function registerUserWithPhoneVerificationAction(data: RegisterUser
       phoneNumber: data.phone, // Store phone number in Firebase user
     });
 
-    // Create PostgreSQL user with phone verification status
+    // Create PostgreSQL user
     await findOrCreatePgUserAndUpdateRole({
       firebaseUid: firebaseUser.uid,
       email: data.email,
@@ -36,13 +35,11 @@ export async function registerUserWithPhoneVerificationAction(data: RegisterUser
       photoURL: firebaseUser?.photoURL,
       initialRoleContext: "BUYER" as "BUYER" | "GIG_WORKER" | undefined,
       phone: data.phone,
-      phoneVerified: data.phoneVerified || false,
     });
 
     return { 
       ok: true, 
-      userId: firebaseUser.uid,
-      phoneVerified: data.phoneVerified || false
+      userId: firebaseUser.uid
     };
   } catch (error: unknown) {
     if (error instanceof Error) {
