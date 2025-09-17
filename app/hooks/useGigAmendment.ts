@@ -68,8 +68,7 @@ export function useGigAmendment() {
   }, [gig, isGigContextLoading, gigId, user, userId, amendId, router]);
 
   const handleSubmit = async () => {
-    if (!user?.uid || !gigId || !reason.trim() || !gig) {
-      toast.error("Please provide a reason for the changes.");
+    if (!user?.uid || !gigId || !gig) {
       return;
     }
     setIsSubmitting(true);
@@ -97,6 +96,8 @@ export function useGigAmendment() {
   };
 
   const handleCancel = async () => {
+    // this method is not for cancelling the gig amendement, it should be for canceling the gig itself, 
+    // so it should be updated to reflect that
     if (existingAmendmentId && user?.uid) {
       setIsCancelling(true);
       const result = await cancelGigAmendment({ amendmentId: existingAmendmentId, userId: user.uid });
