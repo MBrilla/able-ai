@@ -21,9 +21,6 @@ import { parseContextFromURL, generateContextAwarePrompt, PageContext } from '@/
 // Constants
 const MIN_INCIDENT_DETAILS_LENGTH_FOR_SUBMISSION = 100;
 
-// Constants
-const MIN_INCIDENT_DETAILS_LENGTH_FOR_SUBMISSION = 100;
-
 type WorkerGigOffer = {
   id: string;
   role: string;
