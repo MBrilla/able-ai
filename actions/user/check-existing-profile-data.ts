@@ -4,17 +4,12 @@ import { eq } from "drizzle-orm";
 import { isUserAuthenticated } from "@/lib/user.server";
 
 export interface ExistingProfileData {
-  hasName: boolean;
   hasLocation: boolean;
   hasAvailability: boolean;
-  hasBio: boolean;
-  hasSkills: boolean;
   profileData: {
     fullName?: string;
     location?: string;
     availabilityJson?: any;
-    fullBio?: string;
-    skills?: any[];
   };
 }
 
@@ -49,19 +44,14 @@ export async function checkExistingProfileData(token: string): Promise<{
     const profileData = {
       fullName: user.fullName,
       location: profile?.location || undefined,
-      availabilityJson: profile?.availabilityJson,
-      fullBio: profile?.fullBio || undefined,
-      skills: profile?.skills || []
+      availabilityJson: profile?.availabilityJson
     };
 
     const existingData: ExistingProfileData = {
-      hasName: !!user.fullName && user.fullName.trim().length > 0,
       hasLocation: !!(profile?.location && profile.location.trim().length > 0),
       hasAvailability: !!(profile?.availabilityJson && 
         Array.isArray(profile.availabilityJson) && 
         profile.availabilityJson.length > 0),
-      hasBio: !!(profile?.fullBio && profile.fullBio.trim().length > 0),
-      hasSkills: !!(profile?.skills && profile.skills.length > 0),
       profileData
     };
 

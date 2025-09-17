@@ -13,11 +13,8 @@ export async function checkExistingProfileDataAction(token: string): Promise<{
       return {
         success: true,
         data: {
-          hasName: false,
           hasLocation: false,
           hasAvailability: false,
-          hasBio: false,
-          hasSkills: false,
           profileData: {}
         }
       };

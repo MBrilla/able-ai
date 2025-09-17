@@ -6,7 +6,7 @@ type RegisterUserData = {
   email: string;
   password: string;
   name: string;
-  phone?: string;
+  phone: string;
 };
 
 export async function registerUserAction(data: RegisterUserData) {
@@ -25,7 +25,7 @@ export async function registerUserAction(data: RegisterUserData) {
       displayName: firebaseUser?.displayName || data.name,
       photoURL: firebaseUser?.photoURL,
       initialRoleContext: "BUYER" as "BUYER" | "GIG_WORKER" | undefined,
-      phone: data.phone || "",
+      phone: data.phone,
     });
 
     return { ok: true };
