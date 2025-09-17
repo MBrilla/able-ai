@@ -3,6 +3,7 @@
 import { db } from "@/lib/drizzle/db";
 import { and, eq } from "drizzle-orm";
 import { GigsTable, gigStatusEnum, UsersTable } from "@/lib/drizzle/schema";
+import { cancelRelatedPayments } from "@/lib/stripe/cancel-related-payments";
 
 const ACCEPTED = gigStatusEnum.enumValues[2];
 const CANCELLED_BY_BUYER = gigStatusEnum.enumValues[10];
@@ -63,10 +64,14 @@ export async function updateGigOfferStatus({ gigId, userId, role, action }: { gi
       console.log('🔍 DEBUG: Gig status updated successfully');
     }
 
+    if (action === 'cancel') {
+      await cancelRelatedPayments(gigId);
+    }
+
     return { status: 200 };
 
   } catch (error: unknown) {
     console.error("Error updating gig:", error);
-        return { error: error instanceof Error ? error.message : 'Unknown error updating gig', status: 500 };
+    return { error: error instanceof Error ? error.message : 'Unknown error updating gig', status: 500 };
   }
 }
