@@ -28,6 +28,12 @@ const registrationInputs: StepInputConfig[] = [
     placeholder: "Enter your name",
   },
   {
+    type: "text",
+    name: "phone",
+    label: "Phone Number",
+    placeholder: "Enter your phone number",
+  },
+  {
     type: "email",
     name: "email",
     label: "Email Address",
@@ -45,6 +51,7 @@ const RegisterView: React.FC<RegisterViewProps> = ({
   const [currentStep, setCurrentStep] = useState<RegistrationStep>('form');
   const [formData, setFormData] = useState({
     name: "",
+    phone: "",
     email: "",
     password: "",
   });
@@ -76,11 +83,17 @@ const RegisterView: React.FC<RegisterViewProps> = ({
   };
 
   const validateForm = async () => {
-    const { name, email, password } = formData;
+    const { name, phone, email, password } = formData;
 
     // Validate name
     if (!name.trim()) {
       onError("Name is required");
+      return false;
+    }
+
+    // Validate phone
+    if (!phone.trim()) {
+      onError("Phone number is required");
       return false;
     }
 
@@ -112,13 +125,13 @@ const RegisterView: React.FC<RegisterViewProps> = ({
       return;
     }
 
-    // Register user directly without phone verification
+    // Register user with phone number
     try {
       const result = await registerUserAction({
         email: formData.email.trim(),
         password: formData.password.trim(),
         name: formData.name.trim(),
-        phone: "", // No phone required
+        phone: formData.phone.trim(),
       });
 
       if (!result.ok) {
@@ -271,6 +284,21 @@ const RegisterView: React.FC<RegisterViewProps> = ({
           name="email"
           placeholder="Enter your email"
           value={formData.email}
+          onChange={handleInputChange}
+          required
+        />
+      </div>
+
+      <div className={styles.inputGroup}>
+        <label htmlFor="phone-register" className={styles.label}>
+          Phone Number
+        </label>
+        <InputField
+          type="tel"
+          id="phone-register"
+          name="phone"
+          placeholder="Enter your phone number"
+          value={formData.phone}
           onChange={handleInputChange}
           required
         />
