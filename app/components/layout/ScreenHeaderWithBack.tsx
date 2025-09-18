@@ -9,8 +9,6 @@ import Notification from '../shared/Notification';
 import Image from 'next/image';
 import { detectPageContext, getContextForURL } from '@/lib/context-detection';
 
-
-
 type OtherpageProps = {
   isHomePage?: boolean;
   title?: string;
