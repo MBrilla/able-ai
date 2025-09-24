@@ -2,7 +2,13 @@
 
 import { db } from "@/lib/drizzle/db";
 import { and, eq, isNull, or } from "drizzle-orm";
-import { GigsTable, GigWorkerProfilesTable, UsersTable, gigStatusEnum } from "@/lib/drizzle/schema";
+import {
+  GigsTable,
+  GigWorkerProfilesTable,
+  UsersTable,
+  gigStatusEnum,
+  BuyerProfilesTable,
+} from "@/lib/drizzle/schema";
 import moment from "moment";
 import GigDetails from "@/app/types/GigDetailsTypes";
 
@@ -10,129 +16,143 @@ import GigDetails from "@/app/types/GigDetailsTypes";
 const MAX_EXPERIENCE_YEARS = 10;
 const MIN_GIGS_FOR_STAR_WORKER = 5;
 
-function getMappedStatus(internalStatus: string): GigDetails['status'] {
-
+function getMappedStatus(internalStatus: string): GigDetails["status"] {
   switch (internalStatus) {
-    case 'PENDING_WORKER_ACCEPTANCE':
-      return 'PENDING';
-    case 'ACCEPTED':
-      return 'ACCEPTED';
-    case 'COMPLETED':
-      return 'COMPLETED';
-    case 'CANCELLED_BY_BUYER':
-    case 'CANCELLED_BY_WORKER':
-    case 'CANCELLED_BY_ADMIN':
-      return 'CANCELLED';
+    case "PENDING_WORKER_ACCEPTANCE":
+      return "PENDING";
+    case "ACCEPTED":
+      return "ACCEPTED";
+    case "COMPLETED":
+      return "COMPLETED";
+    case "CANCELLED_BY_BUYER":
+    case "CANCELLED_BY_WORKER":
+    case "CANCELLED_BY_ADMIN":
+      return "CANCELLED";
     default:
-      return 'PENDING';
+      return "PENDING";
   }
-
 }
 // Helper function to extract location from an object
 function extractLocationFromObject(obj: any): string | null {
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
-  
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+
   // Handle address objects - prioritize readable text over coordinates
   if (obj.formatted_address) {
     return obj.formatted_address;
   }
-  
+
   // Handle other address fields
   if (obj.address) {
     return obj.address;
   }
-  
+
   // Handle street address components
   if (obj.street_address || obj.route) {
     const parts = [];
     if (obj.street_number) parts.push(obj.street_number);
     if (obj.route) parts.push(obj.route);
     if (obj.locality) parts.push(obj.locality);
-    if (obj.administrative_area_level_1) parts.push(obj.administrative_area_level_1);
+    if (obj.administrative_area_level_1)
+      parts.push(obj.administrative_area_level_1);
     if (obj.postal_code) parts.push(obj.postal_code);
     if (obj.country) parts.push(obj.country);
-    
+
     if (parts.length > 0) {
-      return parts.join(', ');
+      return parts.join(", ");
     }
   }
-  
+
   // Only use coordinates as a last resort if no readable address is available
-  if (obj.lat && obj.lng && typeof obj.lat === 'number' && typeof obj.lng === 'number') {
+  if (
+    obj.lat &&
+    obj.lng &&
+    typeof obj.lat === "number" &&
+    typeof obj.lng === "number"
+  ) {
     return `Coordinates: ${obj.lat.toFixed(6)}, ${obj.lng.toFixed(6)}`;
   }
-  
+
   return null;
 }
 
 // Helper function to extract location from a string
 function extractLocationFromString(str: string): string | null {
-  if (!str || typeof str !== 'string') return null;
-  
+  if (!str || typeof str !== "string") return null;
+
   // Check if it's a URL first
-  if (str.startsWith('http')) {
+  if (str.startsWith("http")) {
     return `Map Link: ${str}`;
   }
-  
+
   // Check if it's already a formatted location string (prioritize readable text)
-  if (str.includes(',') && !str.includes('[object Object]') && !str.match(/^-?\d+\.\d+,\s*-?\d+\.\d+$/)) {
+  if (
+    str.includes(",") &&
+    !str.includes("[object Object]") &&
+    !str.match(/^-?\d+\.\d+,\s*-?\d+\.\d+$/)
+  ) {
     return str;
   }
-  
+
   // Only use coordinates as a last resort if no readable text is available
   if (str.match(/^-?\d+\.\d+,\s*-?\d+\.\d+$/)) {
     return `Coordinates: ${str}`;
   }
-  
+
   return null;
 }
 
 // Helper function to extract location from any data type (object or string)
 function extractLocationFromData(data: any): string | null {
   if (!data) return null;
-  
-  if (typeof data === 'string') {
+
+  if (typeof data === "string") {
     return extractLocationFromString(data);
   }
-  
-  if (typeof data === 'object') {
+
+  if (typeof data === "object") {
     return extractLocationFromObject(data);
   }
-  
+
   return null;
 }
 
 // Helper function to perform aggressive location extraction from an object
 function extractLocationAggressively(obj: any): string | null {
-  if (!obj || typeof obj !== 'object') return null;
-  
+  if (!obj || typeof obj !== "object") return null;
+
   // Prioritize readable address text over coordinates
   if (obj.formatted_address) {
     return obj.formatted_address;
   }
-  
+
   if (obj.address) {
     return obj.address;
   }
-  
+
   if (obj.street && obj.city) {
     return `${obj.street}, ${obj.city}`;
   }
-  
+
   // Show any available string data (but not coordinates)
   for (const [key, value] of Object.entries(obj)) {
-    if (typeof value === 'string' && value.trim() && 
-        value !== 'null' && value !== 'undefined' && value !== '[object Object]' && 
-        !value.includes('[object Object]') && !value.match(/^-?\d+\.\d+,\s*-?\d+\.\d+$/)) {
+    if (
+      typeof value === "string" &&
+      value.trim() &&
+      value !== "null" &&
+      value !== "undefined" &&
+      value !== "[object Object]" &&
+      !value.includes("[object Object]") &&
+      !value.match(/^-?\d+\.\d+,\s*-?\d+\.\d+$/)
+    ) {
       return value.trim();
     }
   }
-  
+
   // Only use coordinates as absolute last resort
   if (obj.lat && obj.lng) {
     return `Coordinates: ${obj.lat.toFixed(6)}, ${obj.lng.toFixed(6)}`;
   }
-  
+
   return null;
 }
 
@@ -141,22 +161,20 @@ export async function getGigDetails({
   userId,
   role,
   isDatabaseUserId = false,
-}: { 
-  gigId: string; 
-  userId: string; 
-  role?: 'buyer' | 'worker'; 
+}: {
+  gigId: string;
+  userId: string;
+  role?: "buyer" | "worker";
   isViewQA?: boolean;
   isDatabaseUserId?: boolean;
 }) {
-
-  
   if (!userId) {
-    return { error: 'User id is required', gig: {} as GigDetails, status: 404 };
+    return { error: "User id is required", gig: {} as GigDetails, status: 404 };
   }
 
   try {
     let user;
-    
+
     if (isDatabaseUserId) {
       user = await db.query.UsersTable.findFirst({
         where: eq(UsersTable.id, userId),
@@ -164,7 +182,7 @@ export async function getGigDetails({
           id: true,
           firebaseUid: true,
           fullName: true,
-        }
+        },
       });
     } else {
       user = await db.query.UsersTable.findFirst({
@@ -173,17 +191,17 @@ export async function getGigDetails({
           id: true,
           firebaseUid: true,
           fullName: true,
-        }
+        },
       });
     }
 
     if (!user) {
-      return { error: 'User is not found', gig: {} as GigDetails, status: 404 };
+      return { error: "User is not found", gig: {} as GigDetails, status: 404 };
     }
 
     let gig;
-    
-    if (role === 'buyer') {
+
+    if (role === "buyer") {
       // For buyers, only show gigs they created
       gig = await db.query.GigsTable.findFirst({
         where: and(eq(GigsTable.buyerUserId, user.id), eq(GigsTable.id, gigId)),
@@ -203,7 +221,7 @@ export async function getGigDetails({
           },
         },
       });
-    } else if (role === 'worker') {
+    } else if (role === "worker") {
       gig = await db.query.GigsTable.findFirst({
         where: and(
           eq(GigsTable.id, gigId),
@@ -232,10 +250,11 @@ export async function getGigDetails({
             },
           },
         },
-      })
+      });
     } else {
       // Fallback to original logic for other roles
-      const columnConditionId = role === 'buyer' ? GigsTable.buyerUserId : GigsTable.workerUserId;
+      const columnConditionId =
+        role === "buyer" ? GigsTable.buyerUserId : GigsTable.workerUserId;
       gig = await db.query.GigsTable.findFirst({
         where: and(eq(columnConditionId, user.id), eq(GigsTable.id, gigId)),
         with: {
@@ -258,22 +277,24 @@ export async function getGigDetails({
 
     const worker = await db.query.GigWorkerProfilesTable.findFirst({
       where: eq(GigWorkerProfilesTable.userId, gig?.worker?.id || ""),
-    })
+    });
 
     if (!gig) {
-      return { error: 'gig not found', gig: {} as GigDetails, status: 404 };
+      return { error: "gig not found", gig: {} as GigDetails, status: 404 };
     }
 
     const startDate = moment(gig.startTime);
     const endDate = moment(gig.endTime);
-    const durationInHours = endDate.diff(startDate, 'hours', true);
-    const estimatedEarnings = gig.totalAgreedPrice ? parseFloat(gig.totalAgreedPrice) : 0;
+    const durationInHours = endDate.diff(startDate, "hours", true);
+    const estimatedEarnings = gig.totalAgreedPrice
+      ? parseFloat(gig.totalAgreedPrice)
+      : 0;
     const hourlyRate = gig.agreedRate ? parseFloat(gig.agreedRate) : 0;
     const isWorkerSubmittedFeedback = false;
     const isBuyerSubmittedFeedback = false;
 
     // Parse location using helper function
-    const roleDisplay = gig.titleInternal || 'Gig Worker';
+    const roleDisplay = gig.titleInternal || "Gig Worker";
 
     // Calculate worker statistics if there's an assigned worker
     let workerGigs = 0;
@@ -286,9 +307,9 @@ export async function getGigDetails({
       const completedGigs = await db.query.GigsTable.findMany({
         where: and(
           eq(GigsTable.workerUserId, gig.worker.id),
-          eq(GigsTable.statusInternal, 'COMPLETED')
+          eq(GigsTable.statusInternal, "COMPLETED")
         ),
-        columns: { id: true }
+        columns: { id: true },
       });
       workerGigs = completedGigs.length;
 
@@ -303,9 +324,9 @@ export async function getGigDetails({
     const gigDetails: GigDetails = {
       id: gig.id,
       role: roleDisplay,
-      gigTitle: gig.titleInternal || 'Untitled Gig',
-      buyerName: gig.buyer?.fullName || 'Unknown',
-      date: startDate.format('YYYY-MM-DD'),
+      gigTitle: gig.titleInternal || "Untitled Gig",
+      buyerName: gig.buyer?.fullName || "Unknown",
+      date: startDate.format("YYYY-MM-DD"),
       startTime: startDate.toISOString(),
       endTime: endDate.toISOString(),
       duration: `${durationInHours} hours`,
@@ -318,8 +339,8 @@ export async function getGigDetails({
       specialInstructions: gig.notesForWorker || undefined,
       status: getMappedStatus(gig.statusInternal),
       statusInternal: gig.statusInternal,
-      hiringManager: gig.buyer?.fullName || 'Manager',
-      hiringManagerUsername: gig.buyer?.email || 'No email',
+      hiringManager: gig.buyer?.fullName || "Manager",
+      hiringManagerUsername: gig.buyer?.email || "No email",
       isWorkerSubmittedFeedback: isWorkerSubmittedFeedback,
       isBuyerSubmittedFeedback: isBuyerSubmittedFeedback,
       // Worker-related properties
@@ -331,9 +352,176 @@ export async function getGigDetails({
     };
 
     return { success: true, gig: gigDetails, status: 200 };
-
   } catch (error: unknown) {
     console.error("Error fetching gig:", error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error fetching gig', gig: {} as GigDetails, status: 500 };
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Unknown error fetching gig",
+      gig: {} as GigDetails,
+      status: 500,
+    };
   }
 }
+
+export const getGigForBuyerFeedback = async (gigId: string) => {
+  try {
+    const gig = await db.query.GigsTable.findFirst({
+      where: eq(GigsTable.id, gigId),
+      with: {
+        buyer: {
+          columns: {
+            id: true,
+            fullName: true,
+            email: true,
+            appRole: true,
+          },
+        },
+        worker: {
+          columns: {
+            id: true,
+            fullName: true,
+            appRole: true,
+          },
+        },
+        skillsRequired: { columns: { skillName: true } },
+        payments: { columns: { paidAt: true } },
+      },
+    });
+
+    if (!gig) {
+      throw new Error("Gig not found");
+    }
+
+    const workerProfile = await db.query.GigWorkerProfilesTable.findFirst({
+      where: eq(GigWorkerProfilesTable.userId, gig.worker?.id || ""),
+    });
+
+    if (!workerProfile) {
+      throw new Error("Gig has no assigned worker");
+    }
+
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    };
+
+    const data = {
+      id: gigId,
+      role: gig.skillsRequired[0]?.skillName || gig.worker?.fullName,
+      workerName: gig.worker?.fullName,
+      workerAvatarUrl: workerProfile.videoUrl,
+      workerId: gig.worker?.id,
+      date: gig.createdAt.toISOString(),
+      hourlyRate: gig.agreedRate,
+      hoursWorked: gig.finalHours,
+      totalPayment: gig.finalAgreedPrice,
+      duration: gig.estimatedHours,
+      location:
+        extractLocationFromData(gig?.addressJson) ||
+        extractLocationFromData(gig?.exactLocation) ||
+        "Location not provided",
+      completedAt:
+        gig.payments[0]?.paidAt?.toLocaleString("en-US", options) ||
+        gig.updatedAt?.toLocaleString("en-US", options),
+      details: gig.fullDescription,
+      earnings: gig.totalAgreedPrice,
+    };
+
+    return { success: true, data, status: 200 };
+  } catch (error: unknown) {
+    console.error("Error fetching gig:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Unknown error fetching gig",
+      gig: {} as GigDetails,
+      status: 500,
+    };
+  }
+};
+
+export const getGigForWorkerFeedback = async (gigId: string) => {
+  try {
+    const gig = await db.query.GigsTable.findFirst({
+      where: eq(GigsTable.id, gigId),
+      with: {
+        buyer: {
+          columns: {
+            id: true,
+            fullName: true,
+            email: true,
+            appRole: true,
+          },
+        },
+        worker: {
+          columns: {
+            id: true,
+            fullName: true,
+            appRole: true,
+          },
+        },
+        skillsRequired: { columns: { skillName: true } },
+        payments: { columns: { paidAt: true } },
+      },
+    });
+
+    if (!gig) {
+      throw new Error("Gig not found");
+    }
+
+    if (!gig.worker) {
+      throw new Error("Gig has no assigned worker");
+    }
+
+    const BuyerProfile = await db.query.BuyerProfilesTable.findFirst({
+      where: eq(BuyerProfilesTable.userId, gig.buyer?.id || ""),
+    });
+
+    if (!BuyerProfile) {
+      throw new Error("Gig has no assigned buyer profile");
+    }
+
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    };
+
+    const data = {
+      id: gigId,
+      role: BuyerProfile?.companyRole,
+      buyerName: gig.buyer?.fullName,
+      buyerAvatarUrl: BuyerProfile?.videoUrl,
+      buyerId: gig.buyer?.id,
+      date: gig.createdAt.toISOString(),
+      hourlyRate: gig.agreedRate,
+      hoursWorked: gig.finalHours,
+      totalPayment: gig.finalAgreedPrice,
+      duration: gig.estimatedHours,
+      location:
+        extractLocationFromData(gig?.addressJson) ||
+        extractLocationFromData(gig?.exactLocation) ||
+        "Location not provided",
+      completedAt:
+        gig.payments[0]?.paidAt?.toLocaleString("en-US", options) ||
+        gig.updatedAt?.toLocaleString("en-US", options),
+      details: gig.fullDescription,
+      earnings: gig.totalAgreedPrice,
+    };
+
+    return { success: true, data, status: 200 };
+  } catch (error: unknown) {
+    console.error("Error fetching gig:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Unknown error fetching gig",
+      gig: {} as GigDetails,
+      status: 500,
+    };
+  }
+};
