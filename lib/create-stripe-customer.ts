@@ -45,8 +45,9 @@ export async function createStripeCustomer(params: CreateStripeCustomerParams): 
     console.log(`Stripe Customer ID ${customer.id} save in db for User ID: ${userId}`);
 
     return customer;
-  } catch (error: any) {
-    console.error(`Error creating Stripe Customer for User ID ${userId}:`, error.message);
-    throw new Error(`Failed to create Stripe customer: ${error.message}`);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Error creating Stripe Customer for User ID ${userId}:`, errorMessage);
+    throw new Error(`Failed to create Stripe customer: ${errorMessage}`);
   }
 }
