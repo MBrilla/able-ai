@@ -311,12 +311,6 @@ Format as a single paragraph.`,
  * Generate context-aware prompt for AI
  */
 export async function generateContextAwarePrompt(fieldName: string, aboutInfo: string, ai: any): Promise<string> {
-  // Quick fallback if AI service is not available
-  if (!ai) {
-    console.log('AI service not available, using fallback prompt');
-    return `Please tell me about your ${fieldName}.`;
-  }
-
   try {
     const promptSchema = Schema.object({
       properties: {
@@ -325,8 +319,7 @@ export async function generateContextAwarePrompt(fieldName: string, aboutInfo: s
       required: ['prompt']
     });
 
-    // Add timeout to prevent hanging
-    const aiCall = geminiAIAgent(
+    const result = await geminiAIAgent(
       "gemini-2.0-flash",
       {
         prompt: PROMPTS.contextAwarePrompt(fieldName, aboutInfo),
@@ -336,109 +329,12 @@ export async function generateContextAwarePrompt(fieldName: string, aboutInfo: s
       ai
     );
 
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('AI service timeout')), 10000) // 10 second timeout
-    );
-
-    const result = await Promise.race([aiCall, timeoutPromise]) as any;
-
     if (result.ok) {
       const data = result.data as any;
       return data.prompt || `Please tell me about your ${fieldName}.`;
-    } else {
-      console.error('AI context-aware prompt generation failed:', result.error);
-      // If AI service is unavailable, return fallback immediately
-      if (result.error && (
-        result.error.includes('Sorry, I cannot answer this time') ||
-        result.error.includes('Please retry') ||
-        result.error.includes('report this issue') ||
-        result.error.includes('cannot answer')
-      )) {
-        console.log('AI service temporarily unavailable, using fallback prompt');
-        return `Please tell me about your ${fieldName}.`;
-      }
     }
   } catch (error) {
     console.error('AI context-aware prompt generation failed:', error);
-    // If it's any kind of API error, timeout, or service issue, return a fallback prompt immediately
-    if (error instanceof Error && (
-      error.message.includes('500') || 
-      error.message.includes('Internal Server Error') ||
-      error.message.includes('timeout') ||
-      error.message.includes('Sorry, I cannot answer this time') ||
-      error.message.includes('Please retry') ||
-      error.message.includes('report this issue') ||
-      error.message.includes('cannot answer')
-    )) {
-      console.log('AI service temporarily unavailable, using fallback prompt');
-      return `Please tell me about your ${fieldName}.`;
-    }
-  }
-
-  return `Please tell me about your ${fieldName}.`;
-}
-
-/**
- * Generate conversation-aware prompt using full conversation history
- */
-export async function generateConversationAwarePrompt(
-  fieldName: string, 
-  conversationHistory: any[], 
-  formData: any, 
-  ai: any
-): Promise<string> {
-  try {
-    const promptSchema = Schema.object({
-      properties: {
-        prompt: Schema.string(),
-      },
-      required: ['prompt']
-    });
-
-    // Build conversation context
-    const conversationContext = {
-      fieldName,
-      userProfile: formData,
-      conversationHistory: conversationHistory.map(step => ({
-        type: step.type,
-        content: step.content,
-        timestamp: step.id
-      }))
-    };
-
-    const prompt = `Generate a natural, conversational prompt for collecting ${fieldName} information.
-
-CONVERSATION CONTEXT:
-- Field: ${fieldName}
-- User Profile: ${JSON.stringify(formData, null, 2)}
-- Conversation History: ${JSON.stringify(conversationContext.conversationHistory, null, 2)}
-
-REQUIREMENTS:
-1. Use the full conversation history to avoid repetitive language
-2. Don't say "Now that I know you're a..." or "I see you're a..." repeatedly
-3. Build naturally on what the user has already shared
-4. Use varied, natural language that doesn't sound robotic
-5. Reference previous responses naturally without being repetitive
-6. Make it feel like a natural conversation, not a form
-
-Generate a 1-2 sentence prompt that feels natural and builds on the conversation.`;
-
-    const result = await geminiAIAgent(
-      "gemini-2.0-flash",
-      {
-        prompt,
-        responseSchema: promptSchema,
-        isStream: false,
-      },
-      ai
-    );
-
-    if (result.ok) {
-      const data = result.data as any;
-      return data.prompt || `Please tell me about your ${fieldName}.`;
-    }
-  } catch (error) {
-    console.error('AI conversation-aware prompt generation failed:', error);
   }
 
   return `Please tell me about your ${fieldName}.`;
@@ -467,19 +363,12 @@ export async function sanitizeWithAI(field: string, value: string): Promise<{ sa
     let schema: any;
 
     if (field === 'about') {
-      prompt = `Clean up the grammar, spelling, and formatting of this bio input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Remove any curse words or inappropriate language but keep the casual, personal tone. Do not change the meaning or make it overly "professional" - just make it grammatically correct and appropriate.
-
-Bio: "${value}"
-
-Also provide a natural, conversational summary like "Perfect! Your bio sounds great!" or similar friendly response.`;
-      
-      schema = Schema.object({
-        properties: {
-          sanitized: Schema.string(),
-          naturalSummary: Schema.string()
-        },
-        required: ["sanitized", "naturalSummary"]
-      });
+      // For bio field, don't use AI cleaning - just return the original value
+      // This prevents the AI from changing user's bio content
+      return { 
+        sanitized: value, 
+        naturalSummary: "This will be your bio!" 
+      };
     } else if (field === 'skills') {
       prompt = `Clean up the grammar and formatting of this skills input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
 
@@ -511,7 +400,7 @@ ACCEPT ANY reasonable input including:
 
 Return the number of years as a number (can be decimal). If content is inappropriate or no clear number is found, return 0.
 
-Also provide a natural, conversational summary that acknowledges their experience level in a friendly way. For experience levels like "beginner", "intermediate", "senior", "expert", just say something like "Got it, you're at [level] level" or "Perfect, you're [level] level". Don't mention years if they didn't specify a number.
+Also provide a natural, conversational summary that explains what you've extracted in a friendly way, like "Got it, you have [X] years of experience" or similar.
 
 Experience description: "${value}"`;
       
@@ -527,8 +416,6 @@ Experience description: "${value}"`;
       prompt = `Clean up the grammar and formatting of this qualifications input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
 
 Qualifications: "${value}"
-
-Return only the cleaned qualifications text without any prefixes like "Qualifications:" or labels. Just return the clean qualifications content.
 
 Also provide a natural, conversational summary that explains what you've cleaned up in a friendly way.`;
       
@@ -554,18 +441,25 @@ Also provide a natural, conversational summary like "So you are a [skill]?" or s
         required: ["sanitized", "naturalSummary"]
       });
     } else if (field === 'hourlyRate') {
-      prompt = `Extract and normalize this hourly rate input. Return ONLY the numeric value with currency symbol if needed. Do NOT add prefixes, labels, or extra formatting.
+      prompt = `Clean up the grammar and formatting of this hourly rate input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
 
-Input: "${value}"
+Hourly Rate: "${value}"
 
-Examples:
-- "25 per hour" → "25"
-- "£15.50" → "£15.50" 
-- "20 pounds per hour" → "20"
-- "15/hour" → "15"
-- "£12.50 per hour" → "£12.50"
+Also provide a natural, conversational summary like "So you charge [amount] per hour" or similar friendly response.`;
+      
+      schema = Schema.object({
+        properties: {
+          sanitized: Schema.string(),
+          naturalSummary: Schema.string()
+        },
+        required: ["sanitized", "naturalSummary"]
+      });
+    } else if (field === 'experience') {
+      prompt = `Clean up the grammar and formatting of this experience input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
 
-Return just the clean numeric value. Also provide a natural summary like "So you charge [amount] per hour".`;
+Experience: "${value}"
+
+Also provide a natural, conversational summary like "Got it, you have [X] years of experience" or "You're a [level], that's great!" or similar friendly response.`;
       
       schema = Schema.object({
         properties: {
@@ -644,20 +538,6 @@ Also provide a natural, conversational summary like "Great! Your address is [add
         },
         required: ["sanitized", "naturalSummary"]
       });
-    } else if (field === 'equipment') {
-      prompt = `Clean up the grammar and formatting of this equipment input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
-
-Equipment: "${value}"
-
-Also provide a natural, conversational summary like "Got it! You have [equipment details]" or similar friendly response.`;
-      
-      schema = Schema.object({
-        properties: {
-          sanitized: Schema.string(),
-          naturalSummary: Schema.string()
-        },
-        required: ["sanitized", "naturalSummary"]
-      });
     } else {
       return { sanitized: value };
     }
@@ -673,7 +553,6 @@ Also provide a natural, conversational summary like "Got it! You have [equipment
       const data = result.data as any;
       return {
         sanitized: data.sanitized || value,
-        naturalSummary: data.naturalSummary,
         jobTitle: data.jobTitle,
         yearsOfExperience: data.yearsOfExperience
       };
@@ -761,7 +640,7 @@ export async function simpleAICheck(field: string, value: any, type: string): Pr
     }
     
     if (field === 'about') {
-      return "Perfect! Your bio sounds great!";
+      return "This will be your bio!";
     }
     
     if (field === 'qualifications') {
@@ -830,26 +709,6 @@ SPECIAL HANDLING FOR SKILLS FIELD:
 - Don't ask for more details if they've provided a clear profession
 - Always capitalize the first letter of the profession
 
-SPECIAL HANDLING FOR QUALIFICATIONS FIELD:
-- ACCEPT ANY professional qualifications, certifications, awards, or education
-- Examples: "Michelin Star Awardee", "Certified Chef", "Food Safety Certificate", "Culinary Arts Degree", "Red Seal Certification", "OSHA Certified", "First Aid Certified", "ServSafe Certified", "Wine Sommelier", "Barista Certification", "Master Chef", "Professional Certification", "Industry Award", "Culinary Award", "Professional Recognition", etc.
-- Be EXTREMELY LENIENT - accept any reasonable professional qualification
-- CRITICAL: "Michelin Star Awardee" is a PRESTIGIOUS culinary award and MUST be accepted - do not reject it
-- NEVER reject legitimate professional qualifications - only reject if clearly inappropriate or unrelated to work
-- If it sounds like a professional qualification, certification, award, or education, ACCEPT IT
-
-SPECIAL HANDLING FOR EQUIPMENT FIELD:
-- ACCEPT "none", "no equipment", "no tools", "don't have any", "nothing", "n/a", "skip" responses
-- If user says they have no equipment, accept it and return empty equipment list
-- Be flexible with "none" responses - users may not have equipment for their work
-- Only require equipment details if they actually have equipment to list
-
-SPECIAL HANDLING FOR HOURLY RATE FIELD:
-- ACCEPT any reasonable hourly rate format: "15", "15.50", "£15", "£15.50", "15 per hour", "£15 per hour", "15/hour", "£15/hour", "15 pounds per hour", etc.
-- Extract the numeric value and validate it's above minimum wage (£12.21)
-- Be flexible with currency symbols and text patterns
-- Accept decimal rates like "15.50" or "£15.50"
-
 REJECT IMMEDIATELY if the input contains:
 - Video game references: "mario", "luigi", "peach", "bowser", "sonic", "link", "zelda", "pokemon", "minecraft", "fortnite", etc.
 - Fictional characters: "batman", "superman", "spiderman", "wonder woman", "iron man", "thor", etc.
@@ -868,8 +727,6 @@ Check:
 6. Provide a natural summary of what the user said
 7. Extract the key data
 
-CRITICAL FOR QUALIFICATIONS: If the input contains words like "award", "certification", "certified", "degree", "diploma", "qualification", "awardee", "chef", "master", "professional", "industry", "culinary", "michelin", "james beard", "sommelier", "barista", "bartender", "food safety", "servsafe", "osha", "red seal", "journeyman", "craftsman", etc. - ALWAYS ACCEPT IT as a valid qualification. Do not reject professional qualifications.
-
 EXAMPLES OF CLEANING FOR SKILLS FIELD:
 - "I am a baker" → sanitizedValue: "Baker", naturalSummary: "Great! You're a baker."
 - "I'm a mechanic" → sanitizedValue: "Mechanic", naturalSummary: "Perfect! You're a mechanic."
@@ -877,36 +734,12 @@ EXAMPLES OF CLEANING FOR SKILLS FIELD:
 - "I am an electrician" → sanitizedValue: "Electrician", naturalSummary: "Wonderful! You're an electrician."
 - "I do plumbing" → sanitizedValue: "Plumber", naturalSummary: "Great! You're a plumber."
 
-EXAMPLES OF QUALIFICATIONS (ALL VALID - NEVER REJECT THESE):
-- "Michelin Star Awardee" → ACCEPT, naturalSummary: "Wow! A Michelin Star Awardee - that's incredible!"
-- "Michelin Star Chef" → ACCEPT, naturalSummary: "Amazing! A Michelin Star Chef - that's prestigious!"
-- "Certified Chef" → ACCEPT, naturalSummary: "Great! You're a certified chef."
-- "Food Safety Certificate" → ACCEPT, naturalSummary: "Perfect! You have food safety certification."
-- "Culinary Arts Degree" → ACCEPT, naturalSummary: "Excellent! You have a culinary arts degree."
-- "Master Chef" → ACCEPT, naturalSummary: "Fantastic! You're a master chef."
-- "Professional Certification" → ACCEPT, naturalSummary: "Great! You have professional certification."
-- "Industry Award" → ACCEPT, naturalSummary: "Wonderful! You have an industry award."
-- "Culinary Award" → ACCEPT, naturalSummary: "Excellent! You have a culinary award."
-
-EXAMPLES OF EQUIPMENT (ALL VALID):
-- "none" → ACCEPT, naturalSummary: "Got it! No equipment needed."
-- "no equipment" → ACCEPT, naturalSummary: "Perfect! No equipment required."
-- "don't have any" → ACCEPT, naturalSummary: "No problem! No equipment needed."
-- "nothing" → ACCEPT, naturalSummary: "Got it! No equipment required."
-- "Pans, Aprons, Knives" → ACCEPT, naturalSummary: "Great! You have pans, aprons, and knives."
-
-EXAMPLES OF HOURLY RATES (ALL VALID):
-- "15.50" → ACCEPT, naturalSummary: "Perfect! £15.50 per hour is a good rate."
-- "£15.50 per hour" → ACCEPT, naturalSummary: "Great! £15.50 per hour works well."
-- "15 pounds per hour" → ACCEPT, naturalSummary: "Excellent! £15 per hour is a good rate."
-
 EXAMPLES OF NATURAL SUMMARIES:
 - For skills: "Perfect! You're a mechanic." or "Great! You're a baker."
 - For experience: "Got it, you have 5 years of experience." or "You're a beginner, that's great!"
 - For bio: "This will be your bio!" or "Perfect bio!"
-- For qualifications: "Great qualifications!" or "Excellent certifications!" or "Wow! A Michelin Star Awardee - that's incredible!"
-- For equipment: "Nice equipment list!" or "Perfect equipment setup!" or "Got it! No equipment needed." or "Perfect! No equipment required."
-- For hourly rate: "Perfect! £15.50 per hour is a good rate." or "Great! £15 per hour works well."
+- For qualifications: "Great qualifications!" or "Excellent certifications!"
+- For equipment: "Nice equipment list!" or "Perfect equipment setup!"
 
 Make naturalSummary conversational, friendly, and encouraging. Use exclamation marks and positive language.
 

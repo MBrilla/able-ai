@@ -322,8 +322,6 @@ export const updateVideoUrlProfileAction = async (
   token?: string | undefined
 ) => {
   try {
-    console.log('🎥 Updating video URL:', videoUrl);
-    
     if (!token) {
       throw new Error("User ID is required to fetch buyer profile");
     }
@@ -337,8 +335,6 @@ export const updateVideoUrlProfileAction = async (
 
     if (!user) throw "User not found";
 
-    console.log('🎥 Updating video URL for user:', user.id, 'with URL:', videoUrl);
-
     const result = await db
       .update(GigWorkerProfilesTable)
       .set({
@@ -348,11 +344,8 @@ export const updateVideoUrlProfileAction = async (
       .where(eq(GigWorkerProfilesTable.userId, user?.id))
       .returning();
 
-    console.log('🎥 Video URL update result:', result);
-
     return { success: true, data: "Url video updated successfully" };
   } catch (error) {
-    console.error('🎥 Video URL update error:', error);
     return { success: false, data: "Url video updated successfully", error };
   }
 };
@@ -430,7 +423,6 @@ export const createWorkerProfileAction = async (token: string) => {
 
     
     // Test database connection
-
     try {
       const testQuery = await db.execute(sql`SELECT 1 as test`);
 
@@ -505,30 +497,39 @@ export const saveWorkerProfileFromOnboardingAction = async (
     qualifications?: string; // Add qualifications field
     hourlyRate: string;
     location: any;
-    availability: { 
-      days: string[]; 
-      startTime: string; 
-      endTime: string; 
-      frequency?: string;
-      ends?: string;
-      startDate?: string; // Add this field
-      endDate?: string;
-      occurrences?: number;
-    } | string;
+    availability:
+      | {
+          days: string[];
+          startTime: string;
+          endTime: string;
+          frequency?: string;
+          ends?: string;
+          startDate?: string; // Add this field
+          endDate?: string;
+          occurrences?: number;
+        }
+      | string;
+    hashtags?: string[]; // Add hashtags field
     videoIntro: File | string;
     jobTitle?: string; // Add job title field
     equipment?: { name: string; description?: string }[]; // Add equipment field
     experienceYears?: number; // Parsed years of experience
     experienceMonths?: number; // Parsed months of experience
-    hashtags?: string[]; // Add hashtags field for client-generated hashtags
   },
   token: string
 ) => {
-  try {
-    console.log('🚀 saveWorkerProfileFromOnboardingAction called with:', {
-      profileData: profileData,
-      token: token ? 'present' : 'missing'
-    });
+        try {
+    
+    // Validate required fields
+    if (!profileData.about || profileData.about.trim().length === 0) {
+      throw new Error('About field is required');
+    }
+    if (!profileData.skills || profileData.skills.trim().length === 0) {
+      throw new Error('Skills field is required');
+    }
+    if (!profileData.hourlyRate || profileData.hourlyRate.trim().length === 0) {
+      throw new Error('Hourly rate field is required');
+    }
     
     if (!token) {
       throw new Error("Token is required");
@@ -557,22 +558,35 @@ export const saveWorkerProfileFromOnboardingAction = async (
       throw new Error(`Hourly rate must be at least £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}`);
     }
 
-    // Use provided hashtags (always provided by client)
-    const generatedHashtags = profileData.hashtags || [];
-    console.log('✅ Using client-generated hashtags:', generatedHashtags);
+            // Use provided hashtags (always provided by client)
+            const generatedHashtags = profileData.hashtags || [];
 
-    // Prepare profile data
-    console.log('🎥 Video intro data in save function:', {
-      videoIntro: profileData.videoIntro,
-      type: typeof profileData.videoIntro,
-      isString: typeof profileData.videoIntro === 'string'
-    });
+            // Prepare profile data
     
+    // Parse location coordinates if location is a string (from location picker)
+    let latitude = null;
+    let longitude = null;
+    let locationText = '';
+    
+    if (typeof profileData.location === 'string') {
+      locationText = profileData.location;
+      // Try to extract coordinates from the location string if it contains them
+      const coordMatch = profileData.location.match(/lat[:\s]*([0-9.-]+)[,\s]*lng[:\s]*([0-9.-]+)/i);
+      if (coordMatch) {
+        latitude = parseFloat(coordMatch[1]);
+        longitude = parseFloat(coordMatch[2]);
+      }
+    } else if (typeof profileData.location === 'object' && profileData.location) {
+      locationText = profileData.location.formatted_address || profileData.location.name || '';
+      latitude = profileData.location.lat || null;
+      longitude = profileData.location.lng || null;
+            }
+
     const profileUpdateData = {
-      fullBio: `${profileData.about}\n\n${profileData.experience}`,
-      location: typeof profileData.location === 'string' ? profileData.location : profileData.location?.formatted_address || profileData.location?.name || '',
-      latitude: typeof profileData.location === 'object' && profileData.location?.lat ? profileData.location.lat : null,
-      longitude: typeof profileData.location === 'object' && profileData.location?.lng ? profileData.location.lng : null,
+      fullBio: profileData.about,
+      location: locationText,
+      latitude: latitude,
+      longitude: longitude,
       // Remove availabilityJson - we'll save to worker_availability table instead
       videoUrl: (() => {
         if (typeof profileData.videoIntro === "string") {
@@ -600,155 +614,105 @@ export const saveWorkerProfileFromOnboardingAction = async (
       privateNotes: `Hourly Rate: ${profileData.hourlyRate}\n`,
       updatedAt: new Date(),
     };
-    
-    console.log('💾 Profile update data with hashtags:', {
-      hashtags: profileUpdateData.hashtags,
-      hashtagsType: typeof profileUpdateData.hashtags,
-      hashtagsLength: Array.isArray(profileUpdateData.hashtags) ? profileUpdateData.hashtags.length : 'not array',
-      hashtagsStringified: JSON.stringify(profileUpdateData.hashtags),
-      isUsingFallback: generatedHashtags.length === 0
-    });
+
 
     let workerProfileId: string;
+
+            try {
+              if (workerProfile) {
+                // Update existing profile
+                const updateResult = await db
+                  .update(GigWorkerProfilesTable)
+                  .set(profileUpdateData)
+                  .where(eq(GigWorkerProfilesTable.userId, user.id))
+                  .returning();
+                workerProfileId = workerProfile.id;
+              } else {
+                // Create new profile
+                const newProfile = await db
+                  .insert(GigWorkerProfilesTable)
+                  .values({
+                    userId: user.id,
+                    ...profileUpdateData,
+                    createdAt: new Date(),
+                  })
+                  .returning();
+                workerProfileId = newProfile[0].id;
+              }
+            } catch (dbError) {
+              throw new Error(`Database error: ${dbError instanceof Error ? dbError.message : 'Unknown database error'}`);
+            }
+
+            // Verify hashtags were saved
+            const savedProfile = await db.query.GigWorkerProfilesTable.findFirst({
+              where: eq(GigWorkerProfilesTable.userId, user.id),
+            });
+
+            // Save availability data to worker_availability table
     
-    if (workerProfile) {
-      // Update existing profile
-      console.log('🔄 Updating existing worker profile with hashtags...');
-      console.log('📝 Data being sent to database update:', {
-        hashtags: profileUpdateData.hashtags,
-        hashtagsType: typeof profileUpdateData.hashtags,
-        isArray: Array.isArray(profileUpdateData.hashtags)
-      });
-      try {
-        const updateResult = await db
-          .update(GigWorkerProfilesTable)
-          .set(profileUpdateData)
-          .where(eq(GigWorkerProfilesTable.userId, user.id))
-          .returning();
-        console.log('🔄 Database update result:', updateResult);
-        workerProfileId = workerProfile.id;
-      } catch (updateError) {
-        console.error('❌ Error updating worker profile:', updateError);
-        throw updateError;
-      }
-    } else {
-      // Create new profile
-      console.log('➕ Creating new worker profile with hashtags...');
-      console.log('📝 Data being sent to database insert:', {
-        hashtags: profileUpdateData.hashtags,
-        hashtagsType: typeof profileUpdateData.hashtags,
-        isArray: Array.isArray(profileUpdateData.hashtags)
-      });
-      try {
-        const newProfile = await db
-          .insert(GigWorkerProfilesTable)
-          .values({
-            userId: user.id,
-            ...profileUpdateData,
-            createdAt: new Date(),
-          })
-          .returning();
-        console.log('➕ Database insert result:', newProfile);
-        workerProfileId = newProfile[0].id;
-      } catch (insertError) {
-        console.error('❌ Error inserting worker profile:', insertError);
-        throw insertError;
-      }
-    }
-    
-    // Verify hashtags were saved
-    const savedProfile = await db.query.GigWorkerProfilesTable.findFirst({
-      where: eq(GigWorkerProfilesTable.userId, user.id)
-    });
-    console.log('✅ Verified saved hashtags in database:', {
-      hashtags: savedProfile?.hashtags,
-      hashtagsType: typeof savedProfile?.hashtags,
-      isArray: Array.isArray(savedProfile?.hashtags),
-      length: Array.isArray(savedProfile?.hashtags) ? savedProfile.hashtags.length : 'not array',
-      fullProfile: savedProfile
-    });
+    if (profileData.availability) {
+      let availabilityData;
+      
+              // Parse availability if it's a JSON string
+              if (typeof profileData.availability === "string") {
+                try {
+                  availabilityData = JSON.parse(profileData.availability);
+                } catch (parseError) {
+                  availabilityData = null;
+                }
+              } else if (typeof profileData.availability === "object") {
+                availabilityData = profileData.availability;
+              }
+      
+      if (availabilityData) {
+        // Create proper timestamps for the required fields
+        const createTimestamp = (timeStr: string) => {
+          const [hours, minutes] = timeStr.split(":").map(Number);
+          const date = new Date();
+          date.setHours(hours, minutes, 0, 0);
+          return date;
+        };
 
-    // Also try a direct SQL query to see what's in the database
-    try {
-      const directQuery = await db.execute(sql`
-        SELECT hash_tags FROM gig_worker_profiles 
-        WHERE user_id = ${user.id}
-      `);
-      console.log('🔍 Direct SQL query result:', directQuery);
-    } catch (error) {
-      console.error('❌ Direct SQL query failed:', error);
-    }
 
-    // Save availability data to worker_availability table
-    if (profileData.availability && typeof profileData.availability === 'object') {
-      // Create proper timestamps for the required fields
-      const createTimestamp = (timeStr: string) => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        const date = new Date();
-        date.setHours(hours, minutes, 0, 0);
-        return date;
-      };
-
-      console.log('📅 Saving availability data to database:', {
-        days: profileData.availability.days,
-        frequency: profileData.availability.frequency,
-        startDate: profileData.availability.startDate,
-        startTime: profileData.availability.startTime,
-        endTime: profileData.availability.endTime,
-        ends: profileData.availability.ends
-      });
-
-      await db.insert(WorkerAvailabilityTable).values({
-        userId: user.id,
-        days: profileData.availability.days || [],
-        frequency: (profileData.availability.frequency || "weekly") as
-          | "never"
-          | "weekly"
-          | "biweekly"
-          | "monthly",
-        startDate: profileData.availability.startDate || new Date().toISOString().split('T')[0],
-        startTimeStr: profileData.availability.startTime,
-        endTimeStr: profileData.availability.endTime,
-        // Convert time strings to timestamp for the required fields
-        startTime: createTimestamp(profileData.availability.startTime),
-        endTime: createTimestamp(profileData.availability.endTime),
-        ends: (profileData.availability.ends || 'never') as "never" | "on_date" | "after_occurrences",
-        occurrences: profileData.availability.occurrences,
-        endDate: profileData.availability.endDate || null,
-        notes: `Onboarding availability - Hourly Rate: ${profileData.hourlyRate}`,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
-      console.log('✅ Availability data saved successfully to worker_availability table');
+        await db.insert(WorkerAvailabilityTable).values({
+          userId: user.id,
+          days: availabilityData.days || [],
+          frequency: (availabilityData.frequency || "weekly") as
+            | "never"
+            | "weekly"
+            | "biweekly"
+            | "monthly",
+          startDate:
+            availabilityData.startDate ||
+            new Date().toISOString().split("T")[0],
+          startTimeStr: availabilityData.startTime,
+          endTimeStr: availabilityData.endTime,
+          // Convert time strings to timestamp for the required fields
+          startTime: createTimestamp(availabilityData.startTime),
+          endTime: createTimestamp(availabilityData.endTime),
+          ends: (availabilityData.ends || "never") as
+            | "never"
+            | "on_date"
+            | "after_occurrences",
+          occurrences: availabilityData.occurrences,
+          endDate: availabilityData.endDate || null,
+          notes: `Onboarding availability - Hourly Rate: ${profileData.hourlyRate}`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+                });
+              }
     }
 
     // Save worker skills data to gig_worker_skills table
     let skillName = '';
     let yearsOfExperience: number | undefined;
     let extractedHourlyRate: number | undefined;
-    
-    // Add unique call identifier for debugging
-    const callId = Math.random().toString(36).substr(2, 9);
-    console.log(`🚀 [${callId}] Starting worker skills save process...`);
-    console.log(`🚀 [${callId}] Profile data received:`, {
-      hasJobTitle: !!profileData.jobTitle,
-      hasAbout: !!profileData.about,
-      hasExperience: !!profileData.experience,
-      hasHourlyRate: !!profileData.hourlyRate,
-      jobTitle: profileData.jobTitle,
-      about: profileData.about,
-      experience: profileData.experience,
-      hourlyRate: profileData.hourlyRate
-    });
-    
-    // Log call stack to see where this is being called from
-    console.log(`🚀 [${callId}] Call stack:`, new Error().stack?.split('\n').slice(1, 4).join('\n'));
-    
+
+
     try {
-      // Use jobTitle field as the main skill for database entry (not the skills form field)
-      skillName = profileData.jobTitle || profileData.about || '';
-      
+      // Use skills field as the main skill for database entry
+      skillName = profileData.skills || profileData.jobTitle || "";
+
       // Extract years of experience from experience field
       const experienceText = profileData.experience || "";
       
@@ -774,40 +738,18 @@ export const saveWorkerProfileFromOnboardingAction = async (
       }
 
       // Extract hourly rate from form data
-      extractedHourlyRate = profileData.hourlyRate ? parseFloat(profileData.hourlyRate) : validatedHourlyRate;
-      
-      console.log('🔍 Worker Skills Debug:', {
-        skillName,
-        yearsOfExperience,
-        hourlyRate: extractedHourlyRate,
-        validatedHourlyRate,
-        workerProfileId,
-        user_id: user.id,
-        worker_profile_id: workerProfileId,
-        profileData_keys: Object.keys(profileData),
-        profileData_values: Object.values(profileData),
-        hasSkillName: !!skillName,
-        about_field: profileData.about,
-        experience_field: profileData.experience,
-        hourlyRate_field: profileData.hourlyRate,
-        note: 'Using jobTitle field as main skill for database entry (skills form field ignored)'
-      });
-      
+      extractedHourlyRate = profileData.hourlyRate
+        ? parseFloat(profileData.hourlyRate)
+        : validatedHourlyRate;
+
+
       if (skillName) {
-        console.log('💾 Attempting to save worker skills...');
-        console.log('📝 Insert data:', {
-          userId: user.id,
-          name: skillName,
-          experience: yearsOfExperience ? String(yearsOfExperience) : null,
-          eph: extractedHourlyRate ? String(extractedHourlyRate) : null,
-        });
-        
+
         // Check if this specific skill already exists for this worker profile to prevent exact duplicates
         const existingSkills = await db.query.SkillsTable.findMany({
           where: eq(SkillsTable.workerProfileId, workerProfileId),
         });
-        console.log('🔍 Existing skills for worker profile:', existingSkills);
-        
+
         // Check if this exact skill name already exists
         const skillExists = existingSkills.some(skill => 
           skill.name.toLowerCase().trim() === skillName.toLowerCase().trim()
@@ -822,44 +764,27 @@ export const saveWorkerProfileFromOnboardingAction = async (
               experienceMonths: 0,
               experienceYears: yearsOfExperience || 0,
               agreedRate: String(extractedHourlyRate || validatedHourlyRate),
-              skillVideoUrl: typeof profileData.videoIntro === 'string' ? profileData.videoIntro : null,
-              adminTags: null,
+              skillVideoUrl:
+                typeof profileData.videoIntro === "string"
+                  ? profileData.videoIntro
+                  : null,
+              adminTags: profileData.hashtags || null,
               ableGigs: null,
               images: [],
               createdAt: new Date(),
               updatedAt: new Date(),
             });
-            console.log('✅ New worker skill saved successfully:', skillResult);
           } catch (insertError) {
-            console.error('❌ Error inserting skill into SkillsTable:', insertError);
-            console.error('❌ Insert data that failed:', {
-              workerProfileId,
-              name: skillName,
-              experienceMonths: 0,
-              experienceYears: yearsOfExperience || 0,
-              agreedRate: String(extractedHourlyRate || validatedHourlyRate),
-            });
             throw insertError;
           }
-        } else {
-          console.log('⚠️ Skill already exists for this worker profile, skipping insert to prevent exact duplicates');
-          console.log('📋 Existing skills:', existingSkills.map(s => ({ name: s.name, experienceYears: s.experienceYears, agreedRate: s.agreedRate })));
-          console.log('🔍 Attempted to add skill:', skillName);
         }
-      } else {
-        console.log('⚠️ No jobTitle or about field found, skipping worker skills save');
-        console.log('🔍 Available data:', {
-          about: profileData.about,
-          experience: profileData.experience,
-          hourlyRate: profileData.hourlyRate,
-          note: 'Using jobTitle field as main skill for database entry (skills form field ignored)'
-        });
       }
 
       // Save qualifications data to qualifications table (only after skills are saved)
-      if (profileData.qualifications && profileData.qualifications.trim().length > 0) {
-        console.log('🎓 Saving qualifications data to database...');
-        
+      if (
+        profileData.qualifications &&
+        profileData.qualifications.trim().length > 0
+      ) {
         // Parse qualifications from the text input
         // Split by common delimiters and clean up
         const qualificationsList = profileData.qualifications
@@ -867,21 +792,15 @@ export const saveWorkerProfileFromOnboardingAction = async (
           .map(qual => qual.trim())
           .filter(qual => qual.length > 0);
 
-        console.log('🎓 Parsed qualifications:', qualificationsList);
-
         // Get existing qualifications to avoid duplicates
         const existingQualifications = await db.query.QualificationsTable.findMany({
           where: eq(QualificationsTable.workerProfileId, workerProfileId),
         });
 
-        console.log('🎓 Existing qualifications in database:', existingQualifications.map(q => ({ id: q.id, title: q.title })));
-
         // Get all skills for this worker to match qualifications
         const workerSkills = await db.query.SkillsTable.findMany({
           where: eq(SkillsTable.workerProfileId, workerProfileId),
         });
-
-        console.log('🛠️ Available skills for matching:', workerSkills.map(s => ({ id: s.id, name: s.name })));
 
         // Process qualifications and filter out duplicates
         const qualificationsToInsert = [];
@@ -914,14 +833,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
           
           // Also check if we've already processed this title in the current batch
           const alreadyProcessed = processedTitles.has(normalizedTitle);
-          
-          console.log(`🔍 Checking qualification: "${qualification}"`, {
-            normalizedTitle,
-            qualificationExists,
-            alreadyProcessed,
-            existingTitles: existingQualifications.map(q => q.title.toLowerCase().trim())
-          });
-          
+
+
           if (!qualificationExists && !alreadyProcessed) {
             // Try to match this qualification to an existing skill
             const matchedSkill = workerSkills.find(skill => {
@@ -964,13 +877,8 @@ export const saveWorkerProfileFromOnboardingAction = async (
               
               return matches.some(match => match);
             });
-            
-            console.log(`🔍 Qualification matching for "${qualification}":`, {
-              title: title || qualification,
-              matchedSkill: matchedSkill ? { id: matchedSkill.id, name: matchedSkill.name } : null,
-              availableSkills: workerSkills.map(s => ({ id: s.id, name: s.name }))
-            });
-            
+
+
             qualificationsToInsert.push({
               workerProfileId: workerProfileId,
               title: title || qualification, // Fallback to original if cleaning fails
@@ -985,48 +893,23 @@ export const saveWorkerProfileFromOnboardingAction = async (
             });
             
             processedTitles.add(normalizedTitle);
-          } else {
-            console.log(`⏭️ Skipping duplicate qualification: "${qualification}"`);
           }
         }
 
         // Insert only new qualifications
         if (qualificationsToInsert.length > 0) {
-          console.log('🎓 Inserting new qualifications:', qualificationsToInsert.map(q => ({ title: q.title, skillId: q.skillId })));
           await db.insert(QualificationsTable).values(qualificationsToInsert);
-          console.log(`✅ Inserted ${qualificationsToInsert.length} new qualifications`);
-        } else {
-          console.log('ℹ️ No new qualifications to insert (all were duplicates)');
         }
-        
-        // Final check - show all qualifications after processing
-        const finalQualifications = await db.query.QualificationsTable.findMany({
-          where: eq(QualificationsTable.workerProfileId, workerProfileId),
-        });
-        console.log('🎓 Final qualifications in database:', finalQualifications.map(q => ({ id: q.id, title: q.title, skillId: q.skillId })));
-      } else {
-        console.log('🎓 No qualifications provided, skipping qualifications save');
+
       }
     } catch (skillError) {
-      console.error("❌ Error saving worker skills:", skillError);
-      console.error("❌ Error details:", {
-        message:
-          skillError instanceof Error ? skillError.message : "Unknown error",
-        stack:
-          skillError instanceof Error ? skillError.stack : "No stack trace",
-        skillName: skillName || "undefined",
-        userId: user.id,
-      });
       // Don't fail the entire profile save if skills saving fails
     }
-
-    // Debug: Log the equipment data received
 
     // Save equipment data if provided
     if (profileData.equipment && profileData.equipment.length > 0) {
       try {
-        console.log('🔧 Processing equipment:', profileData.equipment);
-        
+
         // Get existing equipment to avoid duplicates
         const existingEquipment = await db.query.EquipmentTable.findMany({
           where: eq(EquipmentTable.workerProfileId, workerProfileId),
@@ -1057,163 +940,20 @@ export const saveWorkerProfileFromOnboardingAction = async (
               updatedAt: new Date(),
             });
             processedNames.add(normalizedName);
-            console.log(`✅ Adding new equipment: ${equipment.name}`);
-          } else {
-            console.log(`⚠️ Equipment already exists or duplicate in batch, skipping: ${equipment.name}`);
           }
         }
 
         // Insert only new equipment
         if (equipmentToInsert.length > 0) {
           await db.insert(EquipmentTable).values(equipmentToInsert);
-          console.log(`✅ Inserted ${equipmentToInsert.length} new equipment items`);
-        } else {
-          console.log('ℹ️ No new equipment to insert (all were duplicates)');
         }
       } catch (dbError) {
-        console.error('❌ Error processing equipment:', dbError);
         throw dbError;
       }
-    } else {
-      console.log('ℹ️ No equipment provided');
     }
 
     // Skills field is ignored - only jobTitle is saved as THE skill
-    console.log('ℹ️ Skills field ignored - using jobTitle as THE skill only');
-
     // Job title is already saved as THE skill above - no duplicate saving needed
-    console.log('ℹ️ Job title already saved as THE skill - no duplicate saving needed');
-
-    // Save worker skills data to gig_worker_skills table
-    let skillName = '';
-    let yearsOfExperience: number | undefined;
-    let hourlyRate: number | undefined;
-    
-    // Add unique call identifier for debugging
-    const callId = Math.random().toString(36).substr(2, 9);
-    console.log(`🚀 [${callId}] Starting worker skills save process...`);
-    console.log(`🚀 [${callId}] Profile data received:`, {
-      hasJobTitle: !!profileData.jobTitle,
-      hasAbout: !!profileData.about,
-      hasExperience: !!profileData.experience,
-      hasHourlyRate: !!profileData.hourlyRate,
-      jobTitle: profileData.jobTitle,
-      about: profileData.about,
-      experience: profileData.experience,
-      hourlyRate: profileData.hourlyRate
-    });
-    
-    // Log call stack to see where this is being called from
-    console.log(`🚀 [${callId}] Call stack:`, new Error().stack?.split('\n').slice(1, 4).join('\n'));
-    
-    try {
-      // Extract skill name from about field (job title if available, otherwise about)
-      skillName = profileData.jobTitle || profileData.about || '';
-      
-      // Extract years of experience from experience field
-      const experienceText = profileData.experience || '';
-      const yearsMatch = experienceText.match(/(\d+)\s*(?:years?|yrs?|y)/i);
-      yearsOfExperience = yearsMatch ? parseFloat(yearsMatch[1]) : undefined;
-      
-      // Extract hourly rate
-      hourlyRate = profileData.hourlyRate ? parseFloat(profileData.hourlyRate) : undefined;
-      
-      console.log('🔍 Worker Skills Debug:', {
-        skillName,
-        yearsOfExperience,
-        hourlyRate,
-        workerProfileId,
-        user_id: user.id,
-        worker_profile_id: workerProfileId,
-        profileData_keys: Object.keys(profileData),
-        profileData_values: Object.values(profileData),
-        hasSkillName: !!skillName
-      });
-      
-      if (skillName) {
-        console.log('💾 Attempting to save worker skills...');
-        console.log('📝 Insert data:', {
-          userId: user.id,
-          name: skillName,
-          experience: yearsOfExperience ? String(yearsOfExperience) : null,
-          eph: hourlyRate ? String(hourlyRate) : null,
-        });
-        
-        // Check if skills already exist for this worker profile to prevent duplicates
-        const existingSkills = await db.select().from(gigWorkerSkills).where(eq(gigWorkerSkills.userId, workerProfileId));
-        console.log('🔍 Existing skills for worker profile:', existingSkills);
-        
-        if (existingSkills.length === 0) {
-          // No existing skills, safe to insert
-          const skillResult = await db.insert(gigWorkerSkills).values({
-            userId: workerProfileId, // This should be the worker profile ID for proper relationship
-            name: skillName,
-            experience: yearsOfExperience ? String(yearsOfExperience) : null,
-            eph: hourlyRate ? String(hourlyRate) : null,
-          });
-          console.log('✅ Worker skills saved successfully:', skillResult);
-        } else {
-          console.log('⚠️ Skills already exist for this worker profile, skipping insert to prevent duplicates');
-          console.log('📋 Existing skills:', existingSkills.map(s => ({ name: s.name, experience: s.experience, eph: s.eph })));
-        }
-      } else {
-        console.log('⚠️ No skill name found, skipping worker skills save');
-        console.log('🔍 Available data:', {
-          jobTitle: profileData.jobTitle,
-          about: profileData.about,
-          experience: profileData.experience,
-          hourlyRate: profileData.hourlyRate
-        });
-      }
-    } catch (skillError) {
-      console.error('❌ Error saving worker skills:', skillError);
-      console.error('❌ Error details:', {
-        message: skillError instanceof Error ? skillError.message : 'Unknown error',
-        stack: skillError instanceof Error ? skillError.stack : 'No stack trace',
-        skillName: skillName || 'undefined',
-        userId: user.id
-      });
-      // Don't fail the entire profile save if skills saving fails
-    }
-
-    // Debug: Log the equipment data received
-
-    
-    // Save equipment data if provided
-    if (profileData.equipment && profileData.equipment.length > 0) {
-
-      
-      try {
-        // Wrap delete and insert operations in a transaction for data integrity
-        await db.transaction(async (tx) => {
-          // Delete existing equipment for this worker
-
-          await tx
-            .delete(EquipmentTable)
-            .where(eq(EquipmentTable.workerProfileId, workerProfileId));
-          
-
-          // Insert new equipment
-
-          const insertResult = await tx.insert(EquipmentTable).values(
-            (profileData.equipment as NonNullable<typeof profileData.equipment>).map(equipment => ({
-              workerProfileId: workerProfileId,
-              name: equipment.name,
-              description: equipment.description || null,
-              isVerifiedByAdmin: false,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            }))
-          );
-          
-        });
-      } catch (dbError) {
-
-        throw dbError;
-      }
-    } else {
-
-    }
 
     // Update user table to mark as gig worker
     await db
@@ -1242,6 +982,40 @@ export const saveWorkerProfileFromOnboardingAction = async (
     return {
       success: false,
       data: null,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+};
+
+export const updateSocialLinkWorkerProfileAction = async (
+  socialLink: string,
+  token?: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    if (!token) {
+      return { success: false, error: "User token is required" };
+    }
+
+    const { uid } = await isUserAuthenticated(token);
+    if (!uid) return { success: false, error: "Unauthorized" };
+
+    const user = await db.query.UsersTable.findFirst({
+      where: eq(UsersTable.firebaseUid, uid),
+    });
+    if (!user) return { success: false, error: "User not found" };
+
+    await db
+      .update(GigWorkerProfilesTable)
+      .set({
+        socialLink,
+        updatedAt: new Date(),
+      })
+      .where(eq(GigWorkerProfilesTable.userId, user.id));
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }

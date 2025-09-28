@@ -123,7 +123,12 @@ export function renderLocationStep(
           Please share your location.
         </div>
       </div>
-      <LocationPickerBubble value={value} onChange={onChange} showConfirm={true} onConfirm={onConfirm} role="GIG_WORKER" />
+      <LocationPickerBubble value={value} onChange={onChange} showConfirm={false} onConfirm={onConfirm} role="GIG_WORKER" />
+      {onConfirm && (
+        <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={onConfirm} style={{ background: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontWeight: 600 }}>Confirm</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -491,7 +496,7 @@ export function renderSimilarSkillsConfirmationStep(
           🔍 Similar Skills Found
         </div>
         <div style={{ color: '#e5e5e5', fontSize: '15px', lineHeight: '1.6', marginBottom: '16px' }}>
-          I found similar skills in your profile for "{data.originalValue}". You can either keep it and go back to home or add a new skill.
+          I found similar skills in your profile for "{data.originalValue}". You can either use one of your existing skills or add this as a new skill.
         </div>
 
         <div style={{ marginBottom: '20px' }}>
@@ -504,13 +509,8 @@ export function renderSimilarSkillsConfirmationStep(
         </div>
 
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
-          <button onClick={() => {
-
-            if (handlers.onGoHome) {
-              handlers.onGoHome();
-            }
-          }} style={{ background: 'transparent', color: '#888', border: '1px solid #444', borderRadius: '8px', padding: '10px 20px', fontWeight: 600, cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s ease' }}>
-            ← Go Home
+          <button onClick={handlers.onGoHome} style={{ background: 'transparent', color: '#888', border: '1px solid #444', borderRadius: '8px', padding: '10px 20px', fontWeight: 600, cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s ease' }}>
+            ← Go back to home
           </button>
           <button onClick={handlers.onAddNew} style={{ background: data.confirmedChoice === 'new' ? '#555' : 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: 600, cursor: data.confirmedChoice ? 'not-allowed' : 'pointer', fontSize: '14px', opacity: data.confirmedChoice ? 0.7 : 1, transition: 'all 0.2s ease' }} disabled={!!data.confirmedChoice}>
             {data.confirmedChoice === 'new' ? 'Adding New Skill' : 'Add a New Skill'}
@@ -526,7 +526,55 @@ export function renderHashtagGenerationStep(
   state: { isGenerating: boolean; hashtags: string[]; error?: string },
   hint?: string
 ) {
-  return null;
+  return (
+    <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <div style={{ flexShrink: 0, marginTop: '0.25rem' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, var(--primary-color), var(--primary-darker-color))', boxShadow: '0 2px 8px rgba(37, 255, 235, 0.3)' }}>
+            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
+              <Image src="/images/ableai.png" alt="Able AI" width={24} height={24} style={{ borderRadius: '50%', objectFit: 'cover' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: 'rgba(0, 0, 0, 0.1)', borderRadius: '12px', padding: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(10px)', marginLeft: '40px' }}>
+        {state.isGenerating && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '20px', height: '20px', border: '2px solid rgba(37, 255, 235, 0.3)', borderTop: '2px solid var(--primary-color)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              <span style={{ color: 'var(--primary-color)', fontWeight: 600, fontSize: '14px' }}>Generating personalized hashtags...</span>
+            </div>
+            <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.7)', fontStyle: 'italic' }}>
+              {hint || 'Analyzing your skills and experience to create hashtags for job matching'}
+            </div>
+          </div>
+        )}
+
+        {!state.isGenerating && state.hashtags.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ color: 'var(--primary-color)', fontWeight: 600, fontSize: '14px' }}>✅ Hashtags generated successfully!</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {state.hashtags.map((h, idx) => (
+                <span key={idx} style={{ background: 'rgba(37, 255, 235, 0.1)', color: 'var(--primary-color)', padding: '4px 8px', borderRadius: '16px', fontSize: '12px', fontWeight: 500, border: '1px solid rgba(37, 255, 235, 0.3)' }}>{h}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {state.error && (
+          <div style={{ color: '#ff6b6b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>⚠️</span>
+            <span>Using fallback hashtags: {state.error}</span>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
 }
 
 export function renderSanitizedStep(

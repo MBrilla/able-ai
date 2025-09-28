@@ -1,11 +1,21 @@
-import { parseLocationData } from "../locationUtils";
-import {
-  saveWorkerProfileFromOnboardingAction,
-  createWorkerProfileAction,
-} from "@/actions/user/gig-worker-profile";
+import { saveWorkerProfileFromOnboardingAction, createWorkerProfileAction } from "@/actions/user/gig-worker-profile";
 import { parseExperienceToNumeric } from "@/lib/utils/experienceParsing";
 import { validateWorkerProfileData } from "@/app/components/onboarding/ManualProfileForm";
-import { interpretJobTitle } from "../ai-systems/ai-utils";
+import { interpretJobTitle } from '../ai-systems/ai-utils';
+
+/**
+ * Extract key terms from text for hashtag generation
+ */
+function extractKeyTerms(text: string): string[] {
+  // Remove common words and extract meaningful terms
+  const commonWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'must', 'shall', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their'];
+  
+  return text
+    .split(/\s+/)
+    .map(word => word.replace(/[^\w]/g, '').toLowerCase())
+    .filter(word => word.length > 2 && !commonWords.includes(word))
+    .filter((word, index, arr) => arr.indexOf(word) === index); // Remove duplicates
+}
 
 export interface ProfileData {
   about?: string;
@@ -14,21 +24,17 @@ export interface ProfileData {
   qualifications?: string;
   equipment?: string | any[];
   hourlyRate?: number | string;
-  location?:
-    | { lat?: number; lng?: number; formatted_address?: string }
-    | string;
-  availability?:
-    | {
-        days: string[];
-        startTime: string;
-        endTime: string;
-        frequency?: string;
-        ends?: string;
-        startDate?: string;
-        endDate?: string;
-        occurrences?: number;
-      }
-    | string;
+  location?: { lat: number; lng: number } | string;
+  availability?: {
+    days: string[];
+    startTime: string;
+    endTime: string;
+    frequency?: string;
+    ends?: string;
+    startDate?: string;
+    endDate?: string;
+    occurrences?: number;
+  } | string;
   videoIntro?: string;
   references?: string;
   jobTitle?: string;
@@ -46,17 +52,10 @@ export interface ChatStep {
   [key: string]: any;
 }
 
-import {
-  generateHashtags as generateHashtagsService,
-  type ProfileData as HashtagProfileData,
-} from "@/lib/services/hashtag-generation";
-import { toast } from "sonner";
-
 /**
- * Generate hashtags for profile data using AI
- * @deprecated Use generateHashtagsService from @/lib/services/hashtag-generation directly
+ * Generate hashtags for profile data
  */
-export async function generateHashtags(
+export function generateHashtags(
   profileData: {
     about?: string;
     experience?: string;
@@ -65,13 +64,75 @@ export async function generateHashtags(
     location?: string;
   },
   ai?: any
-): Promise<string[]> {
-  // Use the modular hashtag generation service
-  return generateHashtagsService(profileData as HashtagProfileData, ai, {
-    maxHashtags: 3,
-    includeLocation: true,
-    fallbackStrategy: "skills-based",
-  });
+): string[] {
+  try {
+    // Generate hashtags based on all profile inputs (like old onboarding)
+    const hashtags: string[] = [];
+    const allText = [
+      profileData.about || '',
+      profileData.skills || '',
+      profileData.experience || '',
+      profileData.equipment || '',
+      profileData.location || ''
+    ].join(' ').toLowerCase();
+    
+    // Extract key terms and create hashtags
+    const keyTerms = extractKeyTerms(allText);
+    
+    // Add relevant hashtags based on content analysis
+    if (keyTerms.includes('mechanic') || keyTerms.includes('auto') || keyTerms.includes('car') || keyTerms.includes('vehicle')) {
+      hashtags.push('#mechanic', '#automotive');
+    } else if (keyTerms.includes('baker') || keyTerms.includes('cook') || keyTerms.includes('chef') || keyTerms.includes('kitchen')) {
+      hashtags.push('#baker', '#culinary');
+    } else if (keyTerms.includes('clean') || keyTerms.includes('housekeeping') || keyTerms.includes('cleaning')) {
+      hashtags.push('#cleaning', '#housekeeping');
+    } else if (keyTerms.includes('delivery') || keyTerms.includes('driver') || keyTerms.includes('transport')) {
+      hashtags.push('#delivery', '#driver');
+    } else if (keyTerms.includes('bartender') || keyTerms.includes('bar') || keyTerms.includes('mixology')) {
+      hashtags.push('#bartender', '#mixology');
+    } else if (keyTerms.includes('plumber') || keyTerms.includes('plumbing') || keyTerms.includes('pipe')) {
+      hashtags.push('#plumber', '#plumbing');
+    } else if (keyTerms.includes('electrician') || keyTerms.includes('electrical') || keyTerms.includes('wiring')) {
+      hashtags.push('#electrician', '#electrical');
+    } else if (keyTerms.includes('gardener') || keyTerms.includes('landscaping') || keyTerms.includes('garden')) {
+      hashtags.push('#gardener', '#landscaping');
+    } else if (keyTerms.includes('handyman') || keyTerms.includes('repair') || keyTerms.includes('fix')) {
+      hashtags.push('#handyman', '#repair');
+    } else {
+      hashtags.push('#skilled', '#professional');
+    }
+    
+    // Add location-based hashtags if available
+    if (profileData.location) {
+      const location = profileData.location.toLowerCase();
+      if (location.includes('london')) hashtags.push('#london');
+      else if (location.includes('manchester')) hashtags.push('#manchester');
+      else if (location.includes('birmingham')) hashtags.push('#birmingham');
+      else if (location.includes('glasgow')) hashtags.push('#glasgow');
+      else if (location.includes('edinburgh')) hashtags.push('#edinburgh');
+    }
+    
+    // Add experience-based hashtags
+    if (profileData.experience) {
+      const experience = profileData.experience.toLowerCase();
+      if (experience.includes('senior') || experience.includes('expert') || experience.includes('10+')) {
+        hashtags.push('#experienced');
+      } else if (experience.includes('beginner') || experience.includes('new') || experience.includes('junior')) {
+        hashtags.push('#beginner');
+      }
+    }
+    
+    // Add general hashtags
+    hashtags.push('#worker', '#gig', '#freelance');
+    
+    // Remove duplicates and ensure we have exactly 3 hashtags
+    const uniqueHashtags = [...new Set(hashtags)];
+    return uniqueHashtags.slice(0, 3);
+    
+  } catch (error) {
+    console.error('Error generating hashtags:', error);
+    return ['#worker', '#gig', '#freelance'];
+  }
 }
 
 /**
@@ -81,9 +142,7 @@ export async function handleProfileSubmission(
   requiredData: ProfileData,
   userToken: string,
   userId: string,
-  setChatSteps: (
-    steps: ChatStep[] | ((prev: ChatStep[]) => ChatStep[])
-  ) => void,
+  setChatSteps: (steps: ChatStep[] | ((prev: ChatStep[]) => ChatStep[])) => void,
   setWorkerProfileId: (id: string) => void,
   setError: (error: string | null) => void,
   router: any,
@@ -95,104 +154,73 @@ export async function handleProfileSubmission(
     const hashtagStep: ChatStep = {
       id: hashtagStepId,
       type: "hashtag-generation",
-      isComplete: false,
+      isComplete: false
     };
-    setChatSteps((prev) => [...prev, hashtagStep]);
-
+    setChatSteps(prev => [...prev, hashtagStep]);
+    
     // Generate hashtags
-    const hashtagData = {
+    const hashtags = generateHashtags({
       about: requiredData.about,
       experience: requiredData.experience,
       skills: requiredData.skills,
       equipment: requiredData.equipment,
-    };
-
-    const hashtags = await generateHashtags(hashtagData, ai);
-
+      location: typeof requiredData.location === 'string' ? requiredData.location : JSON.stringify(requiredData.location || ''),
+    }, ai);
+    
     // Mark hashtag step as complete
-    setChatSteps((prev) =>
-      prev.map((step) =>
-        step.id === hashtagStepId ? { ...step, isComplete: true } : step
-      )
-    );
-
+    setChatSteps(prev => prev.map(step => 
+      step.id === hashtagStepId ? { ...step, isComplete: true } : step
+    ));
+    
     // Add profile saving step
     const savingStepId = Date.now() + 1;
     const savingStep: ChatStep = {
       id: savingStepId,
       type: "bot",
       content: "Saving your profile with generated hashtags...",
-      isComplete: false,
+      isComplete: false
     };
-    setChatSteps((prev) => [...prev, savingStep]);
-
-    // Start with required data and hashtags; only add/override location/lat/lng if we have parsed location data
-    const profileDataWithHashtags: any = {
+    setChatSteps(prev => [...prev, savingStep]);
+    
+    // Save profile with generated hashtags
+    const profileDataWithHashtags = {
       ...requiredData,
-      hashtags: hashtags,
+      hashtags: hashtags
     };
-
-    const { databaseLocation } = parseLocationData(requiredData.location);
-
-    if (databaseLocation) {
-      if (databaseLocation.location) {
-        profileDataWithHashtags.location = databaseLocation.location;
-      }
-      if (databaseLocation.latitude) {
-        profileDataWithHashtags.latitude = databaseLocation.latitude;
-      }
-      if (databaseLocation.longitude) {
-        profileDataWithHashtags.longitude = databaseLocation.longitude;
-      }
-    }
-
-    const result = await saveWorkerProfileFromOnboardingAction(
-      profileDataWithHashtags as any,
-      userToken
-    );
-
+    
+    // Debug: Log the data being sent to the action
+    
+    const result = await saveWorkerProfileFromOnboardingAction(profileDataWithHashtags as any, userToken);
+    
+    
     // Mark saving step as complete
-    setChatSteps((prev) =>
-      prev.map((step) =>
-        step.id === savingStepId ? { ...step, isComplete: true } : step
-      )
-    );
-
+    setChatSteps(prev => prev.map(step => 
+      step.id === savingStepId ? { ...step, isComplete: true } : step
+    ));
+    
     if (result.success) {
       if (result.workerProfileId) {
         setWorkerProfileId(result.workerProfileId);
       }
-
+      
       // Add success step
       const successStep: ChatStep = {
         id: Date.now() + 2,
         type: "bot",
-        content:
-          "🎉 Profile created successfully! Redirecting to your dashboard...",
-        isComplete: true,
+        content: "🎉 Profile created successfully! Redirecting to your dashboard...",
+        isComplete: true
       };
-      setChatSteps((prev) => [...prev, successStep]);
-
-      router.push(`/user/${userId}/worker`);
+      setChatSteps(prev => [...prev, successStep]);
+      
+      // Navigate to worker dashboard after a short delay
+      setTimeout(() => {
+        router.push(`/user/${userId}/worker`);
+      }, 2000);
     } else {
-      console.error("Profile submission failed:", result.error);
-      const errorMessage =
-        result.error || "Failed to save profile. Please try again.";
-      setError(errorMessage);
-
-      // Add error step to show the actual error to user
-      const errorStep: ChatStep = {
-        id: Date.now() + 2,
-        type: "bot",
-        content: `❌ Profile submission failed: ${errorMessage}`,
-        isComplete: true,
-      };
-      setChatSteps((prev) => [...prev, errorStep]);
-
-      throw new Error(errorMessage);
+      setError('Failed to save profile. Please try again.');
     }
-  } catch (error) {
-    setError("An error occurred while saving your profile. Please try again.");
+    } catch (error) {
+    setError('An error occurred while saving your profile. Please try again.');
   }
 }
 
@@ -206,16 +234,16 @@ export async function createWorkerProfile(
 ): Promise<string | null> {
   try {
     const result = await createWorkerProfileAction(userToken);
-
+    
     if (result.success && result.workerProfileId) {
       setWorkerProfileId(result.workerProfileId);
       return result.workerProfileId;
     } else {
-      setError("Failed to create worker profile. Please try again.");
+      setError('Failed to create worker profile. Please try again.');
       return null;
     }
   } catch (error) {
-    setError("Failed to create worker profile. Please try again.");
+    setError('Failed to create worker profile. Please try again.');
     return null;
   }
 }
@@ -230,61 +258,47 @@ export function processFormDataForSubmission(
   return new Promise(async (resolve, reject) => {
     try {
       // Extract job title from skills field if not already provided
-      let extractedJobTitle = formData.jobTitle || "";
+      let extractedJobTitle = formData.jobTitle || '';
       if (!extractedJobTitle && formData.skills && ai) {
         try {
           const jobTitleResult = await interpretJobTitle(formData.skills, ai);
           if (jobTitleResult && jobTitleResult.confidence >= 50) {
             extractedJobTitle = jobTitleResult.jobTitle;
           }
-        } catch (error) {}
+        } catch (error) {
+        }
       }
 
       // Parse experience to get numeric values
-      const { years: experienceYears, months: experienceMonths } =
-        parseExperienceToNumeric(formData.experience || "");
-
+      const { years: experienceYears, months: experienceMonths } = parseExperienceToNumeric(formData.experience || '');
+      
       const requiredData: ProfileData = {
-        about: formData.about || "",
-        experience: formData.experience || "",
-        skills: formData.skills || "",
-        qualifications: formData.qualifications || "",
-        equipment:
-          typeof formData.equipment === "string" &&
-          formData.equipment.trim().length > 0
-            ? formData.equipment
-                .split(/[,\n;]/)
-                .map((item: string) => ({
-                  name: item.trim(),
-                  description: undefined,
-                }))
-                .filter(
-                  (item: { name: string; description: undefined }) =>
-                    item.name.length > 0
-                )
-            : [],
-        hourlyRate: String(formData.hourlyRate || ""),
-        location:
-          typeof formData.location === "string"
-            ? formData.location
-            : JSON.stringify(formData.location || ""),
-        availability: formData.availability || {
-          days: [],
-          startTime: "09:00",
-          endTime: "17:00",
-          frequency: "weekly",
-          ends: "never",
-          startDate: new Date().toISOString().split("T")[0],
+        about: formData.about || '',
+        experience: formData.experience || '',
+        skills: formData.skills || '',
+        qualifications: formData.qualifications || '',
+        equipment: typeof formData.equipment === 'string' && formData.equipment.trim().length > 0
+          ? formData.equipment.split(/[,\n;]/).map((item: string) => ({ name: item.trim(), description: undefined })).filter((item: { name: string; description: undefined }) => item.name.length > 0)
+          : [],
+        hourlyRate: String(formData.hourlyRate || ''),
+        location: typeof formData.location === 'string' ? formData.location : JSON.stringify(formData.location || ''),
+        availability: formData.availability || { 
+          days: [], 
+          startTime: '09:00', 
+          endTime: '17:00',
+          frequency: 'weekly',
+          ends: 'never',
+          startDate: new Date().toISOString().split('T')[0],
           endDate: undefined,
-          occurrences: undefined,
+          occurrences: undefined
         },
-        videoIntro: formData.videoIntro,
-        time: formData.time || "",
+        videoIntro: typeof formData.videoIntro === 'string' ? formData.videoIntro : '',
+        time: formData.time || '',
         jobTitle: formData.jobTitle || extractedJobTitle,
         experienceYears: experienceYears,
-        experienceMonths: experienceMonths,
+        experienceMonths: experienceMonths
       };
-
+      
       resolve(requiredData);
     } catch (error) {
       reject(error);
@@ -295,10 +309,7 @@ export function processFormDataForSubmission(
 /**
  * Validate form data before submission
  */
-export function validateFormData(formData: any): {
-  isValid: boolean;
-  errors: Record<string, string>;
-} {
+export function validateFormData(formData: any): { isValid: boolean; errors: Record<string, string> } {
   const validation = validateWorkerProfileData(formData);
   return validation;
 }
@@ -315,28 +326,26 @@ export async function handleManualFormSubmission(
   router: any,
   ai?: any
 ): Promise<void> {
+  if (!userToken) {
+    setError('Authentication required. Please sign in again.');
+    return;
+  }
+
+  // Validate the form data before proceeding
+  const validation = validateFormData(formData);
+  if (!validation.isValid) {
+    setError(`Form validation failed: ${Object.values(validation.errors).join(', ')}`);
+    return;
+  }
+
+  setIsSubmitting(true);
+  setError(null);
+  
   try {
-    if (!userToken) {
-      setError("Authentication required. Please sign in again.");
-      return;
-    }
-
-    // Validate the form data before proceeding
-    const validation = validateFormData(formData);
-    if (!validation.isValid) {
-      toast.error(
-        `Form validation failed: ${Object.values(validation.errors).join(", ")}`
-      );
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError(null);
-
     const requiredData = await processFormDataForSubmission(formData, ai);
-
+    
     // Save the profile data to database
-    const result = await handleProfileSubmission(
+    await handleProfileSubmission(
       requiredData,
       userToken,
       userId,
@@ -346,10 +355,8 @@ export async function handleManualFormSubmission(
       router,
       ai
     );
-
-    toast.success("Profile updated successfully!");
   } catch (error) {
-    toast.error("Failed to save profile. Please try again.");
+    setError('Failed to save profile. Please try again.');
   } finally {
     setIsSubmitting(false);
   }

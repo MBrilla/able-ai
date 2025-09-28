@@ -49,7 +49,6 @@ export function useOnboardingState(user: any) {
   
   // Support and escalation tracking
   const [unrelatedResponseCount, setUnrelatedResponseCount] = useState(0); // Count of unrelated responses
-  const [inappropriateContentCount, setInappropriateContentCount] = useState(0); // Count of inappropriate content responses
   const [showHumanSupport, setShowHumanSupport] = useState(false);         // Show human support UI
   const [supportCaseId, setSupportCaseId] = useState<string | null>(null); // Support case ID
   
@@ -114,6 +113,7 @@ export function useOnboardingState(user: any) {
         
         // Initialize chat steps based on existing data
         const initialSteps = initializeChatSteps(result.data, existingFormData, REQUIRED_FIELDS_CONFIG, []);
+        console.log('Initial chat steps:', initialSteps);
         setChatSteps(initialSteps);
       } else {
         console.log('No existing profile data found');
@@ -182,8 +182,6 @@ export function useOnboardingState(user: any) {
     setClickedSanitizedButtons,
     unrelatedResponseCount,
     setUnrelatedResponseCount,
-    inappropriateContentCount,
-    setInappropriateContentCount,
     showHumanSupport,
     setShowHumanSupport,
     supportCaseId,

@@ -13,7 +13,7 @@
 }
 
 .modalContent {
-  background: var(--background-dark);
+  background: white;
   border-radius: 12px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   max-width: 500px;
@@ -34,7 +34,7 @@
 .modalTitle {
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--text-white);
+  color: #111827;
   margin: 0;
 }
 
@@ -68,12 +68,12 @@
 .emailIcon {
   width: 48px;
   height: 48px;
-  color: var(--text-white);
+  color: #3b82f6;
 }
 
 .modalText {
   font-size: 1.125rem;
-  color: #fff;
+  color: #374151;
   margin: 0 0 16px 0;
   font-weight: 500;
 }
@@ -91,7 +91,7 @@
 
 .instructions {
   font-size: 0.875rem;
-  color: #fff;
+  color: #6b7280;
   margin: 0 0 24px 0;
   line-height: 1.5;
 }

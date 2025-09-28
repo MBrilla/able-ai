@@ -27,6 +27,7 @@ import {
   renderJobTitleConfirmationStep, 
   renderSimilarSkillsConfirmationStep, 
   renderHashtagGenerationStep, 
+  renderSanitizedStep, 
   renderConfirmationStep, 
   renderExistingSkillTitleConfirmationStep, 
   renderSanitizedConfirmationStep,
@@ -36,6 +37,7 @@ import {
 // Import specialized components
 import IncidentBanner from './IncidentBanner';
 import SupportOptions from './SupportOptions';
+import TypingBotMessage from './TypingBotMessage';
 import AIVideoScriptDisplay from './AIVideoScriptDisplay';
 
 // Import styles
@@ -125,6 +127,7 @@ export default function OnboardingRenderer({
   formData,
   isSubmitting,
   error,
+  isTyping,
   isReportingIncident,
   setupMode,
   showSetupChoice,
@@ -132,6 +135,9 @@ export default function OnboardingRenderer({
   existingProfileData,
   manualFormData,
   hashtagState,
+  clickedSanitizedButtons,
+  reformulateField,
+  confirmedSteps,
   isConfirming,
   supportCaseId,
   
@@ -142,8 +148,10 @@ export default function OnboardingRenderer({
   // Event handlers
   handleInputSubmit,
   handleInputChange,
+  handleSanitizedConfirm,
   handleSanitizedReformulate,
   handleSanitizedConfirmation,
+  setFormData,
   setChatSteps,
   ai,
   workerProfileId,
@@ -163,13 +171,12 @@ export default function OnboardingRenderer({
   handleExistingSkillTitleUseAnyway,
   handleExistingSkillTitleChange,
   handleProfileSubmission,
+  user,
   setSetupMode,
   setShowSetupChoice,
   setManualFormData,
   isSpecialComponentActive
 }: OnboardingRendererProps) {
-
-  const DEFAULT_SKILL_NAME = "default"
   
   // Show loading state
   if (isCheckingExistingData) {
@@ -222,7 +229,7 @@ export default function OnboardingRenderer({
             onSubmit={handleManualFormSubmit}
             onSwitchToAI={handleSwitchToAI}
             initialData={manualFormData}
-            workerProfileId={workerProfileId}
+            workerProfileId={null}
             existingProfileData={existingProfileData}
           />
         </div>
@@ -256,12 +263,14 @@ export default function OnboardingRenderer({
         )}
 
         {chatSteps.map((step, idx) => {
-          const key = `step-${step.id}-${step.type}-${idx}`;
+          const key = `${step.id}-${idx}`;
           
           if (step.type === "support") {
             return (
               <div key={key} className={styles.supportComponent}>
-
+                <div className={`${styles.componentLabel}`} style={{ background: '#ff6b6b', color: 'white' }}>
+                  🆘 Support Options
+                </div>
                 <SupportOptions
                   onSwitchToManual={() => { setSetupMode('manual'); setShowSetupChoice(false); }}
                   onContactSupport={() => { window.open('mailto:support@able-ai.com?subject=AI Onboarding Support Needed', '_blank'); }}
@@ -290,16 +299,13 @@ export default function OnboardingRenderer({
           }
           
           if (step.type === "summary") {
-
+            console.log('🔍 Rendering summary step with data:', step.summaryData);
             return renderSummaryStep(
               key,
               isSubmitting,
               async () => {
-
+                console.log('🔍 Summary step confirm clicked');
                 await handleProfileSubmission(step.summaryData);
-                // Mark summary step as complete
-                setChatSteps(prev => prev.map(s => s.id === step.id ? { ...s, isComplete: true } : s));
-
               }
             );
           }
@@ -332,13 +338,6 @@ export default function OnboardingRenderer({
           }
           
           if (step.type === "bot") {
-            // Skip rendering bot messages that are followed by input steps
-            // The input step will render the bot message itself to avoid duplicates
-            const nextStep = chatSteps[idx + 1];
-            if (nextStep && nextStep.type === "input") {
-              return null;
-            }
-
             // Use MessageBubble like the old file for consistent styling
             return (
               <MessageBubble
@@ -503,7 +502,7 @@ export default function OnboardingRenderer({
           if (step.type === "video") {
             return renderVideoStep(
               key,
-              (file) => handleVideoUpload(file, formData?.skills || DEFAULT_SKILL_NAME, step.id),
+              (file) => handleVideoUpload(file, step.inputConfig?.name, step.id),
               <AIVideoScriptDisplay formData={formData} ai={ai} />
             );
           }

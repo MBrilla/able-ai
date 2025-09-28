@@ -36,33 +36,13 @@ export function setQualifications(value: string): {
     };
   }
   
-  // Check for skip/none responses first
-  const skipPatterns = [
-    'none', 'n/a', 'na', 'skip', 'no qualifications', 'no certs', 'no certifications',
-    'don\'t have any', 'don\'t have', 'no formal', 'no official', 'nothing',
-    'not applicable', 'not relevant', 'no training', 'no education'
-  ];
-  
-  const isSkipResponse = skipPatterns.some(pattern => 
-    trimmed.toLowerCase().includes(pattern.toLowerCase())
-  );
-  
-  if (isSkipResponse) {
-    return { 
-      ok: true, 
-      qualifications: 'No formal qualifications',
-      isAppropriate: true,
-      isWorkerRelated: true
-    };
-  }
-  
-  // Basic validation for non-skip responses
+  // Basic validation
   if (!trimmed) {
-    return { ok: false, error: 'Please enter your qualifications or say "none" if you don\'t have any' };
+    return { ok: false, error: 'Please enter your qualifications' };
   }
   
   if (trimmed.length < 10) {
-    return { ok: false, error: 'Qualifications must be at least 10 characters long, or say "none" if you don\'t have any' };
+    return { ok: false, error: 'Qualifications must be at least 10 characters long' };
   }
   
   if (trimmed.length > 1000) {

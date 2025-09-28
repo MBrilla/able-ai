@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useFirebase } from '@/context/FirebaseContext';
+import { sendEmailVerification, sendSignInLinkToEmail } from 'firebase/auth';
+import { toast } from 'sonner';
 import EmailVerificationModal from '@/app/components/signin/EmailVerificationModal';
 
 interface EmailVerificationGuardProps {
@@ -21,7 +23,10 @@ const EmailVerificationGuard: React.FC<EmailVerificationGuardProps> = ({
   requireVerification = true
 }) => {
   const { user, loading } = useAuth();
+  const { authClient } = useFirebase();
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+
   // Don't render anything while loading
   if (loading) {
     return (
@@ -67,6 +72,10 @@ const EmailVerificationGuard: React.FC<EmailVerificationGuardProps> = ({
           isOpen={showVerificationModal}
           onClose={() => setShowVerificationModal(false)}
           userEmail={user.emailVerification.email || ''}
+          onVerificationComplete={() => {
+            setShowVerificationModal(false);
+            toast.success('Email verified successfully!');
+          }}
         />
         <div style={{
           display: 'flex',

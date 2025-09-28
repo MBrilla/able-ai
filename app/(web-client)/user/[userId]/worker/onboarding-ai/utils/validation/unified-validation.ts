@@ -103,46 +103,8 @@ export async function validateUserInput(
     };
   }
   
-  // 4. RELEVANCE CHECK (skip for qualifications and equipment with skip responses)
-  if (context.currentField === 'qualifications') {
-    const skipKeywords = ['none', 'n/a', 'na', 'skip', 'no qualifications', 'no certs', 'no certifications', 'don\'t have any', 'don\'t have', 'no formal', 'no official', 'nothing', 'not applicable', 'not relevant', 'no training', 'no education'];
-    const hasSkipKeywords = skipKeywords.some(keyword => input.toLowerCase().includes(keyword));
-    
-    if (hasSkipKeywords) {
-      // Skip relevance check for qualifications with skip responses
-      return {
-        isValid: true,
-        isHelpRequest: false,
-        isInappropriate: false,
-        needsSupport: false,
-        confidence: 0.9,
-        reason: 'Valid skip response for qualifications',
-        suggestedAction: 'continue',
-        sanitizedInput: input
-      };
-    }
-  }
-  
-  if (context.currentField === 'equipment') {
-    const skipKeywords = ['none', 'n/a', 'na', 'skip', 'no equipment', 'no tools', 'no gear', 'don\'t have any', 'don\'t have', 'no formal', 'no official', 'nothing', 'not applicable', 'not relevant', 'no tools', 'no gear', 'no equipment', 'i don\'t have any', 'i don\'t have', 'i have none', 'i have nothing'];
-    const hasSkipKeywords = skipKeywords.some(keyword => input.toLowerCase().includes(keyword));
-    
-    if (hasSkipKeywords) {
-      // Skip relevance check for equipment with skip responses
-      return {
-        isValid: true,
-        isHelpRequest: false,
-        isInappropriate: false,
-        needsSupport: false,
-        confidence: 0.9,
-        reason: 'Valid skip response for equipment',
-        suggestedAction: 'continue',
-        sanitizedInput: 'No equipment'
-      };
-    }
-  }
-  
-  const relevanceCheck = await checkRelevance(input, context, aiService);
+  // 4. RELEVANCE CHECK
+  const relevanceCheck = checkRelevance(input, context);
   if (!relevanceCheck.isRelevant) {
     return {
       isValid: false,
@@ -157,22 +119,17 @@ export async function validateUserInput(
   
   // 5. AI-POWERED VALIDATION (if available)
   if (aiService) {
-    // Special handling for equipment fields - be very lenient
-    if (context.currentField === 'equipment') {
-      // For equipment, only do basic validation, skip AI validation
-    } else {
-      const aiValidation = await validateWithAI(input, context, aiService);
-      if (!aiValidation.isValid) {
-        return {
-          isValid: false,
-          isHelpRequest: aiValidation.isHelpRequest || false,
-          isInappropriate: false,
-          needsSupport: false,
-          confidence: aiValidation.confidence,
-          reason: aiValidation.reason,
-          suggestedAction: aiValidation.suggestedAction || 'retry'
-        };
-      }
+    const aiValidation = await validateWithAI(input, context, aiService);
+    if (!aiValidation.isValid) {
+      return {
+        isValid: false,
+        isHelpRequest: aiValidation.isHelpRequest || false,
+        isInappropriate: false,
+        needsSupport: false,
+        confidence: aiValidation.confidence,
+        reason: aiValidation.reason,
+        suggestedAction: aiValidation.suggestedAction || 'retry'
+      };
     }
   }
   
@@ -334,9 +291,8 @@ function detectHelpRequest(input: string, context: ValidationContext): {
     }
   }
   
-  // Support escalation check - be more lenient
-  // Skip escalation for equipment and hourlyRate fields to prevent false positives
-  if (!['equipment', 'hourlyRate', 'wage'].includes(context.currentField) && (context.retryCount >= 5 || context.conversationLength > 50)) {
+  // Support escalation check
+  if (context.retryCount >= 3 || context.conversationLength > 20) {
     return {
       isHelpRequest: true,
       needsSupport: true,
@@ -363,98 +319,62 @@ function detectHelpRequest(input: string, context: ValidationContext): {
 /**
  * Check relevance to current field
  */
-async function checkRelevance(input: string, context: ValidationContext, aiService?: any): Promise<{
+function checkRelevance(input: string, context: ValidationContext): {
   isRelevant: boolean;
   confidence: number;
   reason: string;
-}> {
+} {
   const lowerInput = input.toLowerCase();
   
-  // AI-POWERED RELEVANCE CHECK - Let AI determine everything
-  if (!aiService) {
-    // Fallback to basic validation if no AI service
+  // Define field-specific relevance keywords
+  const fieldKeywords = {
+    bio: ['about', 'myself', 'background', 'story', 'professional', 'experience', 'skills', 'passion', 'career'],
+    skills: ['skill', 'ability', 'capability', 'expertise', 'proficient', 'experienced', 'work', 'service', 'job'],
+    experience: ['year', 'month', 'experience', 'work', 'job', 'career', 'professional', 'beginner', 'intermediate', 'advanced', 'senior'],
+    qualifications: ['degree', 'diploma', 'certificate', 'certification', 'qualification', 'license', 'education', 'training', 'course'],
+    location: ['address', 'location', 'city', 'town', 'area', 'postcode', 'zip', 'street', 'road', 'based', 'live'],
+    availability: ['available', 'schedule', 'time', 'day', 'week', 'hour', 'work', 'free', 'busy', 'calendar'],
+    equipment: ['tool', 'equipment', 'machine', 'device', 'computer', 'laptop', 'phone', 'camera', 'software', 'hardware'],
+    wage: ['rate', 'wage', 'salary', 'pay', 'price', 'cost', 'hour', 'day', 'week', 'pound', 'dollar', 'money'],
+    video: ['video', 'record', 'introduction', 'introduce', 'myself', 'camera', 'film', 'record']
+  };
+  
+  const relevantKeywords = fieldKeywords[context.currentField as keyof typeof fieldKeywords] || [];
+  const hasRelevantKeywords = relevantKeywords.some(keyword => lowerInput.includes(keyword));
+  
+  // Check for off-topic responses
+  const offTopicPatterns = [
+    'i don\'t know', 'i don\'t understand', 'what do you mean', 'can you explain',
+    'i\'m confused', 'i need help', 'i don\'t have', 'i can\'t', 'i won\'t',
+    'this is stupid', 'this is boring', 'i hate this', 'i don\'t want to',
+    'hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening',
+    'thank you', 'thanks', 'please', 'sorry', 'excuse me'
+  ];
+  
+  const isOffTopic = offTopicPatterns.some(pattern => lowerInput.includes(pattern));
+  
+  // Calculate relevance confidence
+  let confidence = 0.5;
+  if (hasRelevantKeywords) confidence += 0.3;
+  if (isOffTopic) confidence -= 0.4;
+  if (input.trim().length < 5) confidence -= 0.2;
+  if (input.trim().length > 500) confidence -= 0.1;
+  
+  confidence = Math.max(0, Math.min(1, confidence));
+  
+  if (confidence < 0.6) {
     return {
-      isRelevant: true,
-      confidence: 0.7,
-      reason: 'AI service not available - using fallback validation'
+      isRelevant: false,
+      confidence,
+      reason: 'Response doesn\'t seem to relate to the current question'
     };
   }
-
-  try {
-    const prompt = `Analyze if this user input is relevant to a ${context.currentField} field in a professional worker onboarding form:
-
-"${input}"
-
-Context:
-- Field: ${context.currentField}
-- User role: ${context.userRole}
-- Conversation length: ${context.conversationLength}
-
-Determine if the input is:
-1. RELEVANT to the ${context.currentField} field
-2. APPROPRIATE for professional context
-3. COMPLETE enough to be useful
-
-Be VERY lenient and accepting. Only reject if the input is clearly:
-- Completely unrelated to the field
-- Inappropriate/offensive content
-- Nonsensical gibberish
-
-For ${context.currentField} field, accept:
-- Job titles, professions, skills (for skills field)
-- Numbers, rates, prices (for wage fields)  
-- Equipment, tools, materials (for equipment field)
-- "None", "skip", "N/A" responses (for optional fields)
-- Short responses that are still relevant
-
-Respond with JSON:
-{
-  "isRelevant": boolean,
-  "confidence": number (0-1),
-  "reason": string
-}`;
-
-    const response = await geminiAIAgent(
-      "gemini-2.0-flash",
-      {
-        prompt: prompt,
-        responseSchema: TypedSchema.object({
-          properties: {
-            isRelevant: TypedSchema.boolean(),
-            confidence: TypedSchema.number(),
-            reason: TypedSchema.string()
-          },
-          required: ['isRelevant', 'confidence', 'reason']
-        }),
-        isStream: false,
-      },
-      aiService
-    );
-
-    if (!response.ok) {
-      return {
-        isRelevant: true,
-        confidence: 0.7,
-        reason: 'AI analysis failed - accepting input'
-      };
-    }
-    
-    const data = response.data as { isRelevant: boolean; confidence: number; reason: string };
-    
-    return {
-      isRelevant: data.isRelevant || true,
-      confidence: data.confidence || 0.8,
-      reason: data.reason || 'AI analysis completed'
-    };
-  } catch (error) {
-    console.error('AI relevance check failed:', error);
-    // Fallback to accepting the input
-    return {
-      isRelevant: true,
-      confidence: 0.7,
-      reason: 'AI analysis failed - accepting input'
-    };
-  }
+  
+  return {
+    isRelevant: true,
+    confidence,
+    reason: 'Response appears relevant to the current field'
+  };
 }
 
 /**
@@ -477,11 +397,9 @@ async function validateWithAI(
 "${input}"
 
 Check for:
-1. Appropriateness for professional context (be VERY lenient - only flag clearly inappropriate content)
+1. Appropriateness for professional context
 2. Relevance to ${context.currentField} field
 3. Quality and completeness
-
-IMPORTANT: For equipment fields, be very lenient. Equipment like "Baking soda, Mixers, Ovens" is perfectly appropriate for a baker. Only flag content that is clearly inappropriate, offensive, or unrelated to work equipment.
 
 Respond with JSON:
 {

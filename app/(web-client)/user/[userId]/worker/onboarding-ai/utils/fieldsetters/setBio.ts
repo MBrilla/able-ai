@@ -60,12 +60,9 @@ export function setBio(value: string, context?: {
     return { ok: false, error: 'Bio must be less than 1000 characters' };
   }
   
-  // For bio field, be very lenient - only check for extreme inappropriate content
-  // Don't reject based on off-topic content, just clean it up
+  // Check for inappropriate content
   const inappropriateCheck = checkInappropriateContent(trimmed);
-  
-  // Only reject if it's extremely inappropriate (not just casual language)
-  if (!inappropriateCheck.isAppropriate && inappropriateCheck.severity === 'critical') {
+  if (!inappropriateCheck.isAppropriate) {
     return { 
       ok: false, 
       error: inappropriateCheck.message || 'Please keep your bio professional and appropriate',
@@ -73,10 +70,23 @@ export function setBio(value: string, context?: {
     };
   }
   
-  // Don't check for off-topic content - bio should be very lenient
-  // Accept any content and let AI clean it up
+  // Check if content is worker-related
+  const offTopicCheck = checkOffTopicResponse({
+    currentStep: 'bio',
+    currentField: 'bio',
+    currentPrompt: 'Tell me about yourself! Share your story, what drives you, and what makes you unique as a professional.',
+    previousMessages: []
+  }, trimmed);
   
-  // Normalize bio text - basic cleanup
+  if (!offTopicCheck.isRelevant) {
+    return { 
+      ok: false, 
+      error: 'Please focus on your professional background and what makes you unique as a worker',
+      isWorkerRelated: false
+    };
+  }
+  
+  // Normalize bio text
   const normalizedBio = trimmed
     .replace(/\s+/g, ' ') // Replace multiple spaces with single space
     .replace(/\n\s*\n/g, '\n\n') // Normalize paragraph breaks

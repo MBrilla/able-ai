@@ -41,30 +41,25 @@ export function setWage(value: string): {
   }
   
   // Check if it's work-related
-  // Special case: pure numbers are always considered work-related for wage fields
-  const isPureNumber = /^\d+(\.\d+)?$/.test(trimmed);
+  const offTopicCheck = checkOffTopicResponse({
+    currentStep: 'wage',
+    currentField: 'hourlyRate',
+    currentPrompt: 'What\'s your preferred hourly rate?',
+    previousMessages: []
+  }, trimmed);
   
-  if (!isPureNumber) {
-    const offTopicCheck = checkOffTopicResponse({
-      currentStep: 'wage',
-      currentField: 'hourlyRate',
-      currentPrompt: 'What\'s your preferred hourly rate?',
-      previousMessages: []
-    }, trimmed);
-    
-    if (!offTopicCheck.isRelevant) {
-      return { 
-        ok: false, 
-        error: 'Please provide your hourly rate (e.g., £15/hour, £20 per hour)',
-        isWorkerRelated: false
-      };
-    }
+  if (!offTopicCheck.isRelevant) {
+    return { 
+      ok: false, 
+      error: 'Please provide a rate for your services (e.g., £15/hour, £100/day)',
+      isWorkerRelated: false
+    };
   }
 
-  // Extract number with better regex to handle various formats including decimals
+  // Extract number with better regex to handle various formats
   const numMatch = trimmed.match(/(\d+(?:\.\d+)?)/);
   if (!numMatch) {
-    return { ok: false, error: 'Please enter a valid number for your hourly rate (e.g., £15, 20/hour, £25 per hour, 15.50, £12.50 per hour)' };
+    return { ok: false, error: 'Please enter a valid number for your rate (e.g., £15, 20/hour, 100 per day)' };
   }
   
   const amount = parseFloat(numMatch[1]);
@@ -77,22 +72,11 @@ export function setWage(value: string): {
   // Determine unit with improved detection
   let unit: WageUnit = 'hour'; // Default to hourly
   
-  // For hourly rate field, only accept hourly rates
   if (/week|wk|w\b|weekly/.test(trimmed)) {
-    return { 
-      ok: false, 
-      error: 'Please enter your hourly rate only (e.g., £15/hour, £20 per hour). Daily and weekly rates are not accepted for this field.' 
-    };
-  }
-  
-  if (/day|daily|d\b|per\s*day/.test(trimmed)) {
-    return { 
-      ok: false, 
-      error: 'Please enter your hourly rate only (e.g., £15/hour, £20 per hour). Daily rates are not accepted for this field.' 
-    };
-  }
-  
-  if (/hour|hr|h\b|per\s*hour|ph|p\.h\./.test(trimmed)) {
+    unit = 'week';
+  } else if (/day|daily|d\b|per\s*day/.test(trimmed)) {
+    unit = 'day';
+  } else if (/hour|hr|h\b|per\s*hour|ph|p\.h\./.test(trimmed)) {
     unit = 'hour';
   }
 
@@ -112,7 +96,37 @@ export function setWage(value: string): {
     }
   }
   
-  // Only hourly rates are accepted for this field
+  if (unit === 'day') {
+    const minDailyRate = VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE * 8; // 8 hours
+    if (amount < minDailyRate) {
+      return { 
+        ok: false, 
+        error: `Daily rate should be at least £${minDailyRate} to comply with minimum wage laws (8 hours × £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}/hour).` 
+      };
+    }
+    if (amount > 2000) {
+      return { 
+        ok: false, 
+        error: 'Daily rate seems unusually high. Please enter a reasonable amount (≤ £2000/day). If this is correct, please contact support.' 
+      };
+    }
+  }
+  
+  if (unit === 'week') {
+    const minWeeklyRate = VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE * 40; // 40 hours
+    if (amount < minWeeklyRate) {
+      return { 
+        ok: false, 
+        error: `Weekly rate should be at least £${minWeeklyRate} to comply with minimum wage laws (40 hours × £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE}/hour).` 
+      };
+    }
+    if (amount > 10000) {
+      return { 
+        ok: false, 
+        error: 'Weekly rate seems unusually high. Please enter a reasonable amount (≤ £10000/week). If this is correct, please contact support.' 
+      };
+    }
+  }
 
   return { 
     ok: true, 

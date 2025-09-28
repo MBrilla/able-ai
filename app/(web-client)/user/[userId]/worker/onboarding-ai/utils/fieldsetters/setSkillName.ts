@@ -7,7 +7,6 @@
  */
 
 import { validateUserInput, type ValidationContext } from '../validation/unified-validation';
-import { Schema } from '@firebase/ai';
 
 /**
  * Set and validate primary skill name
@@ -57,73 +56,13 @@ export async function setSkillName(value: string, aiService?: any): Promise<{
     };
   }
   
-  // Use AI to extract and clean the profession/skill name
-  let skillName = trimmed;
-  
-  if (aiService) {
-    try {
-      const { geminiAIAgent } = await import('@/lib/firebase/ai');
-      
-      const response = await geminiAIAgent(
-        "gemini-2.0-flash",
-        {
-          prompt: `Extract the profession or job title from this user input. Return only the clean profession name as a single word or short phrase.
-
-Examples:
-- "I am a baker" → "Baker"
-- "I work as a mechanic" → "Mechanic" 
-- "I Am A Machinist" → "Machinist"
-- "Software Engineer" → "Software Engineer"
-- "I'm a teacher" → "Teacher"
-- "Chef" → "Chef"
-
-User input: "${trimmed}"
-
-Return only the clean profession name:`,
-          responseSchema: Schema.object({
-            properties: {
-              profession: Schema.string()
-            },
-            required: ["profession"]
-          }),
-          isStream: false,
-        },
-        aiService
-      );
-      
-      if (response.ok && response.data) {
-        const data = response.data as { profession: string };
-        skillName = data.profession;
-        console.log('🔍 AI extracted skill name:', skillName);
-      } else {
-        console.log('🔍 AI extraction failed, using fallback');
-        // Fallback to basic normalization
-        skillName = trimmed
-          .replace(/\s+/g, ' ')
-          .trim()
-          .split(' ')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(' ');
-      }
-    } catch (error) {
-      console.error('AI skill name extraction failed:', error);
-      // Fallback to basic normalization
-      skillName = trimmed
-        .replace(/\s+/g, ' ')
-        .trim()
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
-    }
-  } else {
-    // Fallback to basic normalization if no AI service
-    skillName = trimmed
-      .replace(/\s+/g, ' ')
-      .trim()
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-  }
+  // Normalize capitalization and spacing
+  const skillName = trimmed
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
   
   return { 
     ok: true, 
