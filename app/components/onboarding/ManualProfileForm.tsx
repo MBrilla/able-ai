@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getPrivateWorkerProfileAction } from '@/actions/user/gig-worker-profile';
+import { checkExistingProfileDataAction } from '@/actions/user/check-existing-profile-data-action';
 import { useAuth } from '@/context/AuthContext';
 import { VALIDATION_CONSTANTS } from '@/app/constants/validation';
 import styles from './ManualProfileForm.module.css';
 import LocationPickerBubble from './LocationPickerBubble';
 import VideoRecorderOnboarding from './VideoRecorderOnboarding';
+import AIValidationModal from './AIValidationModal';
+import DataReviewModal from './DataReviewModal';
+import DataToggleOptions, { ExistingData } from './DataToggleOptions';
+import InlineDataToggle from './InlineDataToggle';
 import { ref, uploadBytesResumable, getDownloadURL, getStorage } from "firebase/storage";
 import { firebaseApp } from "@/lib/firebase/clientApp";
 import { geminiAIAgent } from '@/lib/firebase/ai';
@@ -71,6 +76,7 @@ interface ManualProfileFormProps {
   onSwitchToAI: () => void;
   initialData?: Partial<FormData>;
   workerProfileId?: string | null;
+  existingProfileData?: ExistingData;
 }
 
 // Export validation function for external use (basic validation only)
@@ -171,13 +177,7 @@ export const validateContentWithAI = async (field: string, value: string): Promi
     let schema: any;
 
     if (field === 'about') {
-      prompt = `Validate this worker's self-description. Check if it's professional and relevant for gig work. Reject if it contains:
-      - Personal names of celebrities, athletes, or fictional characters
-      - Jokes, memes, or inappropriate content
-      - Non-professional information
-      - Gibberish or random text
-      
-      If valid, return the cleaned version. If invalid, explain why it's inappropriate.
+      prompt = `This is a worker's self-description. Be very lenient and only reject content that is clearly inappropriate (explicit content, hate speech, or completely nonsensical). Accept almost everything else including casual language, personal details, and informal descriptions.
       
       Description: "${value}"`;
       
@@ -190,13 +190,7 @@ export const validateContentWithAI = async (field: string, value: string): Promi
         required: ["isValid", "reason", "sanitized"]
       });
     } else if (field === 'skills') {
-      prompt = `Validate this skills list. Check if it contains only professional skills relevant to gig work. Reject if it contains:
-      - Personal names of celebrities, athletes, or fictional characters
-      - Jokes, memes, or inappropriate content
-      - Non-professional skills
-      - Random text or gibberish
-      
-      If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+      prompt = `This is a worker's skills list. Be very lenient and accept any skills that could be relevant to work, even if informal or creative. Only reject content that is clearly inappropriate (explicit content, hate speech, or completely nonsensical).
       
       Skills: "${value}"`;
       
@@ -234,13 +228,7 @@ export const validateContentWithAI = async (field: string, value: string): Promi
         required: ["isValid", "reason", "sanitized"]
       });
     } else if (field === 'equipment') {
-      prompt = `Validate this equipment list. Check if it contains only professional equipment relevant to gig work. Reject if it contains:
-      - Personal names of celebrities, athletes, or fictional characters
-      - Jokes, memes, or inappropriate content
-      - Non-professional items
-      - Random text or gibberish
-      
-      If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+      prompt = `This is a worker's equipment list. Be very lenient and accept any equipment that could be relevant to work, even if informal or creative. Only reject content that is clearly inappropriate (explicit content, hate speech, or completely nonsensical).
       
       Equipment: "${value}"`;
       
@@ -253,13 +241,7 @@ export const validateContentWithAI = async (field: string, value: string): Promi
         required: ["isValid", "reason", "sanitized"]
       });
     } else if (field === 'qualifications') {
-      prompt = `Validate this qualifications list. Check if it contains only professional qualifications, certifications, degrees, or licenses relevant to gig work. Reject if it contains:
-      - Personal names of celebrities, athletes, or fictional characters
-      - Jokes, memes, or inappropriate content
-      - Non-professional qualifications
-      - Random text or gibberish
-      
-      If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+      prompt = `This is a worker's qualifications list. Be very lenient and accept any qualifications, certifications, or relevant experience, even if informal or self-taught. Only reject content that is clearly inappropriate (explicit content, hate speech, or completely nonsensical).
       
       Qualifications: "${value}"`;
       
@@ -303,10 +285,11 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
   onSubmit,
   onSwitchToAI,
   initialData = {},
-  workerProfileId = null
+  workerProfileId = null,
+  existingProfileData = {}
 }) => {
   const { user } = useAuth();
- 
+  
   
   const [formData, setFormData] = useState<FormData>({
     about: '',
@@ -336,6 +319,54 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [progress, setProgress] = useState(0);
+  
+  // Existing profile data state
+  const [fetchedExistingData, setFetchedExistingData] = useState<any>(null);
+  const [isLoadingExistingData, setIsLoadingExistingData] = useState(false);
+  
+  // Toggle options for choosing between existing and new data
+  const [dataToggleOptions, setDataToggleOptions] = useState({
+    about: 'new' as 'existing' | 'new',
+    skills: 'new' as 'existing' | 'new',
+    location: 'new' as 'existing' | 'new',
+    availability: 'new' as 'existing' | 'new',
+    experience: 'new' as 'existing' | 'new',
+    qualifications: 'new' as 'existing' | 'new',
+    equipment: 'new' as 'existing' | 'new',
+    hourlyRate: 'new' as 'existing' | 'new',
+    videoIntro: 'new' as 'existing' | 'new'
+  });
+  
+  // AI Validation Modal state
+  const [aiValidationModal, setAiValidationModal] = useState<{
+    isOpen: boolean;
+    fieldName: string;
+    originalValue: string;
+    sanitizedValue: string;
+  }>({
+    isOpen: false,
+    fieldName: '',
+    originalValue: '',
+    sanitizedValue: ''
+  });
+
+  // Data Review Modal state
+  const [dataReviewModal, setDataReviewModal] = useState<{
+    isOpen: boolean;
+    originalData: any;
+    cleanedData: any;
+    onConfirm: () => void;
+    onGoBack: () => void;
+  }>({
+    isOpen: false,
+    originalData: {},
+    cleanedData: {},
+    onConfirm: () => {},
+    onGoBack: () => {}
+  });
+
+  // Debounce ref for skill checking
+  const skillCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const weekDays = [
     { value: 'monday', label: 'Monday' },
@@ -356,6 +387,326 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       }));
     }
   }, [workerProfileId, formData.references]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (skillCheckTimeoutRef.current) {
+        clearTimeout(skillCheckTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Fetch existing data on component mount
+  useEffect(() => {
+    fetchExistingData();
+  }, [user?.token]);
+
+  // Initialize toggle options based on existing data
+  useEffect(() => {
+    const dataToUse = fetchedExistingData || existingProfileData;
+    if (dataToUse && Object.keys(dataToUse).length > 0) {
+      const newToggleOptions = { ...dataToggleOptions };
+      
+      // Set to 'existing' if data exists, otherwise keep 'new'
+      // Only check for fields that have toggles (about, location, availability)
+      const fieldsWithToggles = ['about', 'location', 'availability'];
+      
+      fieldsWithToggles.forEach(key => {
+        let hasData = false;
+        
+        if (fetchedExistingData?.profileData) {
+          // Check fetched data structure
+          switch (key) {
+            case 'about':
+              hasData = !!fetchedExistingData.profileData.fullBio;
+              break;
+            case 'location':
+              hasData = !!fetchedExistingData.profileData.location;
+              break;
+            case 'availability':
+              hasData = !!fetchedExistingData.profileData.availabilityJson;
+              break;
+          }
+        } else if (dataToUse) {
+          // Check passed prop data
+          hasData = dataToUse[key as keyof typeof dataToUse] !== undefined && 
+                   dataToUse[key as keyof typeof dataToUse] !== null &&
+                   dataToUse[key as keyof typeof dataToUse] !== '';
+        }
+        
+        if (hasData) {
+          newToggleOptions[key as keyof typeof newToggleOptions] = 'existing';
+        }
+      });
+      
+      setDataToggleOptions(newToggleOptions);
+      
+      // Pre-populate form with existing data for fields set to 'existing'
+      setFormData(prev => {
+        const newFormData = { ...prev };
+        
+        fieldsWithToggles.forEach(key => {
+          if (newToggleOptions[key as keyof typeof newToggleOptions] === 'existing') {
+            let existingValue: any;
+            
+            if (fetchedExistingData?.profileData) {
+              // Use fetched data structure
+              switch (key) {
+                case 'about':
+                  existingValue = fetchedExistingData.profileData.fullBio;
+                  break;
+                case 'location':
+                  existingValue = fetchedExistingData.profileData.location;
+                  break;
+                case 'availability':
+                  existingValue = fetchedExistingData.profileData.availabilityJson;
+                  break;
+              }
+            } else if (dataToUse) {
+              // Use passed prop data
+              existingValue = dataToUse[key as keyof typeof dataToUse];
+            }
+            
+            if (existingValue !== undefined && existingValue !== null) {
+              (newFormData as any)[key] = existingValue;
+            }
+          }
+        });
+        
+        return newFormData;
+      });
+    }
+  }, [fetchedExistingData, existingProfileData]);
+
+  // Handle toggle option changes
+  const handleToggleChange = (field: string, option: 'existing' | 'new') => {
+    setDataToggleOptions(prev => ({
+      ...prev,
+      [field]: option
+    }));
+
+    // Get the data source (fetched or passed as prop)
+    const dataToUse = fetchedExistingData || existingProfileData;
+    
+    // If switching to 'existing', populate with existing data
+    if (option === 'existing' && dataToUse) {
+      let existingValue: any;
+      
+      // Handle different data structures
+      if (fetchedExistingData?.profileData) {
+        // Use fetched data structure
+        switch (field) {
+          case 'about':
+            existingValue = fetchedExistingData.profileData.fullBio;
+            break;
+          case 'location':
+            existingValue = fetchedExistingData.profileData.location;
+            break;
+          case 'availability':
+            existingValue = fetchedExistingData.profileData.availabilityJson;
+            break;
+          default:
+            existingValue = fetchedExistingData.profileData[field];
+        }
+      } else if (existingProfileData) {
+        // Use passed prop data
+        existingValue = existingProfileData[field as keyof ExistingData];
+      }
+      
+      if (existingValue !== undefined && existingValue !== null) {
+        setFormData(prev => ({
+          ...prev,
+          [field]: existingValue
+        } as FormData));
+      }
+    }
+    // If switching to 'new', clear the field
+    else if (option === 'new') {
+      setFormData(prev => ({
+        ...prev,
+        [field]: field === 'hourlyRate' ? 0 : 
+                 field === 'location' ? null :
+                 field === 'availability' ? { days: [], startTime: '09:00', endTime: '17:00', frequency: 'weekly', ends: 'never', startDate: new Date().toISOString().split('T')[0] } :
+                 field === 'videoIntro' ? null : ''
+      }));
+    }
+  };
+
+  // Wrapper function for inline toggle
+  const handleInlineToggle = (fieldKey: string, useExisting: boolean) => {
+    handleToggleChange(fieldKey, useExisting ? 'existing' : 'new');
+  };
+
+  // Helper function to format location data
+  const formatLocationDisplay = (locationData: any) => {
+    if (!locationData) return 'No existing data';
+    
+    try {
+      // Parse if it's a string
+      const data = typeof locationData === 'string' ? JSON.parse(locationData) : locationData;
+      
+      if (!data || !data.address) {
+        return 'No location set';
+      }
+      
+      return data.address;
+    } catch (error) {
+      console.error('Error formatting location:', error);
+      return 'Invalid location data';
+    }
+  };
+
+  // Helper function to format availability data
+  const formatAvailabilityDisplay = (availabilityData: any) => {
+    if (!availabilityData) return 'No existing data';
+    
+    try {
+      // Parse if it's a string
+      const data = typeof availabilityData === 'string' ? JSON.parse(availabilityData) : availabilityData;
+      
+      if (!data || !data.days || !Array.isArray(data.days)) {
+        return 'No availability set';
+      }
+      
+      const dayNames = {
+        'monday': 'Monday',
+        'tuesday': 'Tuesday', 
+        'wednesday': 'Wednesday',
+        'thursday': 'Thursday',
+        'friday': 'Friday',
+        'saturday': 'Saturday',
+        'sunday': 'Sunday'
+      };
+      
+      const selectedDays = data.days.map((day: string) => dayNames[day.toLowerCase() as keyof typeof dayNames] || day).join(', ');
+      const timeRange = data.startTime && data.endTime ? `${data.startTime} - ${data.endTime}` : 'Times not set';
+      
+      return `${selectedDays} (${timeRange})`;
+    } catch (error) {
+      console.error('Error formatting availability:', error);
+      return 'Invalid availability data';
+    }
+  };
+
+  // Fetch existing profile data
+  const fetchExistingData = async () => {
+    if (!user?.token) {
+      console.log('No user token available for existing data check');
+      return;
+    }
+    
+    try {
+      setIsLoadingExistingData(true);
+      console.log('🔍 Fetching existing profile data...');
+      
+      const result = await checkExistingProfileDataAction(user.token);
+      console.log('🔍 Existing data result:', result);
+      
+      if (result.success && result.data) {
+        setFetchedExistingData(result.data);
+        console.log('🔍 Existing data set:', result.data);
+      } else {
+        console.log('No existing profile data found');
+        setFetchedExistingData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching existing data:', error);
+      setFetchedExistingData(null);
+    } finally {
+      setIsLoadingExistingData(false);
+    }
+  };
+
+  // Check if skill already exists for the current user
+  const checkExistingSkill = async (skillName: string): Promise<{ exists: boolean; message?: string }> => {
+    if (!workerProfileId || !skillName.trim()) {
+      return { exists: false };
+    }
+
+    try {
+      const response = await fetch('/api/check-similar-skill', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          skillName: skillName.trim(),
+          workerProfileId: workerProfileId
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to check existing skill:', response.status);
+        return { exists: false };
+      }
+
+      const result = await response.json();
+      
+      if (result.exists && result.similarSkills && result.similarSkills.length > 0) {
+        const exactMatch = result.similarSkills.find((skill: any) => 
+          skill.name.toLowerCase().trim() === skillName.toLowerCase().trim()
+        );
+        
+        if (exactMatch) {
+          return {
+            exists: true,
+            message: `You already have this skill: "${exactMatch.name}". Please choose a different skill or edit your existing one.`
+          };
+        }
+      }
+
+      return { exists: false };
+    } catch (error) {
+      console.error('Error checking existing skill:', error);
+      return { exists: false };
+    }
+  };
+
+  // AI Validation Modal handlers
+  const handleAIValidationConfirm = () => {
+    // Update form data with sanitized value
+    setFormData(prev => ({
+      ...prev,
+      [aiValidationModal.fieldName]: aiValidationModal.sanitizedValue
+    }));
+    
+    // Close modal and continue with submission
+    setAiValidationModal(prev => ({ ...prev, isOpen: false }));
+    continueFormSubmission();
+  };
+
+  const handleAIValidationReject = () => {
+    // Keep original value and close modal
+    setAiValidationModal(prev => ({ ...prev, isOpen: false }));
+    continueFormSubmission();
+  };
+
+  const continueFormSubmission = async () => {
+    // This will be called after AI validation modal is handled
+    // Continue with the rest of the form submission logic
+    try {
+      // Continue with the existing submission logic...
+      console.log('✅ Continuing form submission after AI validation');
+      
+      // Parse experience to numeric
+      const experienceYears = parseExperienceToNumeric(formData.experience);
+      const finalFormData = {
+        ...formData,
+        experienceYears: experienceYears.years,
+        experienceMonths: experienceYears.months
+      };
+
+      console.log('📤 Submitting final form data:', finalFormData);
+      onSubmit(finalFormData);
+      
+    } catch (error) {
+      console.error('❌ Error in form submission:', error);
+      setErrors({ submit: 'Failed to submit form. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Check if user already has a worker profile and build recommendation link if available
   useEffect(() => {
@@ -390,6 +741,39 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
  
     const filledFields = validatedFields.filter(field => {
       const value = formData[field as keyof FormData];
+      
+      // Check if field is using existing data (for fields with toggles)
+      const fieldsWithToggles = ['about', 'location', 'availability'];
+      if (fieldsWithToggles.includes(field)) {
+        const toggleKey = field as keyof typeof dataToggleOptions;
+        if (dataToggleOptions[toggleKey] === 'existing') {
+          // If using existing data, check if we have existing data available
+          let hasExistingData = false;
+          
+          if (fetchedExistingData?.profileData) {
+            switch (field) {
+              case 'about':
+                hasExistingData = !!fetchedExistingData.profileData.fullBio;
+                break;
+              case 'location':
+                hasExistingData = !!fetchedExistingData.profileData.location;
+                break;
+              case 'availability':
+                hasExistingData = !!fetchedExistingData.profileData.availabilityJson;
+                break;
+            }
+          } else if (existingProfileData) {
+            hasExistingData = !!existingProfileData[field as keyof ExistingData];
+          }
+          
+          console.log(`🔍 Progress check for ${field} (existing):`, {
+            usingExisting: true,
+            hasExistingData,
+            isValid: hasExistingData
+          });
+          return hasExistingData;
+        }
+      }
       
       // Special handling for different field types
       if (field === 'hourlyRate') {
@@ -462,7 +846,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     const progressPercentage = (filledFields.length / validatedFields.length) * 100;
     console.log(`📊 Form progress: ${filledFields.length}/${validatedFields.length} = ${progressPercentage}%`);
     setProgress(progressPercentage);
-  }, [formData]);
+  }, [formData, dataToggleOptions, fetchedExistingData, existingProfileData]);
 
   const validateField = (name: keyof FormData, value: any): string => {
 
@@ -484,9 +868,6 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       case 'qualifications':
         // Qualifications are optional, but if provided, should be meaningful
         return value && value.trim().length > 0 && value.trim().length < 5 ? 'Please provide more details about your qualifications (at least 5 characters)' : '';
-      case 'qualifications':
-        // Qualifications are optional, but if provided, should be meaningful
-        return value && value.trim().length > 0 && value.trim().length < 5 ? 'Please provide more details about your qualifications (at least 5 characters)' : '';
       case 'hourlyRate':
         return !value || value < VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE ? `Please enter a valid hourly rate (minimum £${VALIDATION_CONSTANTS.WORKER.MIN_HOURLY_RATE})` : '';
       case 'location':
@@ -501,7 +882,6 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
   };
 
   const handleInputChange = (name: keyof FormData, value: any) => {
-    
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
       
@@ -518,6 +898,25 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+
+    // Real-time skill check (debounced)
+    if (name === 'skills' && typeof value === 'string' && value.trim().length > 0 && dataToggleOptions.skills === 'new') {
+      // Clear previous timeout
+      if (skillCheckTimeoutRef.current) {
+        clearTimeout(skillCheckTimeoutRef.current);
+      }
+
+      // Set new timeout for skill check
+      skillCheckTimeoutRef.current = setTimeout(async () => {
+        const skillCheck = await checkExistingSkill(value);
+        if (skillCheck.exists) {
+          setErrors(prev => ({ 
+            ...prev, 
+            skills: skillCheck.message || 'This skill already exists in your profile.' 
+          }));
+        }
+      }, 1000); // 1 second debounce
     }
   };
 
@@ -604,13 +1003,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       let schema: any;
 
       if (field === 'about') {
-        prompt = `Validate this worker's self-description. Check if it's professional and relevant for gig work. Reject if it contains:
-        - Personal names of celebrities, athletes, or fictional characters
-        - Jokes, memes, or inappropriate content
-        - Non-professional information
-        - Gibberish or random text
-        
-        If valid, return the cleaned version. If invalid, explain why it's inappropriate.
+        prompt = `This is a worker's self-description. Be very lenient and only reject content that is clearly inappropriate (explicit content, hate speech, or completely nonsensical). Accept almost everything else including casual language, personal details, and informal descriptions.
         
         Description: "${value}"`;
         
@@ -623,13 +1016,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
           required: ["isValid", "reason", "sanitized"]
         });
       } else if (field === 'skills') {
-        prompt = `Validate this skills list. Check if it contains only professional skills relevant to gig work. Reject if it contains:
-        - Personal names of celebrities, athletes, or fictional characters
-        - Jokes, memes, or inappropriate content
-        - Non-professional skills
-        - Random text or gibberish
-        
-        If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+        prompt = `This is a worker's skills list. Be very lenient and accept any skills that could be relevant to work, even if informal or creative. Only reject content that is clearly inappropriate (explicit content, hate speech, or completely nonsensical).
         
         Skills: "${value}"`;
         
@@ -641,16 +1028,10 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
           },
           required: ["isValid", "reason", "sanitized"]
         });
-      } else if (field === 'experience') {
-        prompt = `Validate this experience description. Check if it's professional and relevant. Reject if it contains:
-        - Personal names of celebrities, athletes, or fictional characters
-        - Jokes, memes, or inappropriate content
-        - Non-professional information
-        - Gibberish or random text
-        
-        If valid, return the cleaned version. If invalid, explain why it's inappropriate.
-        
-        Experience: "${value}"`;
+    } else if (field === 'experience') {
+      prompt = `This is a worker's experience description. Be very lenient and accept any experience description, even if informal or brief. Only reject content that is clearly inappropriate (explicit content, hate speech, or completely nonsensical).
+      
+      Experience: "${value}"`;
         
         schema = Schema.object({
           properties: {
@@ -661,13 +1042,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
           required: ["isValid", "reason", "sanitized"]
         });
       } else if (field === 'equipment') {
-        prompt = `Validate this equipment list. Check if it contains only professional equipment relevant to gig work. Reject if it contains:
-        - Personal names of celebrities, athletes, or fictional characters
-        - Jokes, memes, or inappropriate content
-        - Non-professional items
-        - Random text or gibberish
-        
-        If valid, return the cleaned list. If invalid, explain why it's inappropriate.
+        prompt = `This is a worker's equipment list. Be very lenient and accept any equipment that could be relevant to work, even if informal or creative. Only reject content that is clearly inappropriate (explicit content, hate speech, or completely nonsensical).
         
         Equipment: "${value}"`;
         
@@ -828,7 +1203,7 @@ Qualifications: "${value}"`;
     }
   };
 
-  const validateForm = (): boolean => {
+  const validateForm = async (): Promise<boolean> => {
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
@@ -837,7 +1212,7 @@ Qualifications: "${value}"`;
     // Validate all required fields
     const fieldsToValidate = ['about', 'experience', 'skills', 'equipment', 'qualifications', 'hourlyRate', 'location', 'availability', 'videoIntro', 'references'];
     
-    fieldsToValidate.forEach(fieldName => {
+    for (const fieldName of fieldsToValidate) {
       const value = formData[fieldName as keyof FormData];
       const error = validateField(fieldName as keyof FormData, value);
 
@@ -848,7 +1223,21 @@ Qualifications: "${value}"`;
       } else {
         console.log(`✅ Validation passed for ${fieldName}`);
       }
-    });
+    }
+
+    // Special validation for skills - check if skill already exists
+    if (formData.skills && formData.skills.trim().length > 0 && dataToggleOptions.skills === 'new') {
+      console.log('🔍 Checking for existing skills...');
+      const skillCheck = await checkExistingSkill(formData.skills);
+      
+      if (skillCheck.exists) {
+        newErrors.skills = skillCheck.message || 'This skill already exists in your profile.';
+        isValid = false;
+        console.log(`❌ Skill already exists:`, skillCheck.message);
+      } else {
+        console.log(`✅ Skill is new and valid`);
+      }
+    }
 
     console.log(`🔍 Form validation result: ${isValid ? 'PASSED' : 'FAILED'}`);
     if (!isValid) {
@@ -883,8 +1272,7 @@ Qualifications: "${value}"`;
     }
 
     // Validate form before proceeding
-    // Validate form before proceeding
-    if (!validateForm()) {
+    if (!(await validateForm())) {
       console.log('❌ Form validation failed, not submitting');
       return;
     }
@@ -895,7 +1283,7 @@ Qualifications: "${value}"`;
     try {
       // AI Content Validation - this will REJECT inappropriate content
       const validationErrors: Record<string, string> = {};
-      let hasContentErrors = false;
+      const hasContentErrors = false;
 
       // Validate each field with AI
       const fieldsToValidate = ['about', 'experience', 'skills', 'equipment', 'qualifications'];
@@ -907,33 +1295,47 @@ Qualifications: "${value}"`;
           const validation = await validateContentWithAI(field, value);
           
           if (!validation.isValid) {
-            console.log(`❌ AI rejected ${field}:`, validation.error);
-            validationErrors[field] = validation.error || 'Content is inappropriate for professional use';
-            hasContentErrors = true;
+            console.log(`⚠️ AI flagged ${field} for review:`, validation.error);
+            // For manual onboarding, be more lenient - only show warning, don't block submission
+            console.log(`📝 Manual onboarding: Allowing ${field} despite AI flag`);
+            // Don't set hasContentErrors = true for manual onboarding
           } else {
             console.log(`✅ AI approved ${field}`);
           }
         }
       }
 
-      // If AI found inappropriate content, show errors and stop submission
+      // For manual onboarding, be more lenient with AI validation
       if (hasContentErrors) {
-        console.log('❌ AI content validation failed, blocking submission');
-        setErrors(prev => ({ ...prev, ...validationErrors }));
-        setIsSubmitting(false);
-        return;
+        console.log('⚠️ AI flagged some content, but allowing submission for manual onboarding');
+        // Don't block submission for manual onboarding - just log the warnings
+        // setErrors(prev => ({ ...prev, ...validationErrors }));
+        // setIsSubmitting(false);
+        // return;
       }
 
-      console.log('✅ AI content validation passed, proceeding with sanitization');
+      console.log('✅ AI content validation passed, proceeding with data cleaning');
       
       // AI Sanitization for specific fields (only if content is valid)
       const sanitizedData = { ...formData };
       let extractedJobTitle = '';
+      let needsUserConfirmation = false;
 
       // Sanitize About field (extract job title)
       if (formData.about) {
         const aboutResult = await sanitizeWithAI('about', formData.about);
-        sanitizedData.about = aboutResult.sanitized;
+        if (aboutResult.sanitized !== formData.about) {
+          // Show confirmation modal for about field
+          setAiValidationModal({
+            isOpen: true,
+            fieldName: 'about',
+            originalValue: formData.about,
+            sanitizedValue: aboutResult.sanitized
+          });
+          needsUserConfirmation = true;
+        } else {
+          sanitizedData.about = aboutResult.sanitized;
+        }
         if (aboutResult.jobTitle) {
           extractedJobTitle = aboutResult.jobTitle;
         }
@@ -942,14 +1344,36 @@ Qualifications: "${value}"`;
       // Skills field is for display only - jobTitle is THE skill saved to database
       if (formData.skills) {
         const skillsResult = await sanitizeWithAI('skills', formData.skills);
-        sanitizedData.skills = skillsResult.sanitized;
+        if (skillsResult.sanitized !== formData.skills) {
+          // Show confirmation modal for skills field
+          setAiValidationModal({
+            isOpen: true,
+            fieldName: 'skills',
+            originalValue: formData.skills,
+            sanitizedValue: skillsResult.sanitized
+          });
+          needsUserConfirmation = true;
+        } else {
+          sanitizedData.skills = skillsResult.sanitized;
+        }
         console.log('ℹ️ Skills field sanitized for display only - jobTitle is THE skill');
       }
 
       // Sanitize Qualifications field
       if (formData.qualifications) {
         const qualificationsResult = await sanitizeWithAI('qualifications', formData.qualifications);
-        sanitizedData.qualifications = qualificationsResult.sanitized;
+        if (qualificationsResult.sanitized !== formData.qualifications) {
+          // Show confirmation modal for qualifications field
+          setAiValidationModal({
+            isOpen: true,
+            fieldName: 'qualifications',
+            originalValue: formData.qualifications,
+            sanitizedValue: qualificationsResult.sanitized
+          });
+          needsUserConfirmation = true;
+        } else {
+          sanitizedData.qualifications = qualificationsResult.sanitized;
+        }
       }
 
       // Sanitize Experience field (extract years and months as numeric)
@@ -977,23 +1401,26 @@ Qualifications: "${value}"`;
         sanitizedData.jobTitle = extractedJobTitle;
       }
 
-      // Update form data with sanitized values
-      setFormData(sanitizedData);
+      // Show data review modal with original and cleaned data
+      console.log('📋 Showing data review modal with original and cleaned data');
       
-      console.log('📤 Submitting validated and sanitized data to backend:', {
-        about: sanitizedData.about?.substring(0, 50) + '...',
-        experience: sanitizedData.experience?.substring(0, 50) + '...',
-        skills: sanitizedData.skills?.substring(0, 50) + '...',
-        equipment: sanitizedData.equipment?.substring(0, 50) + '...',
-        hourlyRate: sanitizedData.hourlyRate,
-        hasLocation: !!sanitizedData.location,
-        availabilityDays: sanitizedData.availability.days.length,
-        hasVideo: !!sanitizedData.videoIntro,
-        jobTitle: sanitizedData.jobTitle
+      setDataReviewModal({
+        isOpen: true,
+        originalData: { ...formData },
+        cleanedData: { ...sanitizedData },
+        onConfirm: () => {
+          console.log('✅ User confirmed cleaned data, proceeding with submission');
+          setDataReviewModal(prev => ({ ...prev, isOpen: false }));
+          // Update form data with sanitized values and submit
+          setFormData(sanitizedData);
+          continueFormSubmission();
+        },
+        onGoBack: () => {
+          console.log('↩️ User chose to go back and edit');
+          setDataReviewModal(prev => ({ ...prev, isOpen: false }));
+          setIsSubmitting(false);
+        }
       });
-      
-      // Submit the validated and sanitized data
-      await onSubmit(sanitizedData);
     } catch (error) {
       console.error('Form submission error:', error);
       // Set error state to show user
@@ -1054,6 +1481,7 @@ Qualifications: "${value}"`;
         </button>
       </div>
 
+
       <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className={styles.form}>
         {/* About Section */}
         <div className={styles.formSection}>
@@ -1062,28 +1490,83 @@ Qualifications: "${value}"`;
           <div className={styles.formGroup}>
             <label className={styles.label}>
               Tell us about yourself *
+              <InlineDataToggle
+                fieldKey="about"
+                hasExistingData={!!(fetchedExistingData?.profileData?.fullBio || existingProfileData?.about)}
+                isUsingExisting={dataToggleOptions.about === 'existing'}
+                onToggle={handleInlineToggle}
+                disabled={isSubmitting}
+                existingValue={fetchedExistingData?.profileData?.fullBio || existingProfileData?.about}
+              />
+            </label>
+            {dataToggleOptions.about === 'existing' ? (
+              <div className={styles.existingDataDisplay}>
+                <div className={styles.existingDataContent}>
+                  {formData.about || fetchedExistingData?.profileData?.fullBio || existingProfileData?.about || 'No existing data'}
+                </div>
+                <button
+                  type="button"
+                  className={styles.editExistingButton}
+                  onClick={() => handleToggleChange('about', 'new')}
+                >
+                  Edit
+                </button>
+              </div>
+            ) : (
+              <textarea
+                className={`${styles.textarea} ${errors.about ? styles.error : ''}`}
+                value={formData.about}
+                onChange={(e) => handleInputChange('about', e.target.value)}
+                placeholder="Tell us about yourself and your background..."
+                rows={4}
+              />
+            )}
+            {errors.about && <span className={styles.errorText}>{errors.about}</span>}
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.label}>
+              Skills *
             </label>
             <textarea
-              className={`${styles.textarea} ${errors.about ? styles.error : ''}`}
-              value={formData.about}
-              onChange={(e) => handleInputChange('about', e.target.value)}
-              placeholder="Tell us about yourself and your background..."
-              rows={4}
+              className={`${styles.textarea} ${errors.skills ? styles.error : ''}`}
+              value={formData.skills}
+              onChange={(e) => handleInputChange('skills', e.target.value)}
+              placeholder="List your professional skills..."
+              rows={3}
             />
-            {errors.about && <span className={styles.errorText}>{errors.about}</span>}
+            <div className={styles.helpText}>
+              Note: Your main skill will be determined from your job title above
+            </div>
+            {errors.skills && <span className={styles.errorText}>{errors.skills}</span>}
           </div>
 
           <div className={styles.formGroup}>
             <label className={styles.label}>
               Years of Experience *
             </label>
-            <textarea
-              className={`${styles.textarea} ${errors.experience ? styles.error : ''}`}
-              value={formData.experience}
-              onChange={(e) => handleInputChange('experience', e.target.value)}
-              placeholder="How many years of experience do you have? (e.g., '5', '5 years', '2.5 years', '5 years and 3 months')"
-              rows={3}
-            />
+            {dataToggleOptions.experience === 'existing' ? (
+              <div className={styles.existingDataDisplay}>
+                <div className={styles.existingDataContent}>
+                  {formData.experience}
+                </div>
+                <button
+                  type="button"
+                  className={styles.editExistingButton}
+                  onClick={() => handleToggleChange('experience', 'new')}
+                >
+                  Edit
+                </button>
+              </div>
+            ) : (
+              <textarea
+                className={`${styles.textarea} ${errors.experience ? styles.error : ''}`}
+                value={formData.experience}
+                onChange={(e) => handleInputChange('experience', e.target.value)}
+                placeholder="How many years of experience do you have? (e.g., '5', '5 years', '2.5 years', '5 years and 3 months')"
+                rows={3}
+              />
+            )}
             {formData.experienceYears && formData.experienceYears > 0 && (
               <div className={styles.helpText}>
                 Parsed: {formData.experienceYears} years {formData.experienceMonths && formData.experienceMonths > 0 ? `and ${formData.experienceMonths} months` : ''} 
@@ -1092,23 +1575,6 @@ Qualifications: "${value}"`;
             )}
             {errors.experience && <span className={styles.errorText}>{errors.experience}</span>}
           </div>
-
-                     <div className={styles.formGroup}>
-             <label className={styles.label}>
-               Skills *
-             </label>
-             <textarea
-               className={`${styles.textarea} ${errors.skills ? styles.error : ''}`}
-               value={formData.skills}
-               onChange={(e) => handleInputChange('skills', e.target.value)}
-               placeholder="List your professional skills..."
-               rows={3}
-             />
-             <div className={styles.helpText}>
-               Note: Your main skill will be determined from your job title above
-             </div>
-             {errors.skills && <span className={styles.errorText}>{errors.skills}</span>}
-           </div>
 
            <div className={styles.formGroup}>
              <label className={styles.label}>
@@ -1164,12 +1630,39 @@ Qualifications: "${value}"`;
           <div className={styles.formGroup}>
             <label className={styles.label}>
               Your Location *
+              <InlineDataToggle
+                fieldKey="location"
+                hasExistingData={!!(fetchedExistingData?.profileData?.location || existingProfileData?.location)}
+                isUsingExisting={dataToggleOptions.location === 'existing'}
+                onToggle={handleInlineToggle}
+                disabled={isSubmitting}
+                existingValue={fetchedExistingData?.profileData?.location || existingProfileData?.location}
+              />
             </label>
-            <LocationPickerBubble
-              value={formData.location}
-              onChange={handleLocationChange}
-              role="GIG_WORKER"
-            />
+            {dataToggleOptions.location === 'existing' ? (
+              <div className={styles.existingDataDisplay}>
+                <div className={styles.existingDataContent}>
+                  {formatLocationDisplay(
+                    formData.location || 
+                    fetchedExistingData?.profileData?.location || 
+                    existingProfileData?.location
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className={styles.editExistingButton}
+                  onClick={() => handleToggleChange('location', 'new')}
+                >
+                  Edit
+                </button>
+              </div>
+            ) : (
+              <LocationPickerBubble
+                value={formData.location}
+                onChange={handleLocationChange}
+                role="GIG_WORKER"
+              />
+            )}
             {errors.location && <span className={styles.errorText}>{errors.location}</span>}
           </div>
         </div>
@@ -1182,61 +1675,93 @@ Qualifications: "${value}"`;
           <div className={styles.formGroup}>
             <label className={styles.label}>
               Available Days *
+              <InlineDataToggle
+                fieldKey="availability"
+                hasExistingData={!!(fetchedExistingData?.profileData?.availabilityJson || existingProfileData?.availability)}
+                isUsingExisting={dataToggleOptions.availability === 'existing'}
+                onToggle={handleInlineToggle}
+                disabled={isSubmitting}
+                existingValue={fetchedExistingData?.profileData?.availabilityJson ? 'Set availability' : (existingProfileData?.availability ? 'Set availability' : null)}
+              />
             </label>
-            <div className={styles.availabilityDays}>
-              {weekDays.map((day) => (
+            {dataToggleOptions.availability === 'existing' ? (
+              <div className={styles.existingDataDisplay}>
+                <div className={styles.existingDataContent}>
+                  {formatAvailabilityDisplay(
+                    formData.availability || 
+                    fetchedExistingData?.profileData?.availabilityJson || 
+                    existingProfileData?.availability
+                  )}
+                </div>
                 <button
-                  key={day.value}
                   type="button"
-                  className={`${styles.dayButton} ${
-                    formData.availability.days.includes(day.value) ? styles.dayButtonActive : ''
-                  }`}
-                  onClick={() => handleDayToggle(day.value)}
+                  className={styles.editExistingButton}
+                  onClick={() => handleToggleChange('availability', 'new')}
                 >
-                  {day.label}
+                  Edit
                 </button>
-              ))}
-            </div>
+              </div>
+            ) : (
+              <div className={styles.availabilityDays}>
+                {weekDays.map((day) => (
+                  <button
+                    key={day.value}
+                    type="button"
+                    className={`${styles.dayButton} ${
+                      formData.availability.days.includes(day.value) ? styles.dayButtonActive : ''
+                    }`}
+                    onClick={() => handleDayToggle(day.value)}
+                  >
+                    {day.label}
+                  </button>
+                ))}
+              </div>
+            )}
                          {errors.availability && <span className={styles.errorText}>{errors.availability}</span>}
           </div>
 
-          <div className={styles.formGroup}>
-            <label className={styles.label}>
-              Available Hours *
-            </label>
-            <div className={styles.timeRangeContainer}>
-              <div className={styles.timeInputGroup}>
-                <label className={styles.timeLabel}>From:</label>
-                <input
-                  type="time"
-                  className={styles.input}
-                  value={formData.availability.startTime}
-                  onChange={(e) => handleInputChange('availability', {
-                    ...formData.availability,
-                    startTime: e.target.value
-                  })}
-                />
-              </div>
-              <div className={styles.timeInputGroup}>
-                <label className={styles.timeLabel}>To:</label>
-                <input
-                  type="time"
-                  className={styles.input}
-                  value={formData.availability.endTime}
-                  onChange={(e) => handleInputChange('availability', {
-                    ...formData.availability,
-                    endTime: e.target.value
-                  })}
-                />
+          {dataToggleOptions.availability !== 'existing' && (
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                Available Hours *
+              </label>
+              <div className={styles.timeRangeContainer}>
+                <div className={styles.timeInputGroup}>
+                  <label className={styles.timeLabel}>From:</label>
+                  <input
+                    type="time"
+                    className={styles.input}
+                    value={formData.availability.startTime}
+                    onChange={(e) => handleInputChange('availability', {
+                      ...formData.availability,
+                      startTime: e.target.value
+                    })}
+                  />
+                </div>
+                <div className={styles.timeInputGroup}>
+                  <label className={styles.timeLabel}>To:</label>
+                  <input
+                    type="time"
+                    className={styles.input}
+                    value={formData.availability.endTime}
+                    onChange={(e) => handleInputChange('availability', {
+                      ...formData.availability,
+                      endTime: e.target.value
+                    })}
+                  />
+                </div>
               </div>
             </div>
+          )}
+          
+          {dataToggleOptions.availability !== 'existing' && (
             <p className={styles.helpText}>
               Your availability will be set as: {formData.availability.days.length > 0 ?
                 `${formData.availability.days.map(day => weekDays.find(d => d.value === day)?.label).join(', ')} ${formData.availability.startTime} - ${formData.availability.endTime}` :
                 'Please select days and times'
               }
             </p>
-          </div>
+          )}
         </div>
 
         {/* Media & References Section */}
@@ -1332,6 +1857,29 @@ Qualifications: "${value}"`;
           )}
         </div>
       </form>
+      
+      {/* AI Validation Modal */}
+      <AIValidationModal
+        isOpen={aiValidationModal.isOpen}
+        onClose={() => setAiValidationModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={handleAIValidationConfirm}
+        onReject={handleAIValidationReject}
+        fieldName={aiValidationModal.fieldName}
+        originalValue={aiValidationModal.originalValue}
+        sanitizedValue={aiValidationModal.sanitizedValue}
+        isSubmitting={isSubmitting}
+      />
+
+      {/* Data Review Modal */}
+      <DataReviewModal
+        isOpen={dataReviewModal.isOpen}
+        onClose={() => setDataReviewModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={dataReviewModal.onConfirm}
+        onGoBack={dataReviewModal.onGoBack}
+        originalData={dataReviewModal.originalData}
+        cleanedData={dataReviewModal.cleanedData}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 };
