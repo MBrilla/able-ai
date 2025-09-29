@@ -229,7 +229,7 @@ export default function OnboardingRenderer({
             onSubmit={handleManualFormSubmit}
             onSwitchToAI={handleSwitchToAI}
             initialData={manualFormData}
-            workerProfileId={null}
+            workerProfileId={workerProfileId}
             existingProfileData={existingProfileData}
           />
         </div>
@@ -268,9 +268,7 @@ export default function OnboardingRenderer({
           if (step.type === "support") {
             return (
               <div key={key} className={styles.supportComponent}>
-                <div className={`${styles.componentLabel}`} style={{ background: '#ff6b6b', color: 'white' }}>
-                  🆘 Support Options
-                </div>
+               
                 <SupportOptions
                   onSwitchToManual={() => { setSetupMode('manual'); setShowSetupChoice(false); }}
                   onContactSupport={() => { window.open('mailto:support@able-ai.com?subject=AI Onboarding Support Needed', '_blank'); }}
@@ -300,6 +298,8 @@ export default function OnboardingRenderer({
           
           if (step.type === "summary") {
             console.log('🔍 Rendering summary step with data:', step.summaryData);
+            console.log('🔍 Summary step key:', key);
+            console.log('🔍 Summary step isSubmitting:', isSubmitting);
             return renderSummaryStep(
               key,
               isSubmitting,

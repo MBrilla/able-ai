@@ -50,12 +50,32 @@ Create a prompt that:
 4. Is encouraging and supportive
 5. Is 1-2 sentences long
 6. Shows you remember what they told you
+7. AVOID repetitive phrases like "Now that I know you're a..." or "I see you're a..."
+8. Use varied, natural language that doesn't sound robotic
+9. NEVER repeat the same phrasing pattern more than once in a conversation
+10. Build naturally on previous responses without restating what you already know
+
+IMPORTANT FIELD-SPECIFIC REQUIREMENTS:
+- For "skills": Ask for professional skills and areas of expertise, NOT job titles
+- For "experience": Ask for years of experience or level (beginner/intermediate/senior), NOT detailed project descriptions
+- For "qualifications": Ask for certifications/qualifications, degrees, licenses - allow "none" responses
+- For "location": Ask for work location/base
+- For "availability": Ask for work schedule/availability
+- For "equipment": Ask for work equipment/tools they own
+- For "hourlyRate": Ask for preferred hourly rate in pounds
+- For "videoIntro": Ask to record video introduction
 
 Examples:
-- If they said "I am a baker 25" and you're asking for skills, say "As a baker, what specific baking skills do you have?"
-- If they said "I'm a construction worker" and you're asking for experience, say "How many years have you been working in construction?"
+- If you're asking for skills, say "What professional skills do you have?" or "What are your key areas of expertise?"
+- If you're asking for experience, say "How many years of experience do you have?" or "What's your experience level (beginner, intermediate, senior)?"
+- If you're asking for qualifications, say "What qualifications or certifications do you have? (You can say 'none' if you don't have any)"
+- If you're asking for location, say "Where are you based for work?"
+- If you're asking for availability, say "When are you available to work?"
+- If you're asking for equipment, say "What equipment do you have for your work?"
+- If you're asking for hourly rate, say "What's your preferred hourly rate?"
+- If you're asking for video, say "Let's record a video introduction!"
 
-Make it feel natural, personalized, and contextually aware.`,
+Make it feel natural, personalized, and contextually aware. Use different phrasing each time.`,
 };
 
 

@@ -13,6 +13,7 @@ export interface EmailVerificationStatus {
 
 /**
  * Check if a Firebase user's email is verified
+ * Only requires verification for newly signed up users (not existing users)
  */
 export function checkEmailVerificationStatus(user: FirebaseUser | null): EmailVerificationStatus {
   if (!user) {
@@ -26,10 +27,18 @@ export function checkEmailVerificationStatus(user: FirebaseUser | null): EmailVe
   const isVerified = user.emailVerified;
   const email = user.email;
 
+  // Check if this is a new user (created within the last 10 minutes)
+  // This helps differentiate between new signups and existing users
+  const isNewUser = user.metadata.creationTime && 
+    (Date.now() - new Date(user.metadata.creationTime).getTime()) < 10 * 60 * 1000; // 10 minutes
+
+  // Only require email verification for new users who haven't verified their email
+  const needsVerification = Boolean(isNewUser && !isVerified && !!email);
+
   return {
     isVerified,
     email,
-    needsVerification: !isVerified && !!email
+    needsVerification
   };
 }
 

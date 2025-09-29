@@ -72,12 +72,15 @@ export function setExperience(value: string): {
     experienceText += `${experienceText ? ' ' : ''}${months} month${months !== 1 ? 's' : ''}`;
   }
   
-  // Fallback to user text for descriptive levels (e.g., "beginner", "intermediate")
-  if (!experienceText) {
-    // Normalize common experience levels
+  // For descriptive levels (e.g., "beginner", "intermediate"), use the original text
+  // Only use parsed years if user provided specific numbers
+  const hasSpecificYears = /^\d+/.test(trimmed) || /years?|yrs?|months?/.test(trimmed);
+  
+  if (!hasSpecificYears) {
+    // Normalize common experience levels but keep original format
     const levelMap: { [key: string]: string } = {
       'beginner': 'Beginner',
-      'novice': 'Beginner',
+      'novice': 'Beginner', 
       'entry': 'Entry Level',
       'entry level': 'Entry Level',
       'intermediate': 'Intermediate',

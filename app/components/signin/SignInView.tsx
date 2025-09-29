@@ -10,8 +10,6 @@ import { signInWithFirebaseAction } from "@/actions/auth/singin";
 import { useFirebase } from "@/context/FirebaseContext";
 import PasswordInputField from "@/app/components/form/PasswodInputField";
 import Link from "next/link";
-import EmailVerificationModal from "./EmailVerificationModal";
-import { requiresEmailVerification } from "@/lib/utils/emailVerification";
 
 interface SignInViewProps {
   onToggleRegister: () => void;
@@ -25,8 +23,6 @@ const SignInView: React.FC<SignInViewProps> = ({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [unverifiedUserEmail, setUnverifiedUserEmail] = useState("");
   const router = useRouter();
   const { authClient, loading: firebaseLoading } = useFirebase();
 
@@ -48,14 +44,6 @@ const SignInView: React.FC<SignInViewProps> = ({
       const user = userCredential?.user;
 
       if (!user?.uid) throw new Error("User UID not found");
-
-      // Check if email is verified using centralized logic
-      if (requiresEmailVerification(user)) {
-        setUnverifiedUserEmail(user.email || email);
-        setShowVerificationModal(true);
-        setLoading(false);
-        return;
-      }
 
       const response = await signInWithFirebaseAction(user.uid);
 
@@ -84,23 +72,12 @@ const SignInView: React.FC<SignInViewProps> = ({
     }
   };
 
-  const handleCloseVerificationModal = () => {
-    setShowVerificationModal(false);
-    setUnverifiedUserEmail("");
-  };
-
-  const handleVerificationComplete = () => {
-    setShowVerificationModal(false);
-    setUnverifiedUserEmail("");
-    // The user will be automatically redirected by the auth state change
-  };
 
   if (firebaseLoading) {
     return <div className={styles.loading}>Loading...</div>;
   }
 
   return (
-    <>
       <form className={styles.form} onSubmit={handleSubmit}>
         <div className={styles.inputGroup}>
           <label htmlFor="email" className={styles.label}>
@@ -149,14 +126,6 @@ const SignInView: React.FC<SignInViewProps> = ({
           Need an account? <span className={styles.linkText}>Create one</span>
         </button>
       </form>
-
-      <EmailVerificationModal
-        isOpen={showVerificationModal}
-        onClose={handleCloseVerificationModal}
-        userEmail={unverifiedUserEmail}
-        onVerificationComplete={handleVerificationComplete}
-      />
-    </>
   );
 };
 

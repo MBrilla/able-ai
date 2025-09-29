@@ -187,6 +187,8 @@ export default function OnboardingAIPageSimplified() {
     // Support and escalation
     unrelatedResponseCount,
     setUnrelatedResponseCount,
+    inappropriateContentCount,
+    setInappropriateContentCount,
     showHumanSupport,
     setShowHumanSupport,
     supportCaseId,
@@ -239,6 +241,8 @@ export default function OnboardingAIPageSimplified() {
     },
     unrelatedResponseCount,
     setUnrelatedResponseCount,
+    inappropriateContentCount,
+    setInappropriateContentCount,
     setShowHumanSupport,
     setSupportCaseId,
     clickedSanitizedButtons,
@@ -285,90 +289,23 @@ export default function OnboardingAIPageSimplified() {
    * Processes user input and moves to the next step in the onboarding flow
    * Now uses enhanced validation system with AI responses
    */
-  const handleInputSubmit = useCallback(async (stepId: number, inputName: string, inputValue?: string) => {
-    // Use enhanced validation system instead of basic step-flow
-    const value = inputValue || formData[inputName];
-    if (!value) return;
-
-    // Add typing indicator for AI processing
-    setChatSteps((prev: any[]) => [
-      ...prev,
-      {
-        id: Date.now() + 1,
-        type: "typing",
-        isNew: true,
-      },
-    ]);
-
-    // Use simple AI check like the old onboarding
-    try {
-      const aiResult = await simpleAICheck(inputName, value, 'text');
-      
-      // Remove typing indicator and mark current step as complete
-      setChatSteps((prev: any[]) => {
-        const filtered = prev.filter(s => s.type !== 'typing');
-        return filtered.map((step: any) =>
-          step.id === stepId ? { ...step, isComplete: true } : step
-        );
-      });
-      
-      if (!aiResult.sufficient) {
-        // Add clarification message and re-open the same input step
-        setChatSteps((prev: any[]) => [
-          ...prev,
-          { 
-            id: Date.now() + 2, 
-            type: 'bot', 
-            content: aiResult.clarificationPrompt!,
-            isNew: true,
-          },
-          {
-            id: Date.now() + 3,
-            type: 'input',
-            inputConfig: {
-              type: 'text',
-              name: inputName,
-              placeholder: `Please provide your ${inputName}...`,
-              rows: inputName === 'about' ? 3 : 1
-            },
-            isComplete: false,
-            isNew: true,
-          },
-        ]);
-        return;
-      }
-      
-      // Update form data with sanitized value
-      const updatedFormData = { ...formData, [inputName]: aiResult.sanitized };
-      setFormData(updatedFormData);
-      
-      // Show sanitized confirmation if AI made changes
-      if (aiResult.sanitized && aiResult.sanitized !== value) {
-        setChatSteps((prev: any[]) => [
-          ...prev,
-          {
-            id: Date.now() + 2,
-            type: "sanitized",
-            fieldName: inputName,
-            sanitizedValue: aiResult.sanitized,
-            originalValue: value,
-            naturalSummary: aiResult.naturalSummary || `You provided: ${value}`,
-            extractedData: JSON.stringify({ [inputName]: aiResult.sanitized }),
-            isComplete: false,
-            isNew: true,
-          }
-        ]);
-      } else {
-        // No changes needed, continue with normal flow
-        await addNextStepSafely(updatedFormData, ai, chatSteps, setChatSteps, workerProfileId, existingProfileData);
-      }
-    } catch (error) {
-      console.error('Enhanced validation error:', error);
-      // Fallback to basic flow
-      setChatSteps((prev: any[]) => prev.filter(s => s.type !== 'typing'));
-      await addNextStepSafely(formData, ai, chatSteps, setChatSteps, workerProfileId, existingProfileData);
+  const handleInputSubmit = useCallback(async (stepId: number, inputName: string, inputValue?: string): Promise<boolean> => {
+    console.log('🔍 OnboardingAIPageSimplified handleInputSubmit called with:', { stepId, inputName, inputValue });
+    
+    // Use the proper handleInputSubmit from hooks which includes similar skill checks
+    const validationPassed: boolean = await handlers.handleInputSubmit(stepId, inputName, inputValue);
+    
+    // Only proceed to next field if validation passed
+    if (validationPassed) {
+      console.log('🔍 Validation passed, proceeding to next field');
+      // The step-flow logic will handle adding the next field
+    } else {
+      console.log('🔍 Validation failed, staying on current field');
+      // Don't proceed to next field - stay on current field
     }
-  }, [formData, setFormData, chatSteps, setChatSteps, user, ai, workerProfileId, existingProfileData]);
+    
+    return validationPassed;
+  }, [handlers.handleInputSubmit]);
 
   /**
    * Handle sanitized content confirmation
@@ -676,21 +613,25 @@ export default function OnboardingAIPageSimplified() {
       // Process the message as input for the active step
       const fieldName = activeInputStep.inputConfig.name;
       
-      // Update form data with the message
-      setFormData((prev: any) => ({ ...prev, [fieldName]: message.trim() }));
+      // Submit the input first, then update form data only if validation passes
+      const validationPassed = await handleInputSubmit(activeInputStep.id, fieldName, message.trim());
       
-      // Submit the input
-      await handleInputSubmit(activeInputStep.id, fieldName, message.trim());
+      if (validationPassed) {
+        // Only update form data if validation passed
+        setFormData((prev: any) => ({ ...prev, [fieldName]: message.trim() }));
+      }
     } else {
       // No active input step, start the onboarding flow with the user's message
       const nextField = getNextRequiredField(formData, existingProfileData);
       
       if (nextField) {
-        // Process the message as input for the next field
-        setFormData((prev: any) => ({ ...prev, [nextField.name]: message.trim() }));
+        // Process the input using enhanced validation system first
+        const validationPassed = await handleInputSubmit(Date.now(), nextField.name, message.trim());
         
-        // Process the input using enhanced validation system
-        await handleInputSubmit(Date.now(), nextField.name, message.trim());
+        if (validationPassed) {
+          // Only update form data if validation passed
+          setFormData((prev: any) => ({ ...prev, [nextField.name]: message.trim() }));
+        }
       } else {
         // All fields completed, show completion message
         setChatSteps((prev: any[]) => [...prev, {

@@ -53,9 +53,9 @@ export interface ChatStep {
 }
 
 /**
- * Generate hashtags for profile data
+ * Generate hashtags for profile data using AI
  */
-export function generateHashtags(
+export async function generateHashtags(
   profileData: {
     about?: string;
     experience?: string;
@@ -64,70 +64,68 @@ export function generateHashtags(
     location?: string;
   },
   ai?: any
-): string[] {
+): Promise<string[]> {
   try {
-    // Generate hashtags based on all profile inputs (like old onboarding)
-    const hashtags: string[] = [];
-    const allText = [
-      profileData.about || '',
-      profileData.skills || '',
-      profileData.experience || '',
-      profileData.equipment || '',
-      profileData.location || ''
-    ].join(' ').toLowerCase();
+    if (!ai) {
+      console.log('🔍 No AI service available, using fallback hashtags');
+      return ['#worker', '#gig', '#freelance'];
+    }
+
+    const { geminiAIAgent } = await import('@/lib/firebase/ai');
+    const { Schema } = await import('@firebase/ai');
     
-    // Extract key terms and create hashtags
-    const keyTerms = extractKeyTerms(allText);
+    // Prepare equipment data for the prompt
+    let equipmentText = '';
+    if (Array.isArray(profileData.equipment)) {
+      equipmentText = profileData.equipment.map(item => 
+        typeof item === 'string' ? item : item.name
+      ).join(', ');
+    } else if (typeof profileData.equipment === 'string') {
+      equipmentText = profileData.equipment;
+    }
+
+    const prompt = `Generate exactly 3 professional hashtags for this gig worker profile:
+
+Skills: ${profileData.skills || 'Not provided'}
+Experience: ${profileData.experience || 'Not provided'}
+Equipment: ${equipmentText || 'Not provided'}
+Location: ${profileData.location || 'Not provided'}
+
+Generate 3 relevant, specific hashtags that would help this worker be found by clients. 
+The 3rd hashtag should be based on their location.
+Examples: For a chef in London: "#chef", "#culinary", "#london"
+For a mechanic in Manchester: "#mechanic", "#automotive", "#manchester"
+For a cleaner in Birmingham: "#cleaning", "#housekeeping", "#birmingham"
+
+Be creative and specific - avoid generic hashtags. Use varied, professional terms that reflect their actual skills and equipment.
+
+Return only the hashtags, no explanations.`;
+
+    const response = await geminiAIAgent(
+      "gemini-2.0-flash",
+      {
+        prompt: prompt,
+        responseSchema: Schema.object({
+          properties: {
+            hashtags: Schema.array({
+              items: Schema.string()
+            })
+          },
+          required: ["hashtags"]
+        }),
+        isStream: false,
+      },
+      ai
+    );
     
-    // Add relevant hashtags based on content analysis
-    if (keyTerms.includes('mechanic') || keyTerms.includes('auto') || keyTerms.includes('car') || keyTerms.includes('vehicle')) {
-      hashtags.push('#mechanic', '#automotive');
-    } else if (keyTerms.includes('baker') || keyTerms.includes('cook') || keyTerms.includes('chef') || keyTerms.includes('kitchen')) {
-      hashtags.push('#baker', '#culinary');
-    } else if (keyTerms.includes('clean') || keyTerms.includes('housekeeping') || keyTerms.includes('cleaning')) {
-      hashtags.push('#cleaning', '#housekeeping');
-    } else if (keyTerms.includes('delivery') || keyTerms.includes('driver') || keyTerms.includes('transport')) {
-      hashtags.push('#delivery', '#driver');
-    } else if (keyTerms.includes('bartender') || keyTerms.includes('bar') || keyTerms.includes('mixology')) {
-      hashtags.push('#bartender', '#mixology');
-    } else if (keyTerms.includes('plumber') || keyTerms.includes('plumbing') || keyTerms.includes('pipe')) {
-      hashtags.push('#plumber', '#plumbing');
-    } else if (keyTerms.includes('electrician') || keyTerms.includes('electrical') || keyTerms.includes('wiring')) {
-      hashtags.push('#electrician', '#electrical');
-    } else if (keyTerms.includes('gardener') || keyTerms.includes('landscaping') || keyTerms.includes('garden')) {
-      hashtags.push('#gardener', '#landscaping');
-    } else if (keyTerms.includes('handyman') || keyTerms.includes('repair') || keyTerms.includes('fix')) {
-      hashtags.push('#handyman', '#repair');
+    if (response.ok && response.data) {
+      const data = response.data as { hashtags: string[] };
+      console.log('🔍 AI generated hashtags:', data.hashtags);
+      return data.hashtags.slice(0, 3); // Ensure max 3 hashtags
     } else {
-      hashtags.push('#skilled', '#professional');
+      console.log('🔍 AI hashtag generation failed, using fallback');
+      return ['#worker', '#gig', '#freelance'];
     }
-    
-    // Add location-based hashtags if available
-    if (profileData.location) {
-      const location = profileData.location.toLowerCase();
-      if (location.includes('london')) hashtags.push('#london');
-      else if (location.includes('manchester')) hashtags.push('#manchester');
-      else if (location.includes('birmingham')) hashtags.push('#birmingham');
-      else if (location.includes('glasgow')) hashtags.push('#glasgow');
-      else if (location.includes('edinburgh')) hashtags.push('#edinburgh');
-    }
-    
-    // Add experience-based hashtags
-    if (profileData.experience) {
-      const experience = profileData.experience.toLowerCase();
-      if (experience.includes('senior') || experience.includes('expert') || experience.includes('10+')) {
-        hashtags.push('#experienced');
-      } else if (experience.includes('beginner') || experience.includes('new') || experience.includes('junior')) {
-        hashtags.push('#beginner');
-      }
-    }
-    
-    // Add general hashtags
-    hashtags.push('#worker', '#gig', '#freelance');
-    
-    // Remove duplicates and ensure we have exactly 3 hashtags
-    const uniqueHashtags = [...new Set(hashtags)];
-    return uniqueHashtags.slice(0, 3);
     
   } catch (error) {
     console.error('Error generating hashtags:', error);
@@ -159,13 +157,16 @@ export async function handleProfileSubmission(
     setChatSteps(prev => [...prev, hashtagStep]);
     
     // Generate hashtags
-    const hashtags = generateHashtags({
+    const hashtagData = {
       about: requiredData.about,
       experience: requiredData.experience,
       skills: requiredData.skills,
       equipment: requiredData.equipment,
       location: typeof requiredData.location === 'string' ? requiredData.location : JSON.stringify(requiredData.location || ''),
-    }, ai);
+    };
+    console.log('🔍 Hashtag generation data:', hashtagData);
+    const hashtags = await generateHashtags(hashtagData, ai);
+    console.log('🔍 Generated hashtags:', hashtags);
     
     // Mark hashtag step as complete
     setChatSteps(prev => prev.map(step => 
@@ -189,6 +190,8 @@ export async function handleProfileSubmission(
     };
     
     // Debug: Log the data being sent to the action
+    console.log('🔍 Data being sent to action:', profileDataWithHashtags);
+    console.log('🔍 requiredData:', requiredData);
     
     const result = await saveWorkerProfileFromOnboardingAction(profileDataWithHashtags as any, userToken);
     
@@ -217,9 +220,22 @@ export async function handleProfileSubmission(
         router.push(`/user/${userId}/worker`);
       }, 2000);
     } else {
-      setError('Failed to save profile. Please try again.');
+      console.error('Profile submission failed:', result.error);
+      const errorMessage = result.error || 'Failed to save profile. Please try again.';
+      setError(errorMessage);
+      
+      // Add error step to show the actual error to user
+      const errorStep: ChatStep = {
+        id: Date.now() + 2,
+        type: "bot",
+        content: `❌ Profile submission failed: ${errorMessage}`,
+        isComplete: true
+      };
+      setChatSteps(prev => [...prev, errorStep]);
+      
+      throw new Error(errorMessage);
     }
-    } catch (error) {
+  } catch (error) {
     setError('An error occurred while saving your profile. Please try again.');
   }
 }

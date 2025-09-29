@@ -144,9 +144,21 @@ export function checkOffTopicResponse(context: {
   if (userResponse.trim().length < 5) confidence -= 0.2;
   if (userResponse.trim().length > 500) confidence -= 0.1;
   
+  // Special handling for numerical values in experience field
+  if (context.currentField === 'experience') {
+    const isNumeric = /^\d+/.test(userResponse.trim()) || /^\d+\s*(years?|yrs?|months?)/i.test(userResponse.trim());
+    if (isNumeric) {
+      confidence = 0.8; // High confidence for numerical experience values
+    }
+  }
+  
   confidence = Math.max(0, Math.min(1, confidence));
   
-  if (confidence < 0.6) {
+  // Be more lenient for equipment and experience fields
+  const confidenceThreshold = context.currentField === 'equipment' ? 0.3 : 
+                            context.currentField === 'experience' ? 0.4 : 0.6;
+  
+  if (confidence < confidenceThreshold) {
     return {
       isRelevant: false,
       confidence,

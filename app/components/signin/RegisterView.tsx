@@ -12,6 +12,8 @@ import { isPasswordCommon } from "@/app/actions/password-check";
 import { authClient } from "@/lib/firebase/clientApp";
 import { toast } from "sonner";
 import PasswordInputField from "@/app/components/form/PasswodInputField";
+import { checkEmailVerificationStatus, requiresEmailVerification } from "@/lib/utils/emailVerification";
+import EmailVerificationModal from "./EmailVerificationModal";
 
 interface RegisterViewProps {
   onToggleRegister: () => void;
@@ -57,6 +59,8 @@ const RegisterView: React.FC<RegisterViewProps> = ({
   const [emailSent, setEmailSent] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationComplete, setVerificationComplete] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [unverifiedUserEmail, setUnverifiedUserEmail] = useState("");
   const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,7 +204,25 @@ const RegisterView: React.FC<RegisterViewProps> = ({
         return;
       }
 
-      // Move to email verification step
+      // Check if user is authenticated and get their verification status
+      if (authClient?.currentUser) {
+        const verificationStatus = checkEmailVerificationStatus(authClient.currentUser);
+        
+        if (verificationStatus.needsVerification) {
+          // Show verification modal instead of proceeding
+          setUnverifiedUserEmail(verificationStatus.email || formData.email);
+          setShowVerificationModal(true);
+          setLoading(false);
+          return;
+        } else if (verificationStatus.isVerified) {
+          // Email is already verified, proceed to role selection
+          toast.success("Registration successful! Redirecting...");
+          router.push('/select-role');
+          return;
+        }
+      }
+
+      // Fallback: Move to email verification step if no user found
       setCurrentStep('email-verification');
       
       // Automatically send verification email after successful registration
@@ -247,6 +269,19 @@ const RegisterView: React.FC<RegisterViewProps> = ({
   const handleBackToForm = () => {
     setCurrentStep('form');
     onError(null);
+  };
+
+  const handleCloseVerificationModal = () => {
+    setShowVerificationModal(false);
+    setUnverifiedUserEmail("");
+  };
+
+  const handleVerificationComplete = () => {
+    setShowVerificationModal(false);
+    setUnverifiedUserEmail("");
+    // The user will be automatically redirected by the auth state change
+    toast.success("Email verified successfully! Redirecting...");
+    router.push('/select-role');
   };
 
   // Render different steps
@@ -341,6 +376,7 @@ const RegisterView: React.FC<RegisterViewProps> = ({
   }
 
   return (
+    <>
     <form className={styles.form} onSubmit={handleSubmit}>
       <div className={styles.inputGroup}>
         <label htmlFor="name-register" className={styles.label}>
@@ -410,58 +446,22 @@ const RegisterView: React.FC<RegisterViewProps> = ({
         </SubmitButton>
       </div>
 
-        <div className={styles.inputGroup}>
-          <label htmlFor="phone-register" className={styles.label}>
-            Phone Number
-          </label>
-          <InputField
-            type="tel"
-            id="phone-register"
-            name="phone"
-            placeholder="Enter your phone number"
-            value={formData.phone}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
+      <button
+        type="button"
+        className={styles.toggleButton}
+        onClick={onToggleRegister}
+      >
+        Already have an account?{" "}
+        <span className={styles.linkText}>Sign In</span>
+      </button>
+    </form>
 
-        <div className={styles.inputGroup}>
-          <label htmlFor="password-register" className={styles.label}>
-            Password
-          </label>
-          <PasswordInputField
-            password={formData.password}
-            setPassword={(value: string) =>
-              setFormData((prev) => ({ ...prev, password: value }))
-            }
-            id="password-register"
-            name="password-register"
-            placeholder="Make it secure..."
-            required
-          />
-        </div>
-
-        <div className={styles.submitWrapper}>
-          <SubmitButton loading={loading} disabled={loading}>
-            Register Account
-          </SubmitButton>
-        </div>
-
-        <button
-          type="button"
-          className={styles.toggleButton}
-          onClick={onToggleRegister}
-        >
-          Already have an account?{" "}
-          <span className={styles.linkText}>Sign In</span>
-        </button>
-      </form>
-
-      <EmailVerificationModal
-        isOpen={showVerificationModal}
-        onClose={handleCloseVerificationModal}
-        userEmail={unverifiedUserEmail}
-      />
+    <EmailVerificationModal
+      isOpen={showVerificationModal}
+      onClose={handleCloseVerificationModal}
+      userEmail={unverifiedUserEmail}
+      onVerificationComplete={handleVerificationComplete}
+    />
     </>
   );
 };

@@ -24,13 +24,13 @@ export const parseExperienceToNumeric = (experienceText: string): ExperienceData
   let months = 0;
 
   // Pattern 0: Experience levels (beginner, intermediate, senior)
-  if (text.includes('beginner')) {
+  if (text.includes('beginner') || text.includes('novice') || text.includes('entry')) {
     return { years: 2, months: 0 };
   }
-  if (text.includes('intermediate')) {
+  if (text.includes('intermediate') || text.includes('mid') || text.includes('mid level')) {
     return { years: 5, months: 0 };
   }
-  if (text.includes('senior')) {
+  if (text.includes('senior') || text.includes('advanced') || text.includes('expert') || text.includes('lead') || text.includes('manager') || text.includes('director')) {
     return { years: 7, months: 0 };
   }
 
