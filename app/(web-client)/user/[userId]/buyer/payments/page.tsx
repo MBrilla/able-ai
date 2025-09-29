@@ -6,26 +6,12 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 
 // Using Lucide Icons
-import { Home, Filter, FileText, Repeat, ArrowLeft, Loader2, Wine, Utensils, Briefcase, ClipboardList } from 'lucide-react';
-// Import Recharts components
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
+import { Filter, FileText, ArrowLeft, Loader2, Wine, Utensils, Briefcase } from 'lucide-react';
 
 import styles from './PaymentsPage.module.css';
 import { useAuth } from '@/context/AuthContext';
-import Image from 'next/image';
 import { BuyerPayment, getBuyerPayments } from '@/actions/payments/get-buyer-payments';
-
-// Define interfaces for payment data
-interface Payment {
-  id: string;
-  // gigType: 'Bartender' | 'Waiter' | 'Chef' | 'Event Staff' | string; // Allow other types
-  workerName: string;
-  date: string; // ISO date string
-  amount: number;
-  status: 'Paid' | 'Pending' | 'Failed'; // Example statuses
-  invoiceUrl?: string;
-  gigId?: string; // To link to gig for rehire
-}
+import BarChartComponent from '@/app/components/shared/BarChart';
 
 interface FilterState {
   staffType: 'All' | string;
@@ -76,7 +62,7 @@ export default function BuyerPaymentsPage() {
     dateTo: '',
     priceFrom: '',
     priceTo: '',
-  })
+  });
   const [showFilterModal, setShowFilterModal] = useState(false); // For a potential filter modal
 
   // Available gig types for filtering (could be fetched or predefined)
@@ -94,7 +80,7 @@ export default function BuyerPaymentsPage() {
         setError("Could not load payment history. Please try again.");
       })
       .finally(() => setIsLoadingPayments(false));
-  }
+  };
 
   // Auth check and data load
   useEffect(() => {
@@ -275,7 +261,7 @@ export default function BuyerPaymentsPage() {
                     </div>
                   </div>
 
-                  {payment.status === 'PAID' && (
+                  {payment.status === 'PAID' && payment.invoiceUrl && (
                     <Link
                       href={payment.invoiceUrl || '/'}
                       className={styles.generateInvoice}
@@ -300,47 +286,11 @@ export default function BuyerPaymentsPage() {
           </div>
         )}
 
-        {/* Bar Chart Visualization */}
-        {/* <div className={styles.barChartContainer}>
-          {isLoadingPayments ? (
-            <div className={styles.loadingContainer}>
-              <Loader2 className="animate-spin" size={28}/> Loading chart data...
-            </div>
-          ) : payments.length > 0 && chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={chartData} 
-                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid 
-                  strokeDasharray="3 3" 
-                  stroke="#3a3a3a" 
-                  vertical={false}
-                />
-                <XAxis 
-                  dataKey="name" 
-                  tick={{ fill: '#a0a0a0', fontSize: 12 }}
-                  axisLine={{ stroke: '#3a3a3a' }}
-                  tickLine={{ stroke: '#3a3a3a' }}
-                />
-                <YAxis 
-                  tickFormatter={(value) => `£${value}`}
-                  tick={{ fill: '#a0a0a0', fontSize: 12 }}
-                  axisLine={{ stroke: '#3a3a3a' }}
-                  tickLine={{ stroke: '#3a3a3a' }}
-                />
-                <Bar 
-                  dataKey="total" 
-                  fill="var(--primary-color)" 
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={50}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : !isLoadingPayments ? (
-            <div className={styles.emptyState}>No data available for chart.</div>
-          ) : null}
-        </div> */}
+        <div className={styles.barChartContainer}>
+          {!isLoadingPayments &&
+            <BarChartComponent data={chartData} />
+          }
+        </div>
       </div>
     </div>
   );

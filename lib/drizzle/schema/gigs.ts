@@ -44,6 +44,7 @@ export const SkillsTable = pgTable("skills", {
   skillVideoUrl: text("skill_video_url"),
   adminTags: text("admin_tags").array(),
   ableGigs: integer("able_gigs"),
+  customerReviewsSummary: text("customer_reviews_summary"),
   images: jsonb("images")
     .$type<string[]>()
     .default(sql`'[]'::jsonb`),
@@ -126,6 +127,7 @@ export const GigsTable = pgTable("gigs", {
   finalRate: decimal("final_rate", { precision: 10, scale: 2 }),
   finalHours: decimal("final_hours", { precision: 5, scale: 2 }),
   finalAgreedPrice: decimal("final_agreed_price", { precision: 10, scale: 2 }),
+  tip: decimal("tip", { precision: 10, scale: 2 }),
 
   statusInternal: gigStatusEnum("status_internal")
     .default("PENDING_WORKER_ACCEPTANCE")
@@ -146,6 +148,7 @@ export const GigsTable = pgTable("gigs", {
   notesForBuyer: text("notes_for_buyer"),
   adjustmentNotes: text("adjustment_notes"),
 
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
   adjustedAt: timestamp("adjusted_at", { mode: "date", withTimezone: true }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)

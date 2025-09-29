@@ -26,7 +26,7 @@ const workerNotificationMessage = {
   prompt: "Please accept to confirm these changes"
 };
 
-const ConfirmAmendedGigDetailsContainer: React.FC<ConfirmAmendedGigDetailsContainerProps> = ({ gigId, amendId, user, lastRoleUsed }) => {
+const ConfirmAmendedGigDetailsContainer: React.FC<ConfirmAmendedGigDetailsContainerProps> = ({ gigId, user, lastRoleUsed }) => {
   const [gigDetails, setGigDetails] = useState<GigDetails | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLoadingConfirm, setIsLoadingConfirm] = useState<boolean>(false);
@@ -48,7 +48,7 @@ const ConfirmAmendedGigDetailsContainer: React.FC<ConfirmAmendedGigDetailsContai
       firebaseUid: user.uid,
       newFinalRate: gigDetails.hourlyRate,
       newFinalHours: gigDetails.estimatedEarnings,
-      currency: 'usd'
+      currency: 'gbp'
     });
     setIsLoadingConfirm(false);
     toast.success('Suggested changes confirmed!');

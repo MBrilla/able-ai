@@ -1,10 +1,10 @@
 /* eslint-disable max-lines-per-function */
-import { Calendar, Check, Info } from "lucide-react";
+import { Calendar, Check, Clock, Info, VideoOff } from "lucide-react";
 import styles from "./GigDetails.module.css";
 import { usePathname, useRouter } from "next/navigation";
 import GigActionButton from "../shared/GigActionButton";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type GigDetails from "@/app/types/GigDetailsTypes";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
@@ -77,6 +77,45 @@ const GigDetailsComponent = ({
   const { user } = useAuth();
   const lastRoleUsed = getLastRoleUsed();
   const pathname = usePathname();
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    if (!gig.expiresAt) {
+      setTimeLeft("");
+      return;
+    }
+
+    const calculateTimeLeft = () => {
+      if (!gig.expiresAt) {
+        setTimeLeft("");
+        return;
+      }
+      const expirationDate = new Date(gig.expiresAt);
+      const now = new Date();
+      const difference = expirationDate.getTime() - now.getTime();
+
+      if (difference <= 0) {
+        setTimeLeft("Expired");
+        return;
+      }
+
+      const hours = Math.floor((difference / 1000 / 60 / 60) % 24);
+      const minutes = Math.floor((difference / 1000 / 60) % 60);
+      const seconds = Math.floor((difference / 1000) % 60);
+
+      let timeLeftString = "";
+      if (hours > 0) timeLeftString += `${hours}h `;
+      if (minutes > 0) timeLeftString += `${minutes}m `;
+      timeLeftString += `${seconds}s`;
+
+      setTimeLeft(timeLeftString.trim());
+    };
+
+    calculateTimeLeft();
+    const intervalId = setInterval(calculateTimeLeft, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [gig.expiresAt]);
 
   // Get worker name from gig data if available, otherwise use a placeholder
   const getWorkerName = () => {
@@ -187,42 +226,62 @@ const GigDetailsComponent = ({
       switch (action) {
         case "accept":
           if (lastRoleUsed === "GIG_WORKER") {
-            setGig({ ...gig, status: "ACCEPTED" });
-            await updateGigOfferStatus({
+            const result = await updateGigOfferStatus({
               gigId: gig.id,
-              userId,
+              userUid: user?.uid || "",
               role,
               action: "accept",
             });
+
+            if (!result.success) {
+              toast.error(result.error || "Failed to accept gig");
+              return;
+            }
+
+            setGig({ ...gig, status: "ACCEPTED" });
             toast.success("Gig accepted successfully!");
           }
           break;
 
-        case "start":
-          setGig({ ...gig, status: "IN_PROGRESS" });
-          await updateGigOfferStatus({
+        case "start": {
+          const result = await updateGigOfferStatus({
             gigId: gig.id,
-            userId,
+            userUid: user?.uid || "",
             role,
             action: "start",
           });
+
+          if (!result.success) {
+            toast.error(result.error || "Failed to start gig");
+            return;
+          }
+
+          setGig({ ...gig, status: "IN_PROGRESS" });
           toast.success("Gig started successfully!");
-          break;
+        }
 
         case "complete":
-          setGig({ ...gig, status: "COMPLETED" });
-          await updateGigOfferStatus({
-            gigId: gig.id,
-            userId,
-            role,
-            action: "complete",
-          });
-          toast.success("Gig completed successfully!");
-          router.push(
-            lastRoleUsed === "GIG_WORKER"
-              ? `/user/${user?.uid}/worker/gigs/${gig.id}/feedback`
-              : `/user/${user?.uid}/buyer/gigs/${gig.id}/feedback`
-          );
+          {
+            const result = await updateGigOfferStatus({
+              gigId: gig.id,
+              userUid: user?.uid || "",
+              role,
+              action: "complete",
+            });
+
+            if (!result.success) {
+              toast.error(result.error || "Failed to complete gig");
+              return;
+            }
+
+            setGig({ ...gig, status: "COMPLETED" });
+            toast.success("Gig completed successfully!");
+            router.push(
+              lastRoleUsed === "GIG_WORKER"
+                ? `/user/${user?.uid}/worker/gigs/${gig.id}/feedback`
+                : `/user/${user?.uid}/buyer/gigs/${gig.id}/feedback`
+            );
+          }
           break;
 
         case "confirmed":
@@ -234,12 +293,15 @@ const GigDetailsComponent = ({
           if (!user?.uid || !gig.id) return;
 
           // const userRole = lastRoleUsed === "GIG_WORKER" ? 'worker' : 'buyer';
-          
+
           const userRole = pathname.includes("/worker/") ? "worker" : "buyer";
           const path = `/user/${user?.uid}/${userRole}/gigs/${gig.id}/amend`;
 
           try {
-            const result = await findExistingGigAmendment({ gigId: gig.id, userId: user.uid });
+            const result = await findExistingGigAmendment({
+              gigId: gig.id,
+              userId: user.uid,
+            });
 
             if (result.error) {
               toast.error(result.error);
@@ -287,50 +349,9 @@ const GigDetailsComponent = ({
     }
   };
 
-  /**
- // Handler for negotiating gig details
-   const handleNegotiateGig = () => {
-    if (!user?.uid || !gig.id) return;
-
-    // Navigate to the amend page - need to get the current user's profile ID
-    const currentUserId = userId; // This should be the worker's profile ID from props
-    router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/amend`);
-  
-    };
-    
-
-  // Handler for reporting an issue
-  const handleReportIssue = () => {
-    if (!user?.uid || !gig.id) return;
-
-    // Navigate to the report issue page
-    const currentUserId = userId; // This should be the worker's profile ID from props
-    router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/report-issue`);
-  };
-
-  // Handler for delegating gig
-  const handleDelegateGig = () => {
-    if (!user?.uid || !gig.id) return;
-
-    // Navigate to the delegate gig page
-    const currentUserId = userId; // This should be the worker's profile ID from props
-    router.push(`/user/${currentUserId}/worker/gigs/${gig.id}/delegate`);
-  };
-
-  // Handler for viewing terms of agreement
-  const handleViewTerms = () => {
-    // Navigate to the existing terms page
-    router.push("/legal/terms");
-  };
-
- */
-
-
   return (
     <div className={styles.container}>
-      <ScreenHeaderWithBack
-        title={`${gig.role} Gig`}
-      />
+      <ScreenHeaderWithBack title={`${gig.role} Gig`} />
 
       {/* Core Gig Info Section - Adapted to new structure */}
       <main className={styles.gigDetailsMain}>
@@ -342,15 +363,19 @@ const GigDetailsComponent = ({
           <div className={styles.gigDetailsRow}>
             <span className={styles.label}>Location:</span>
             <span className={styles.detailValue}>
-              {gig?.location?.formatted_address}
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${gig?.location?.lat},${gig?.location?.lng}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ marginLeft: "0.5rem" }}
-              >
-                (View Map)
-              </a>
+              {gig?.location?.formatted_address
+                ? gig.location.formatted_address
+                : "Location not provided"}
+              {gig?.location?.lat && gig?.location?.lng && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${gig.location.lat},${gig.location.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ marginLeft: "0.5rem" }}
+                >
+                  (View Map)
+                </a>
+              )}
             </span>
           </div>
           <div className={styles.gigDetailsRow}>
@@ -388,9 +413,18 @@ const GigDetailsComponent = ({
               </span>
             </div>
           )}
+
+          {timeLeft && (
+            <div className={styles.timerContainer}>
+              <Clock size={30} color="#fff" className={styles.timerIcon} />
+              <span className={styles.timerText}>
+                {timeLeft} <br /> to accept
+              </span>
+            </div>
+          )}
         </section>
 
-        {lastRoleUsed === "GIG_WORKER" && (
+        {gig?.worker ? (
           <section
             className={`${styles.gigDetailsSection} ${styles.workerSection}`}
           >
@@ -416,6 +450,17 @@ const GigDetailsComponent = ({
                   height={50}
                 />
               )}
+            </div>
+          </section>
+        ) : (
+          <section
+            className={`${styles.gigDetailsSection} ${styles.noWorkerSection}`}
+          >
+            <p>
+              <VideoOff />
+            </p>
+            <div className={styles.noWorkerAssigned}>
+              <p>No worker assigned yet</p>
             </div>
           </section>
         )}
@@ -514,9 +559,8 @@ const GigDetailsComponent = ({
               disabled={isActionLoading}
             >
               Delegate gig
-            </button> 
+            </button>
           </div>
-          
           <Link
             href="/terms-of-service"
             target="_blank"
@@ -526,7 +570,6 @@ const GigDetailsComponent = ({
             Terms of agreement
           </Link>
         </section>
-        
       </main>
     </div>
   );

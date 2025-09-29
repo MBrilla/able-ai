@@ -2114,7 +2114,6 @@ Make the conversation feel natural and build on what they've already told you, b
       const gigData = getGigDataFromForm();
 
       // Create the gig first
-      console.log('Creating gig for selected worker...');
       const gigPayload = {
         userId: user?.uid || '',
         gigDescription: gigData.title || 'Gig Request',
@@ -2161,7 +2160,7 @@ Make the conversation feel natural and build on what they've already told you, b
         firebaseUid: user?.uid || '',
         workerId: selectedWorker.workerId,
         gigId: gigResult.gigId,
-        currency: 'usd',
+        currency: 'gbp',
         serviceAmountInCents: ((selectedWorker.hourlyRate * totalHours) * 100)
       });
 

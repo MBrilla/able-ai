@@ -45,12 +45,12 @@ export default interface DashboardData {
   averageRating: number;
   responseRateInternal: number;
   completedHires: number;
-  skills: string[];
-  pieChartData?: Array<{ name: string; value: number; fill: string }>;
+  skills?: Array<{ name: string; value: number }>;
+  topSkills?: Array<{ name: string; value: number }>;
   barChartData?: Array<{ name: string; hires: number; spend?: number }>;
   badgesEarnedByTheirWorkers: Badge[];
   reviews: Review[];
   badges: Award[];
   skillCounts?: { name: string; value: number }[];
-  totalPayments?: { name: string; a: number }[];
+  totalPayments?: { name: string; total: number }[];
 }
