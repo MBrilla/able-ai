@@ -322,6 +322,8 @@ export const updateVideoUrlProfileAction = async (
   token?: string | undefined
 ) => {
   try {
+    console.log("🎥 Updating video URL:", videoUrl);
+
     if (!token) {
       throw new Error("User ID is required to fetch buyer profile");
     }
@@ -335,6 +337,13 @@ export const updateVideoUrlProfileAction = async (
 
     if (!user) throw "User not found";
 
+    console.log(
+      "🎥 Updating video URL for user:",
+      user.id,
+      "with URL:",
+      videoUrl
+    );
+
     const result = await db
       .update(GigWorkerProfilesTable)
       .set({
@@ -344,8 +353,11 @@ export const updateVideoUrlProfileAction = async (
       .where(eq(GigWorkerProfilesTable.userId, user?.id))
       .returning();
 
+    console.log("🎥 Video URL update result:", result);
+
     return { success: true, data: "Url video updated successfully" };
   } catch (error) {
+    console.error("🎥 Video URL update error:", error);
     return { success: false, data: "Url video updated successfully", error };
   }
 };
@@ -990,5 +1002,40 @@ export const updateSocialLinkWorkerProfileAction = async (
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
     };
+  }
+};
+
+export const updateWorkerHashtagsAction = async (
+  token: string,
+  hashtags: string[]
+) => {
+  try {
+    if (!token) throw new Error("User ID is required");
+
+    const { uid } = await isUserAuthenticated(token);
+    if (!uid) throw ERROR_CODES.UNAUTHORIZED;
+
+    const user = await db.query.UsersTable.findFirst({
+      where: eq(UsersTable.firebaseUid, uid),
+      with: { gigWorkerProfile: true },
+    });
+    if (!user || !user?.gigWorkerProfile) throw "User worker profile not found";
+
+    await db
+      .update(GigWorkerProfilesTable)
+      .set({
+        hashtags,
+        updatedAt: new Date(),
+      })
+      .where(eq(GigWorkerProfilesTable.id, user.gigWorkerProfile.id));
+
+    return { success: true, data: hashtags };
+  } catch (error) {
+    console.error("Failed to update worker hashtags:", error);
+    const message =
+      error instanceof Error
+        ? error.message
+        : "An unexpected error occurred while updating hashtags.";
+    return { success: false, data: null, error: message };
   }
 };
