@@ -71,7 +71,7 @@ Return only a JSON array of equipment names, no explanations.`
  */
 function parseEquipmentItemsBasic(text: string): { name: string; description?: string }[] {
   // Remove common prefixes and suffixes - be more aggressive but smart
-  let cleanedText = text
+  const cleanedText = text
     .replace(/^(i use|i have|i own|equipment:|tools:|my equipment:|my tools:?)\s*/i, '')
     .replace(/^(the|a|an)\s+/i, '')
     .replace(/^:\s*/, '') // Remove leading colon

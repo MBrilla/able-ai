@@ -12,7 +12,7 @@ import { isPasswordCommon } from "@/app/actions/password-check";
 import { authClient } from "@/lib/firebase/clientApp";
 import { toast } from "sonner";
 import PasswordInputField from "@/app/components/form/PasswodInputField";
-import { checkEmailVerificationStatus, requiresEmailVerification } from "@/lib/utils/emailVerification";
+import { checkEmailVerificationStatus } from "@/lib/utils/emailVerification";
 import EmailVerificationModal from "./EmailVerificationModal";
 
 interface RegisterViewProps {
@@ -20,27 +20,6 @@ interface RegisterViewProps {
   onError: (error: React.ReactNode | null) => void;
 }
 
-const registrationInputs: StepInputConfig[] = [
-  {
-    type: "text",
-    name: "name",
-    label: "Name",
-    placeholder: "Enter your name",
-  },
-  {
-    type: "text",
-    name: "phone",
-    label: "Phone Number",
-    placeholder: "Enter your phone number",
-  },
-  {
-    type: "email",
-    name: "email",
-    label: "Email Address",
-    placeholder: "Enter your email",
-    required: true,
-  },
-];
 
 type RegistrationStep = 'form' | 'email-verification' | 'verification-complete';
 
