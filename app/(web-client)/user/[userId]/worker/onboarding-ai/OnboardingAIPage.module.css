@@ -648,7 +648,7 @@
 }
 
 .supportComponent::before {
-  content: "🆘 Support Options";
+
   position: absolute;
   top: -12px;
   left: 16px;

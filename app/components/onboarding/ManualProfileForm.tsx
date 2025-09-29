@@ -6,10 +6,11 @@ import { VALIDATION_CONSTANTS } from '@/app/constants/validation';
 import styles from './ManualProfileForm.module.css';
 import LocationPickerBubble from './LocationPickerBubble';
 import VideoRecorderOnboarding from './VideoRecorderOnboarding';
-import AIValidationModal from './AIValidationModal';
 import DataReviewModal from './DataReviewModal';
 import DataToggleOptions, { ExistingData } from './DataToggleOptions';
 import InlineDataToggle from './InlineDataToggle';
+import OnboardingAvailabilityStep from '@/app/(web-client)/user/[userId]/worker/onboarding-ai/components/OnboardingAvailabilityStep';
+import { AvailabilityFormData } from '@/app/types/AvailabilityTypes';
 import { ref, uploadBytesResumable, getDownloadURL, getStorage } from "firebase/storage";
 import { firebaseApp } from "@/lib/firebase/clientApp";
 import { geminiAIAgent } from '@/lib/firebase/ai';
@@ -54,16 +55,7 @@ interface FormData {
   equipment: string;
   hourlyRate: number;
   location: any; // Changed to any for LocationPickerBubble
-  availability: {
-    days: string[];
-    startTime: string;
-    endTime: string;
-    frequency?: string;
-    ends?: string;
-    startDate?: string;
-    endDate?: string;
-    occurrences?: number;
-  };
+  availability: AvailabilityFormData;
   videoIntro: string | null;
   references: string;
   jobTitle?: string; // AI extracted job title
@@ -80,7 +72,7 @@ interface ManualProfileFormProps {
 }
 
 // Export validation function for external use (basic validation only)
-export const validateWorkerProfileData = (formData: FormData): { isValid: boolean; errors: Record<string, string> } => {
+export const validateWorkerProfileData = (formData: FormData, workerProfileId?: string | null): { isValid: boolean; errors: Record<string, string> } => {
   const errors: Record<string, string> = {};
   let isValid = true;
 
@@ -113,10 +105,7 @@ export const validateWorkerProfileData = (formData: FormData): { isValid: boolea
         }
         break;
       case 'equipment':
-        if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH) {
-          errors.equipment = `Equipment section must be at least ${VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH} characters`;
-          isValid = false;
-        }
+        // Equipment is optional - no minimum length required
         break;
       case 'qualifications':
         if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_QUALIFICATIONS_LENGTH) {
@@ -149,7 +138,8 @@ export const validateWorkerProfileData = (formData: FormData): { isValid: boolea
         }
         break;
       case 'references':
-        if (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_REFERENCES_LENGTH) {
+        // References are only required if workerProfileId is available (profile created)
+        if (workerProfileId && (!value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_REFERENCES_LENGTH)) {
           errors.references = 'References link is required';
           isValid = false;
         }
@@ -337,18 +327,6 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     videoIntro: 'new' as 'existing' | 'new'
   });
   
-  // AI Validation Modal state
-  const [aiValidationModal, setAiValidationModal] = useState<{
-    isOpen: boolean;
-    fieldName: string;
-    originalValue: string;
-    sanitizedValue: string;
-  }>({
-    isOpen: false,
-    fieldName: '',
-    originalValue: '',
-    sanitizedValue: ''
-  });
 
   // Data Review Modal state
   const [dataReviewModal, setDataReviewModal] = useState<{
@@ -368,25 +346,42 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
   // Debounce ref for skill checking
   const skillCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const weekDays = [
-    { value: 'monday', label: 'Monday' },
-    { value: 'tuesday', label: 'Tuesday' },
-    { value: 'wednesday', label: 'Wednesday' },
-    { value: 'thursday', label: 'Thursday' },
-    { value: 'friday', label: 'Friday' },
-    { value: 'saturday', label: 'Saturday' },
-    { value: 'sunday', label: 'Sunday' }
-  ];
 
-  // Update references field when workerProfileId becomes available
+  // Generate references link immediately
   useEffect(() => {
-    if (workerProfileId && !formData.references) {
+    console.log('🔍 References useEffect triggered:', { 
+      hasReferences: !!formData.references, 
+      workerProfileId, 
+      referencesValue: formData.references 
+    });
+    
+    if (!formData.references) {
+      let recommendationLink;
+      
+      if (workerProfileId && workerProfileId !== 'null' && workerProfileId !== '') {
+        // Use actual workerProfileId if available
+        console.log('✅ Using actual workerProfileId:', workerProfileId);
+        try {
+          recommendationLink = buildRecommendationLink(workerProfileId);
+          console.log('✅ Generated recommendation link:', recommendationLink);
+        } catch (error) {
+          console.error('❌ Error building recommendation link:', error);
+          // Fall back to temporary link
+          recommendationLink = `${typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:3000'}/worker/temp/recommendation`;
+        }
+      } else {
+        // Generate temporary link for new users
+        console.log('⚠️ No workerProfileId, using temporary link');
+        recommendationLink = `${typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:3000'}/worker/temp/recommendation`;
+      }
+      
+      console.log('🔗 Setting references to:', recommendationLink);
       setFormData(prev => ({
         ...prev,
-        references: buildRecommendationLink(workerProfileId)
+        references: recommendationLink
       }));
     }
-  }, [workerProfileId, formData.references]);
+  }, [formData.references, workerProfileId]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -501,10 +496,57 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
             existingValue = fetchedExistingData.profileData.fullBio;
             break;
           case 'location':
-            existingValue = fetchedExistingData.profileData.location;
+            // Handle different location data formats
+            const locationData = fetchedExistingData.profileData.location;
+            console.log('🔍 Location data from database:', locationData);
+            
+            if (typeof locationData === 'string') {
+              // If it's a string, try to parse as JSON
+              try {
+                existingValue = JSON.parse(locationData);
+              } catch (error) {
+                // If JSON parsing fails, use as plain string
+                existingValue = locationData;
+              }
+            } else {
+              existingValue = locationData;
+            }
             break;
           case 'availability':
-            existingValue = fetchedExistingData.profileData.availabilityJson;
+            // Parse availabilityJson if it's a string, otherwise use as-is
+            const availabilityData = fetchedExistingData.profileData.availabilityJson;
+            console.log('🔍 Availability data from database:', availabilityData);
+            
+            if (typeof availabilityData === 'string') {
+              try {
+                existingValue = JSON.parse(availabilityData);
+                console.log('🔍 Parsed availability data:', existingValue);
+              } catch (error) {
+                console.error('Error parsing availability data:', error);
+                existingValue = null;
+              }
+            } else {
+              existingValue = availabilityData;
+              console.log('🔍 Using availability data as-is:', existingValue);
+            }
+            
+            // Convert array format to object format if needed
+            if (Array.isArray(existingValue) && existingValue.length > 0) {
+              const firstItem = existingValue[0];
+              if (firstItem && typeof firstItem === 'object') {
+                // Convert from array format to object format
+                existingValue = {
+                  days: firstItem.days || [],
+                  startTime: firstItem.startTime || '09:00',
+                  endTime: firstItem.endTime || '17:00',
+                  frequency: firstItem.frequency || 'weekly',
+                  ends: firstItem.ends || 'never',
+                  startDate: firstItem.startDate || new Date().toISOString().split('T')[0],
+                  endDate: firstItem.endDate,
+                  occurrences: firstItem.occurrences
+                };
+              }
+            }
             break;
           default:
             existingValue = fetchedExistingData.profileData[field];
@@ -515,10 +557,13 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       }
       
       if (existingValue !== undefined && existingValue !== null) {
+        console.log(`🔍 Setting ${field} to existing value:`, existingValue);
         setFormData(prev => ({
           ...prev,
           [field]: existingValue
         } as FormData));
+      } else {
+        console.log(`🔍 No existing value found for ${field}`);
       }
     }
     // If switching to 'new', clear the field
@@ -543,14 +588,44 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     if (!locationData) return 'No existing data';
     
     try {
-      // Parse if it's a string
-      const data = typeof locationData === 'string' ? JSON.parse(locationData) : locationData;
+      let data;
       
-      if (!data || !data.address) {
-        return 'No location set';
+      // Handle different data types
+      if (typeof locationData === 'string') {
+        // Check if it's already a formatted address string
+        if (locationData.includes(',') && !locationData.startsWith('{')) {
+          return locationData; // Return as-is if it looks like an address
+        }
+        
+        // Try to parse as JSON
+        try {
+          data = JSON.parse(locationData);
+        } catch (jsonError) {
+          // If JSON parsing fails, treat as plain string
+          return locationData;
+        }
+      } else {
+        data = locationData;
       }
       
-      return data.address;
+      // Handle different location data structures
+      if (data && typeof data === 'object') {
+        // Check for various address field names
+        const address = data.address || data.formatted_address || data.formattedAddress || data.location;
+        
+        if (address) {
+          return address;
+        }
+        
+        // If no address field, try to construct from other fields
+        if (data.street && data.city) {
+          return `${data.street}, ${data.city}`;
+        }
+        
+        return 'Location data available but no address found';
+      }
+      
+      return 'No location set';
     } catch (error) {
       console.error('Error formatting location:', error);
       return 'Invalid location data';
@@ -562,8 +637,32 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     if (!availabilityData) return 'No existing data';
     
     try {
-      // Parse if it's a string
-      const data = typeof availabilityData === 'string' ? JSON.parse(availabilityData) : availabilityData;
+      let data;
+      
+      // Handle different data types
+      if (typeof availabilityData === 'string') {
+        // Try to parse as JSON
+        try {
+          data = JSON.parse(availabilityData);
+        } catch (jsonError) {
+          // If JSON parsing fails, return the string as-is
+          return availabilityData;
+        }
+      } else {
+        data = availabilityData;
+      }
+      
+      // Handle array format (convert to object format)
+      if (Array.isArray(data) && data.length > 0) {
+        const firstItem = data[0];
+        if (firstItem && typeof firstItem === 'object') {
+          data = {
+            days: firstItem.days || [],
+            startTime: firstItem.startTime || '09:00',
+            endTime: firstItem.endTime || '17:00'
+          };
+        }
+      }
       
       if (!data || !data.days || !Array.isArray(data.days)) {
         return 'No availability set';
@@ -663,36 +762,21 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     }
   };
 
-  // AI Validation Modal handlers
-  const handleAIValidationConfirm = () => {
-    // Update form data with sanitized value
-    setFormData(prev => ({
-      ...prev,
-      [aiValidationModal.fieldName]: aiValidationModal.sanitizedValue
-    }));
-    
-    // Close modal and continue with submission
-    setAiValidationModal(prev => ({ ...prev, isOpen: false }));
-    continueFormSubmission();
-  };
 
-  const handleAIValidationReject = () => {
-    // Keep original value and close modal
-    setAiValidationModal(prev => ({ ...prev, isOpen: false }));
-    continueFormSubmission();
-  };
-
-  const continueFormSubmission = async () => {
+  const continueFormSubmission = async (dataToSubmit?: any) => {
     // This will be called after AI validation modal is handled
     // Continue with the rest of the form submission logic
     try {
       // Continue with the existing submission logic...
       console.log('✅ Continuing form submission after AI validation');
       
+      // Use provided data or fall back to current form data
+      const data = dataToSubmit || formData;
+      
       // Parse experience to numeric
-      const experienceYears = parseExperienceToNumeric(formData.experience);
+      const experienceYears = parseExperienceToNumeric(data.experience);
       const finalFormData = {
-        ...formData,
+        ...data,
         experienceYears: experienceYears.years,
         experienceMonths: experienceYears.months
       };
@@ -716,18 +800,19 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
           const result = await getPrivateWorkerProfileAction(user.token);
           if (result.success && result.data?.id) {
             // User already has a worker profile, build the recommendation link
-            setFormData(prev => ({
-              ...prev,
-              references: buildRecommendationLink(result.data.id as string)
-            }));
+            try {
+              const recommendationLink = buildRecommendationLink(result.data.id as string);
+              setFormData(prev => ({
+                ...prev,
+                references: recommendationLink
+              }));
+            } catch (linkError) {
+              console.error('Error building recommendation link:', linkError);
+            }
           }
         } catch (error) {
           console.error('Failed to fetch existing worker profile:', error);
-          // If we can't fetch the existing profile, set a placeholder
-          setFormData(prev => ({
-            ...prev,
-            references: "Recommendation link will be generated after profile creation"
-          }));
+          // Keep the existing empty references - no need to change it
         }
       }
     };
@@ -818,6 +903,29 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
         return isValid;
       }
       
+      if (field === 'references') {
+        // References are only required if workerProfileId is available (profile created)
+        const isValid = !workerProfileId || (value && typeof value === 'string' && value.trim().length > 0);
+        console.log(`🔍 Progress check for ${field}:`, {
+          value: value?.substring(0, 20) + '...',
+          length: value?.length || 0,
+          hasWorkerProfileId: !!workerProfileId,
+          isValid
+        });
+        return isValid;
+      }
+      
+      if (field === 'equipment') {
+        // Equipment is optional - always considered valid
+        const isValid = true;
+        console.log(`🔍 Progress check for ${field}:`, {
+          value: value?.substring(0, 20) + '...',
+          length: value?.length || 0,
+          isValid
+        });
+        return isValid;
+      }
+      
       // For experience field, just check if it's not empty (very lenient)
       if (field === 'experience') {
         const isValid = value && typeof value === 'string' && value.trim().length > 0;
@@ -846,7 +954,7 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     const progressPercentage = (filledFields.length / validatedFields.length) * 100;
     console.log(`📊 Form progress: ${filledFields.length}/${validatedFields.length} = ${progressPercentage}%`);
     setProgress(progressPercentage);
-  }, [formData, dataToggleOptions, fetchedExistingData, existingProfileData]);
+  }, [formData, dataToggleOptions, fetchedExistingData, existingProfileData, workerProfileId]);
 
   const validateField = (name: keyof FormData, value: any): string => {
 
@@ -864,7 +972,8 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
       case 'skills':
         return value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH ? `Please list your skills (at least ${VALIDATION_CONSTANTS.WORKER.MIN_SKILLS_LENGTH} characters)` : '';
       case 'equipment':
-        return !value || value.trim().length < VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH ? `Please list your equipment (at least ${VALIDATION_CONSTANTS.WORKER.MIN_EQUIPMENT_LENGTH} characters)` : '';
+        // Equipment is optional - no validation required
+        return '';
       case 'qualifications':
         // Qualifications are optional, but if provided, should be meaningful
         return value && value.trim().length > 0 && value.trim().length < 5 ? 'Please provide more details about your qualifications (at least 5 characters)' : '';
@@ -876,6 +985,12 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
         return !value.days || value.days.length === 0 ? 'Please select at least one day of availability' : '';
       case 'videoIntro':
         return !value || typeof value !== 'string' || value.trim().length === 0 ? 'Please record a video introduction' : '';
+      case 'references':
+        // References link is always required (temporary link is generated immediately)
+        if (!value || value.trim().length === 0) {
+          return 'References link is required';
+        }
+        return '';
       default:
         return '';
     }
@@ -974,17 +1089,6 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     }
   };
 
-  const handleDayToggle = (day: string) => {
-    setFormData(prev => ({
-      ...prev,
-      availability: {
-        ...prev.availability,
-        days: prev.availability.days.includes(day)
-          ? prev.availability.days.filter(d => d !== day)
-          : [...prev.availability.days, day]
-      }
-    }));
-  };
 
   // AI Content Validation function - rejects inappropriate content
   const validateContentWithAI = async (field: string, value: string): Promise<{ isValid: boolean; error?: string; sanitized?: string }> => {
@@ -1129,7 +1233,15 @@ Description: "${value}"`;
           required: ["jobTitle", "sanitized"]
         });
       } else if (field === 'skills') {
-        prompt = `Clean and format this skills list. Remove duplicates, fix typos, and organize into a clean comma-separated list. Keep only relevant professional skills.
+        prompt = `Clean and format this skills list. Extract only the skill names, removing phrases like "I am a", "I can", "I have", etc. Convert to simple skill names.
+
+Examples:
+- "I am a chef" → "Chef"
+- "I can cook" → "Cooking"
+- "I have experience in bartending" → "Bartending"
+- "I am good at customer service" → "Customer Service"
+
+Remove duplicates, fix typos, and organize into a clean comma-separated list. Keep only relevant professional skills.
 
 Skills: "${value}"`;
         
@@ -1214,6 +1326,16 @@ Qualifications: "${value}"`;
     
     for (const fieldName of fieldsToValidate) {
       const value = formData[fieldName as keyof FormData];
+      
+      // Check if user is using existing data for this field
+      const isUsingExisting = dataToggleOptions[fieldName as keyof typeof dataToggleOptions] === 'existing';
+      
+      // Skip validation for fields using existing data
+      if (isUsingExisting) {
+        console.log(`✅ Validation skipped for ${fieldName} (using existing data)`);
+        continue;
+      }
+      
       const error = validateField(fieldName as keyof FormData, value);
 
       if (error) {
@@ -1319,23 +1441,13 @@ Qualifications: "${value}"`;
       // AI Sanitization for specific fields (only if content is valid)
       const sanitizedData = { ...formData };
       let extractedJobTitle = '';
-      let needsUserConfirmation = false;
 
       // Sanitize About field (extract job title)
       if (formData.about) {
         const aboutResult = await sanitizeWithAI('about', formData.about);
-        if (aboutResult.sanitized !== formData.about) {
-          // Show confirmation modal for about field
-          setAiValidationModal({
-            isOpen: true,
-            fieldName: 'about',
-            originalValue: formData.about,
-            sanitizedValue: aboutResult.sanitized
-          });
-          needsUserConfirmation = true;
-        } else {
-          sanitizedData.about = aboutResult.sanitized;
-        }
+        // Always apply sanitization directly without user confirmation
+        sanitizedData.about = aboutResult.sanitized;
+        
         if (aboutResult.jobTitle) {
           extractedJobTitle = aboutResult.jobTitle;
         }
@@ -1344,36 +1456,16 @@ Qualifications: "${value}"`;
       // Skills field is for display only - jobTitle is THE skill saved to database
       if (formData.skills) {
         const skillsResult = await sanitizeWithAI('skills', formData.skills);
-        if (skillsResult.sanitized !== formData.skills) {
-          // Show confirmation modal for skills field
-          setAiValidationModal({
-            isOpen: true,
-            fieldName: 'skills',
-            originalValue: formData.skills,
-            sanitizedValue: skillsResult.sanitized
-          });
-          needsUserConfirmation = true;
-        } else {
-          sanitizedData.skills = skillsResult.sanitized;
-        }
+        // Always apply sanitization directly without user confirmation
+        sanitizedData.skills = skillsResult.sanitized;
         console.log('ℹ️ Skills field sanitized for display only - jobTitle is THE skill');
       }
 
       // Sanitize Qualifications field
       if (formData.qualifications) {
         const qualificationsResult = await sanitizeWithAI('qualifications', formData.qualifications);
-        if (qualificationsResult.sanitized !== formData.qualifications) {
-          // Show confirmation modal for qualifications field
-          setAiValidationModal({
-            isOpen: true,
-            fieldName: 'qualifications',
-            originalValue: formData.qualifications,
-            sanitizedValue: qualificationsResult.sanitized
-          });
-          needsUserConfirmation = true;
-        } else {
-          sanitizedData.qualifications = qualificationsResult.sanitized;
-        }
+        // Always apply sanitization directly without user confirmation
+        sanitizedData.qualifications = qualificationsResult.sanitized;
       }
 
       // Sanitize Experience field (extract years and months as numeric)
@@ -1411,9 +1503,8 @@ Qualifications: "${value}"`;
         onConfirm: () => {
           console.log('✅ User confirmed cleaned data, proceeding with submission');
           setDataReviewModal(prev => ({ ...prev, isOpen: false }));
-          // Update form data with sanitized values and submit
-          setFormData(sanitizedData);
-          continueFormSubmission();
+          // Submit sanitized data directly
+          continueFormSubmission(sanitizedData);
         },
         onGoBack: () => {
           console.log('↩️ User chose to go back and edit');
@@ -1702,66 +1793,15 @@ Qualifications: "${value}"`;
                 </button>
               </div>
             ) : (
-              <div className={styles.availabilityDays}>
-                {weekDays.map((day) => (
-                  <button
-                    key={day.value}
-                    type="button"
-                    className={`${styles.dayButton} ${
-                      formData.availability.days.includes(day.value) ? styles.dayButtonActive : ''
-                    }`}
-                    onClick={() => handleDayToggle(day.value)}
-                  >
-                    {day.label}
-                  </button>
-                ))}
-              </div>
+              <OnboardingAvailabilityStep
+                currentAvailability={formData.availability}
+                onAvailabilityChange={(availability) => handleInputChange('availability', availability)}
+                onConfirm={() => {}} // No confirmation needed in manual form
+                isSubmitting={isSubmitting}
+              />
             )}
-                         {errors.availability && <span className={styles.errorText}>{errors.availability}</span>}
+            {errors.availability && <span className={styles.errorText}>{errors.availability}</span>}
           </div>
-
-          {dataToggleOptions.availability !== 'existing' && (
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
-                Available Hours *
-              </label>
-              <div className={styles.timeRangeContainer}>
-                <div className={styles.timeInputGroup}>
-                  <label className={styles.timeLabel}>From:</label>
-                  <input
-                    type="time"
-                    className={styles.input}
-                    value={formData.availability.startTime}
-                    onChange={(e) => handleInputChange('availability', {
-                      ...formData.availability,
-                      startTime: e.target.value
-                    })}
-                  />
-                </div>
-                <div className={styles.timeInputGroup}>
-                  <label className={styles.timeLabel}>To:</label>
-                  <input
-                    type="time"
-                    className={styles.input}
-                    value={formData.availability.endTime}
-                    onChange={(e) => handleInputChange('availability', {
-                      ...formData.availability,
-                      endTime: e.target.value
-                    })}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {dataToggleOptions.availability !== 'existing' && (
-            <p className={styles.helpText}>
-              Your availability will be set as: {formData.availability.days.length > 0 ?
-                `${formData.availability.days.map(day => weekDays.find(d => d.value === day)?.label).join(', ')} ${formData.availability.startTime} - ${formData.availability.endTime}` :
-                'Please select days and times'
-              }
-            </p>
-          )}
         </div>
 
         {/* Media & References Section */}
@@ -1797,7 +1837,6 @@ Qualifications: "${value}"`;
                     className={styles.referencesLink}
                     value={formData.references}
                     readOnly
-                    placeholder="Generating reference link..."
                   />
                   <button
                     type="button"
@@ -1858,17 +1897,6 @@ Qualifications: "${value}"`;
         </div>
       </form>
       
-      {/* AI Validation Modal */}
-      <AIValidationModal
-        isOpen={aiValidationModal.isOpen}
-        onClose={() => setAiValidationModal(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={handleAIValidationConfirm}
-        onReject={handleAIValidationReject}
-        fieldName={aiValidationModal.fieldName}
-        originalValue={aiValidationModal.originalValue}
-        sanitizedValue={aiValidationModal.sanitizedValue}
-        isSubmitting={isSubmitting}
-      />
 
       {/* Data Review Modal */}
       <DataReviewModal

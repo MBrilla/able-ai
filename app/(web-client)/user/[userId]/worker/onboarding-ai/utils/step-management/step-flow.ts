@@ -1,4 +1,5 @@
-import { generateContextAwarePrompt, sanitizeWithAI, extractSkillName } from '../ai-systems/ai-utils';
+import { generateContextAwarePrompt, generateConversationAwarePrompt, sanitizeWithAI, extractSkillName } from '../ai-systems/ai-utils';
+import { buildConversationContext, generateMemoryAwarePrompt, generateAlternativePhrasing } from '../ai-systems/conversation-memory';
 import { buildRecommendationLink } from '../helpers/helpers';
 import { buildJobTitleConfirmationStep, buildSimilarSkillsConfirmationStep } from './step-builders';
 import { checkExistingSimilarSkill, interpretJobTitle } from '../ai-systems/ai-utils';
@@ -79,7 +80,7 @@ const specialFields: RequiredField[] = SPECIAL_FIELDS_CONFIG;
 export function getNextRequiredField(formData: FormData, existingProfileData?: any): RequiredField | undefined {
   // First, find the first required field that hasn't been filled in formData
   console.log('🔍 getNextRequiredField - formData:', formData);
-  console.log('🔍 getNextRequiredField - requiredFields:', requiredFields.map(f => ({ name: f.name, hasValue: !!formData[f.name] })));
+  console.log('🔍 getNextRequiredField - requiredFields:', requiredFields.map(f => ({ name: f.name, hasValue: !!formData[f.name], value: formData[f.name] })));
   
   let nextField = requiredFields.find((f: RequiredField) => !formData[f.name]);
   
@@ -101,6 +102,20 @@ export function getNextRequiredField(formData: FormData, existingProfileData?: a
   console.log('🔍 getNextRequiredField - nextField:', nextField);
   
   return nextField;
+}
+
+/**
+ * Check if all required fields are completed
+ */
+export function areAllRequiredFieldsCompleted(formData: FormData): boolean {
+  const allFieldsCompleted = requiredFields.every(field => {
+    const hasValue = !!formData[field.name];
+    console.log(`🔍 Field ${field.name}: ${hasValue ? 'completed' : 'missing'}`);
+    return hasValue;
+  });
+  
+  console.log('🔍 All required fields completed:', allFieldsCompleted);
+  return allFieldsCompleted;
 }
 
 /**
@@ -188,6 +203,165 @@ export async function addNextStepSafely(
   const nextField = getNextRequiredField(formData, existingProfileData);
   
   if (!nextField) {
+    // Check if all required fields are completed - if so, show references step
+    if (areAllRequiredFieldsCompleted(formData)) {
+      console.log('🔍 All required fields completed, showing references step');
+      
+      // Use existing worker profile ID
+      if (!workerProfileId) {
+        console.error('Worker profile not yet created');
+        return;
+      }
+      
+      const recommendationLink = buildRecommendationLink(workerProfileId);
+      
+      // Add typing indicator first
+      setChatSteps((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          type: "typing",
+          isNew: true,
+        },
+      ]);
+
+      // Replace typing indicator with separate messages after delay
+      setTimeout(() => {
+        setChatSteps((prev) => {
+          const filtered = prev.filter(s => s.type !== 'typing');
+          return [
+            ...filtered,
+            // First message: Instructions
+            {
+              id: Date.now() + 2,
+              type: "bot",
+              content: "You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.",
+              isNew: true,
+            },
+            // Second message: Share link
+            {
+              id: Date.now() + 3,
+              type: "shareLink",
+              linkUrl: recommendationLink,
+              linkText: "Share this link to get your reference",
+              isNew: true,
+            },
+            // Third message: Gigfolio info
+            {
+              id: Date.now() + 4,
+              type: "bot",
+              content: "Please check out your gigfolio and share with your network\n\nif your connections make a hire on Able you get £5!",
+              isNew: true,
+            }
+          ];
+        });
+      }, 1000);
+      
+      // After references, show AI-generated summary first
+      setTimeout(async () => {
+        console.log('🔍 Adding AI summary step after references');
+        console.log('🔍 Current formData:', formData);
+        
+        // Generate AI summary with timeout
+        let aiSummary = '';
+        try {
+          console.log('🔍 Starting AI summary generation...');
+          
+          // Add timeout to prevent hanging
+          const summaryPromise = (async () => {
+            const { geminiAIAgent } = await import('@/lib/firebase/ai');
+            
+            const summaryPrompt = `Create a personalized summary of this worker's profile based on their onboarding information:
+
+Profile Information:
+- About: ${formData.about || 'Not provided'}
+- Skills/Profession: ${formData.skills || 'Not provided'}
+- Experience: ${formData.experience || 'Not provided'}
+- Qualifications: ${formData.qualifications || 'Not provided'}
+- Equipment: ${formData.equipment || 'Not provided'}
+- Hourly Rate: ${formData.hourlyRate || 'Not provided'}
+- Location: ${formData.location || 'Not provided'}
+
+Create a warm, professional summary that highlights their key strengths and experience. Make it personal and engaging, like you're introducing them to potential clients. Keep it concise but comprehensive.
+
+Example format:
+"Meet [Name], a skilled [profession] with [experience] of experience. [He/She] specializes in [key skills] and brings [qualifications] to every project. Based in [location], [he/she] is available at [hourly rate] and is equipped with [equipment]. [Personal touch about their background]."
+
+Generate a summary:`;
+
+            const { Schema } = await import('@firebase/ai');
+            
+            const response = await geminiAIAgent(
+              "gemini-2.0-flash",
+              {
+                prompt: summaryPrompt,
+                responseSchema: Schema.object({
+                  properties: {
+                    summary: Schema.string()
+                  }
+                }),
+                isStream: false,
+              },
+              ai
+            );
+            
+            if (response.ok && response.data) {
+              const data = response.data as { summary: string };
+              return data.summary;
+            }
+            return null;
+          })();
+          
+          // Add timeout to prevent hanging
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('AI summary timeout')), 10000) // 10 second timeout
+          );
+          
+          aiSummary = await Promise.race([summaryPromise, timeoutPromise]) as string;
+          
+          if (!aiSummary) {
+            throw new Error('AI summary generation failed');
+          }
+          
+          console.log('🔍 AI summary generated successfully');
+        } catch (error) {
+          console.error('AI summary generation failed:', error);
+          // Fallback summary
+          aiSummary = `Based on your profile, you're a skilled ${formData.skills || 'professional'} with ${formData.experience || 'valuable'} experience. You bring ${formData.qualifications || 'expertise'} to every project and are available at ${formData.hourlyRate || 'competitive'} rates.`;
+        }
+        
+        // Add AI summary step
+        setChatSteps((prev: ChatStep[]) => {
+          const filtered = prev.filter(s => s.type !== 'typing');
+          return [
+            ...filtered,
+            {
+              id: Date.now() + 5,
+              type: "bot",
+              content: aiSummary,
+              isNew: true,
+            }
+          ];
+        });
+        
+        // After AI summary, show final summary component
+        setTimeout(() => {
+          console.log('🔍 Adding final summary component after AI summary');
+          console.log('🔍 Final summary formData:', formData);
+          setChatSteps((prev: ChatStep[]) => {
+            const filtered = prev.filter(s => s.type !== 'typing');
+            const newSteps = [...filtered, {
+              id: Date.now() + 6,
+              type: "summary" as const,
+              summaryData: formData,
+              isNew: true,
+            }];
+            console.log('🔍 Final summary step added:', newSteps[newSteps.length - 1]);
+            return newSteps;
+          });
+        }, 3000); // Wait 3 seconds after AI summary to show final summary
+      }, 4000); // Wait 4 seconds after references to show AI summary
+    }
     return;
   }
 
@@ -219,8 +393,10 @@ export async function addNextStepSafely(
     return;
   }
 
-  // Special handling: auto-generate references link instead of asking for input
-  if (nextField.name === 'references') {
+  // Check if all required fields are completed - if so, show references step
+  if (areAllRequiredFieldsCompleted(formData)) {
+    console.log('🔍 All required fields completed, showing references step');
+    
     // Use existing worker profile ID
     if (!workerProfileId) {
       console.error('Worker profile not yet created');
@@ -274,6 +450,7 @@ export async function addNextStepSafely(
     // After references, proceed to summary step
     setTimeout(() => {
       console.log('🔍 Adding summary step after references');
+      console.log('🔍 Current formData:', formData);
       setChatSteps((prev: ChatStep[]) => {
         const filtered = prev.filter(s => s.type !== 'typing');
         const newSteps = [...filtered, {
@@ -283,6 +460,7 @@ export async function addNextStepSafely(
           isNew: true,
         }];
         console.log('🔍 Summary step added:', newSteps[newSteps.length - 1]);
+        console.log('🔍 All chat steps after adding summary:', newSteps);
         return newSteps;
       });
     }, 3000); // Wait 3 seconds after the last message
@@ -293,7 +471,7 @@ export async function addNextStepSafely(
   const newInputConfig = {
     type: nextField.type,
     name: nextField.name,
-    placeholder: nextField.defaultPrompt, // Use default prompt to avoid bio context
+    ...(nextField.type !== 'video' && { placeholder: nextField.defaultPrompt }), // Don't set placeholder for video steps
     ...(nextField.rows && { rows: nextField.rows }),
   };
   
@@ -319,42 +497,40 @@ export async function addNextStepSafely(
 
   // Replace typing indicator with intelligent bot message and input step after delay
   setTimeout(async () => {
-    // Generate intelligent context-aware prompt
+    // Generate intelligent context-aware prompt using AI
     let intelligentPrompt = nextField.defaultPrompt;
     try {
-      // Build context based on the current field being asked
+      // Use AI to generate contextual prompts
       let contextInfo = '';
-      
-      if (nextField.name === 'skills') {
-        // For skills, don't use any context to avoid mixing
-        contextInfo = '';
-      } else if (nextField.name === 'experience') {
-        // For experience, only use skills as context
-        const contextParts = [];
-        if (formData.skills) {
-          contextParts.push(`Skills: ${formData.skills}`);
-        }
-        contextInfo = contextParts.join(' | ');
-      } else if (nextField.name === 'qualifications') {
-        // For qualifications, use skills and experience as context
-        const contextParts = [];
-        if (formData.skills) {
-          contextParts.push(`Skills: ${formData.skills}`);
-        }
-        if (formData.experience) contextParts.push(`Experience: ${formData.experience}`);
-        contextInfo = contextParts.join(' | ');
-      } else {
-        // For other fields, only use skills as context
-        if (formData.skills) {
-          contextInfo = `Skills: ${formData.skills}`;
-        } else {
-          contextInfo = '';
-        }
+      if (formData.skills) {
+        contextInfo = `Skills: ${formData.skills}`;
+      }
+      if (formData.experience) {
+        contextInfo += `, Experience: ${formData.experience}`;
       }
       
       intelligentPrompt = await generateContextAwarePrompt(nextField.name, contextInfo, ai);
+      
+      // Remove repetitive profession mentions from AI response
+      if (formData.skills && intelligentPrompt.toLowerCase().includes(formData.skills.toLowerCase())) {
+        // Replace repetitive mentions with generic versions
+        intelligentPrompt = intelligentPrompt
+          .replace(new RegExp(`since you're a ${formData.skills}`, 'gi'), '')
+          .replace(new RegExp(`as a ${formData.skills}`, 'gi'), '')
+          .replace(new RegExp(`being a ${formData.skills}`, 'gi'), '')
+          .replace(new RegExp(`given your skills in ${formData.skills}`, 'gi'), '')
+          .replace(new RegExp(`your ${formData.skills} work`, 'gi'), 'your work')
+          .replace(new RegExp(`for your ${formData.skills}`, 'gi'), 'for your work')
+          .replace(new RegExp(`job title`, 'gi'), 'profession')
+          .replace(new RegExp(`job title or profession`, 'gi'), 'profession')
+          .replace(new RegExp(`what's your job title`, 'gi'), 'what do you do for work')
+          .replace(new RegExp(`your job title`, 'gi'), 'your profession')
+          .trim();
+      }
+      
     } catch (error) {
-      console.error('Failed to generate context-aware prompt:', error);
+      console.error('AI prompt generation failed:', error);
+      // Fallback to default prompt
     }
 
     setChatSteps((prev) => {
@@ -644,8 +820,25 @@ export async function handleSanitizedConfirmation(
   workerProfileId: string | null,
   existingProfileData?: any
 ): Promise<void> {
+  // For equipment field, we need to get the extracted data from the step
+  let valueToStore = sanitized;
+  if (fieldName === 'equipment') {
+    // Find the sanitized step to get the extracted data
+    const sanitizedStep = chatSteps.find(step => 
+      step.type === 'sanitized' && step.fieldName === fieldName && !step.isComplete
+    );
+    
+    if (sanitizedStep && sanitizedStep.extractedData && Array.isArray(sanitizedStep.extractedData)) {
+      valueToStore = sanitizedStep.extractedData;
+    } else if (typeof sanitized === 'string') {
+      // Fallback: parse the sanitized string back to array
+      const equipmentItems = sanitized.split(', ').map(name => ({ name: name.trim() }));
+      valueToStore = equipmentItems;
+    }
+  }
+  
   // Update formData first
-  const updatedFormData = { ...formData, [fieldName]: sanitized };
+  const updatedFormData = { ...formData, [fieldName]: valueToStore };
   setFormData(updatedFormData);
   
   // Mark sanitized step as complete
@@ -657,59 +850,8 @@ export async function handleSanitizedConfirmation(
   const nextField = getNextRequiredField(updatedFormData);
   
   if (nextField) {
-    // Special handling: auto-generate references link instead of asking for input
-    if (nextField.name === 'references') {
-      // Use existing worker profile ID
-      if (!workerProfileId) {
-        console.error('Worker profile not yet created');
-        return;
-      }
-      
-      const recommendationLink = buildRecommendationLink(workerProfileId);
-      
-      setChatSteps((prev: ChatStep[]) => [
-        ...prev,
-        // First message: Instructions
-        {
-          id: Date.now() + 1,
-          type: "bot",
-          content: "You need one reference per skill, from previous managers, colleagues or teachers.\n\nIf you do not have experience you can get a character reference from a friend or someone in your network.",
-          isNew: true,
-        },
-        // Second message: Share link
-        {
-          id: Date.now() + 2,
-          type: "shareLink",
-          linkUrl: recommendationLink,
-          linkText: "Share this link to get your reference",
-          isNew: true,
-        },
-        // Third message: Gigfolio info
-        {
-          id: Date.now() + 3,
-          type: "bot",
-          content: "Please check out your gigfolio and share with your network\n\nif your connections make a hire on Able you get £5!",
-          isNew: true,
-        }
-      ]);
-      
-      // After references, check if all fields are completed and show summary
-      setTimeout(() => {
-        setChatSteps((prev: ChatStep[]) => {
-          const filtered = prev.filter(s => s.type !== 'typing');
-          return [...filtered, {
-            id: Date.now() + 4,
-            type: "summary",
-            summaryData: updatedFormData,
-            isNew: true,
-          }];
-        });
-      }, 2000); // Wait 2 seconds after the last message
-      return;
-    } else {
-      // Continue with regular flow
-      await addNextStepSafely(updatedFormData, ai, chatSteps, setChatSteps, workerProfileId, existingProfileData);
-    }
+    // Continue with regular flow
+    await addNextStepSafely(updatedFormData, ai, chatSteps, setChatSteps, workerProfileId, existingProfileData);
   } else {
     // All required fields completed, show summary step with submit button
     // Add typing indicator first

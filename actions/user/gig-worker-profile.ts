@@ -710,8 +710,18 @@ export const saveWorkerProfileFromOnboardingAction = async (
               }
       
       if (availabilityData) {
+        // Handle array format (from existing data) - use first item
+        const availabilityObject = Array.isArray(availabilityData) ? availabilityData[0] : availabilityData;
+        
+        if (!availabilityObject) {
+          throw new Error('Availability data is empty');
+        }
+        
         // Create proper timestamps for the required fields
         const createTimestamp = (timeStr: string) => {
+          if (!timeStr) {
+            throw new Error('Time string is required for createTimestamp');
+          }
           const [hours, minutes] = timeStr.split(":").map(Number);
           const date = new Date();
           date.setHours(hours, minutes, 0, 0);
@@ -721,26 +731,26 @@ export const saveWorkerProfileFromOnboardingAction = async (
 
         await db.insert(WorkerAvailabilityTable).values({
           userId: user.id,
-          days: availabilityData.days || [],
-          frequency: (availabilityData.frequency || "weekly") as
+          days: availabilityObject.days || [],
+          frequency: (availabilityObject.frequency || "weekly") as
             | "never"
             | "weekly"
             | "biweekly"
             | "monthly",
           startDate:
-            availabilityData.startDate ||
+            availabilityObject.startDate ||
             new Date().toISOString().split("T")[0],
-          startTimeStr: availabilityData.startTime,
-          endTimeStr: availabilityData.endTime,
+          startTimeStr: availabilityObject.startTime,
+          endTimeStr: availabilityObject.endTime,
           // Convert time strings to timestamp for the required fields
-          startTime: createTimestamp(availabilityData.startTime),
-          endTime: createTimestamp(availabilityData.endTime),
-          ends: (availabilityData.ends || "never") as
+          startTime: createTimestamp(availabilityObject.startTime),
+          endTime: createTimestamp(availabilityObject.endTime),
+          ends: (availabilityObject.ends || "never") as
             | "never"
             | "on_date"
             | "after_occurrences",
-          occurrences: availabilityData.occurrences,
-          endDate: availabilityData.endDate || null,
+          occurrences: availabilityObject.occurrences,
+          endDate: availabilityObject.endDate || null,
           notes: `Onboarding availability - Hourly Rate: ${profileData.hourlyRate}`,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -888,61 +898,9 @@ export const saveWorkerProfileFromOnboardingAction = async (
 
 
           if (!qualificationExists && !alreadyProcessed) {
-            // Try to match this qualification to an existing skill
-            const matchedSkill = workerSkills.find((skill) => {
-              const skillName = skill.name.toLowerCase().trim();
-              const qualTitle = normalizedTitle;
-
-              // More flexible matching logic
-              const matches = [
-                // Exact match
-                skillName === qualTitle,
-                // One contains the other
-                skillName.includes(qualTitle) || qualTitle.includes(skillName),
-                // Check for common skill-related keywords
-                qualTitle.includes("degree") && skillName.includes("education"),
-                qualTitle.includes("certificate") &&
-                  skillName.includes("certification"),
-                qualTitle.includes("diploma") &&
-                  skillName.includes("education"),
-                qualTitle.includes("bachelor") &&
-                  skillName.includes("education"),
-                qualTitle.includes("master") && skillName.includes("education"),
-                qualTitle.includes("phd") && skillName.includes("education"),
-                qualTitle.includes("doctorate") &&
-                  skillName.includes("education"),
-                // Check for common professional terms
-                qualTitle.includes("engineer") &&
-                  skillName.includes("engineering"),
-                qualTitle.includes("developer") &&
-                  skillName.includes("development"),
-                qualTitle.includes("designer") && skillName.includes("design"),
-                qualTitle.includes("manager") &&
-                  skillName.includes("management"),
-                qualTitle.includes("analyst") && skillName.includes("analysis"),
-                qualTitle.includes("consultant") &&
-                  skillName.includes("consulting"),
-                // Check for technology matches
-                qualTitle.includes("javascript") &&
-                  skillName.includes("javascript"),
-                qualTitle.includes("python") && skillName.includes("python"),
-                qualTitle.includes("java") && skillName.includes("java"),
-                qualTitle.includes("react") && skillName.includes("react"),
-                qualTitle.includes("node") && skillName.includes("node"),
-                qualTitle.includes("sql") && skillName.includes("sql"),
-                qualTitle.includes("database") &&
-                  skillName.includes("database"),
-                // Check for partial word matches (more lenient)
-                skillName
-                  .split(" ")
-                  .some((word) => qualTitle.includes(word) && word.length > 3),
-                qualTitle
-                  .split(" ")
-                  .some((word) => skillName.includes(word) && word.length > 3),
-              ];
-
-              return matches.some((match) => match);
-            });
+            // Since there's only one skill (the job title), connect all qualifications to it
+            // This ensures qualifications are always linked to the worker's main skill
+            const matchedSkill = workerSkills.length > 0 ? workerSkills[0] : null;
 
 
             qualificationsToInsert.push({

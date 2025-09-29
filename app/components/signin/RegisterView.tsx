@@ -12,6 +12,8 @@ import { isPasswordCommon } from "@/app/actions/password-check";
 import { authClient } from "@/lib/firebase/clientApp";
 import { toast } from "sonner";
 import PasswordInputField from "@/app/components/form/PasswodInputField";
+import { checkEmailVerificationStatus, requiresEmailVerification } from "@/lib/utils/emailVerification";
+import EmailVerificationModal from "./EmailVerificationModal";
 
 interface RegisterViewProps {
   onToggleRegister: () => void;
@@ -57,6 +59,8 @@ const RegisterView: React.FC<RegisterViewProps> = ({
   const [emailSent, setEmailSent] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationComplete, setVerificationComplete] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [unverifiedUserEmail, setUnverifiedUserEmail] = useState("");
   const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,7 +203,25 @@ const RegisterView: React.FC<RegisterViewProps> = ({
         return;
       }
 
-      // Move to email verification step
+      // Check if user is authenticated and get their verification status
+      if (authClient?.currentUser) {
+        const verificationStatus = checkEmailVerificationStatus(authClient.currentUser);
+        
+        if (verificationStatus.needsVerification) {
+          // Show verification modal instead of proceeding
+          setUnverifiedUserEmail(verificationStatus.email || formData.email);
+          setShowVerificationModal(true);
+          setLoading(false);
+          return;
+        } else if (verificationStatus.isVerified) {
+          // Email is already verified, proceed to role selection
+          toast.success("Registration successful! Redirecting...");
+          router.push('/select-role');
+          return;
+        }
+      }
+
+      // Fallback: Move to email verification step if no user found
       setCurrentStep('email-verification');
       
       // Automatically send verification email after successful registration
@@ -246,6 +268,19 @@ const RegisterView: React.FC<RegisterViewProps> = ({
   const handleBackToForm = () => {
     setCurrentStep('form');
     onError(null);
+  };
+
+  const handleCloseVerificationModal = () => {
+    setShowVerificationModal(false);
+    setUnverifiedUserEmail("");
+  };
+
+  const handleVerificationComplete = () => {
+    setShowVerificationModal(false);
+    setUnverifiedUserEmail("");
+    // The user will be automatically redirected by the auth state change
+    toast.success("Email verified successfully! Redirecting...");
+    router.push('/select-role');
   };
 
   // Render different steps
@@ -340,6 +375,7 @@ const RegisterView: React.FC<RegisterViewProps> = ({
   }
 
   return (
+    <>
     <form className={styles.form} onSubmit={handleSubmit}>
       <div className={styles.inputGroup}>
         <label htmlFor="name-register" className={styles.label}>
@@ -418,6 +454,14 @@ const RegisterView: React.FC<RegisterViewProps> = ({
         <span className={styles.linkText}>Sign In</span>
       </button>
     </form>
+
+    <EmailVerificationModal
+      isOpen={showVerificationModal}
+      onClose={handleCloseVerificationModal}
+      userEmail={unverifiedUserEmail}
+      onVerificationComplete={handleVerificationComplete}
+    />
+    </>
   );
 };
 

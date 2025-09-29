@@ -311,6 +311,12 @@ Format as a single paragraph.`,
  * Generate context-aware prompt for AI
  */
 export async function generateContextAwarePrompt(fieldName: string, aboutInfo: string, ai: any): Promise<string> {
+  // Quick fallback if AI service is not available
+  if (!ai) {
+    console.log('AI service not available, using fallback prompt');
+    return `Please tell me about your ${fieldName}.`;
+  }
+
   try {
     const promptSchema = Schema.object({
       properties: {
@@ -319,10 +325,108 @@ export async function generateContextAwarePrompt(fieldName: string, aboutInfo: s
       required: ['prompt']
     });
 
-    const result = await geminiAIAgent(
+    // Add timeout to prevent hanging
+    const aiCall = geminiAIAgent(
       "gemini-2.0-flash",
       {
         prompt: PROMPTS.contextAwarePrompt(fieldName, aboutInfo),
+        responseSchema: promptSchema,
+        isStream: false,
+      },
+      ai
+    );
+
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('AI service timeout')), 10000) // 10 second timeout
+    );
+
+    const result = await Promise.race([aiCall, timeoutPromise]) as any;
+
+    if (result.ok) {
+      const data = result.data as any;
+      return data.prompt || `Please tell me about your ${fieldName}.`;
+    } else {
+      console.error('AI context-aware prompt generation failed:', result.error);
+      // If AI service is unavailable, return fallback immediately
+      if (result.error && (
+        result.error.includes('Sorry, I cannot answer this time') ||
+        result.error.includes('Please retry') ||
+        result.error.includes('report this issue') ||
+        result.error.includes('cannot answer')
+      )) {
+        console.log('AI service temporarily unavailable, using fallback prompt');
+        return `Please tell me about your ${fieldName}.`;
+      }
+    }
+  } catch (error) {
+    console.error('AI context-aware prompt generation failed:', error);
+    // If it's any kind of API error, timeout, or service issue, return a fallback prompt immediately
+    if (error instanceof Error && (
+      error.message.includes('500') || 
+      error.message.includes('Internal Server Error') ||
+      error.message.includes('timeout') ||
+      error.message.includes('Sorry, I cannot answer this time') ||
+      error.message.includes('Please retry') ||
+      error.message.includes('report this issue') ||
+      error.message.includes('cannot answer')
+    )) {
+      console.log('AI service temporarily unavailable, using fallback prompt');
+      return `Please tell me about your ${fieldName}.`;
+    }
+  }
+
+  return `Please tell me about your ${fieldName}.`;
+}
+
+/**
+ * Generate conversation-aware prompt using full conversation history
+ */
+export async function generateConversationAwarePrompt(
+  fieldName: string, 
+  conversationHistory: any[], 
+  formData: any, 
+  ai: any
+): Promise<string> {
+  try {
+    const promptSchema = Schema.object({
+      properties: {
+        prompt: Schema.string(),
+      },
+      required: ['prompt']
+    });
+
+    // Build conversation context
+    const conversationContext = {
+      fieldName,
+      userProfile: formData,
+      conversationHistory: conversationHistory.map(step => ({
+        type: step.type,
+        content: step.content,
+        timestamp: step.id
+      }))
+    };
+
+    const prompt = `Generate a natural, conversational prompt for collecting ${fieldName} information.
+
+CONVERSATION CONTEXT:
+- Field: ${fieldName}
+- User Profile: ${JSON.stringify(formData, null, 2)}
+- Conversation History: ${JSON.stringify(conversationContext.conversationHistory, null, 2)}
+
+REQUIREMENTS:
+1. Use the full conversation history to avoid repetitive language
+2. Don't say "Now that I know you're a..." or "I see you're a..." repeatedly
+3. Build naturally on what the user has already shared
+4. Use varied, natural language that doesn't sound robotic
+5. Reference previous responses naturally without being repetitive
+6. Make it feel like a natural conversation, not a form
+
+Generate a 1-2 sentence prompt that feels natural and builds on the conversation.`;
+
+    const result = await geminiAIAgent(
+      "gemini-2.0-flash",
+      {
+        prompt,
         responseSchema: promptSchema,
         isStream: false,
       },
@@ -334,7 +438,7 @@ export async function generateContextAwarePrompt(fieldName: string, aboutInfo: s
       return data.prompt || `Please tell me about your ${fieldName}.`;
     }
   } catch (error) {
-    console.error('AI context-aware prompt generation failed:', error);
+    console.error('AI conversation-aware prompt generation failed:', error);
   }
 
   return `Please tell me about your ${fieldName}.`;
@@ -363,12 +467,19 @@ export async function sanitizeWithAI(field: string, value: string): Promise<{ sa
     let schema: any;
 
     if (field === 'about') {
-      // For bio field, don't use AI cleaning - just return the original value
-      // This prevents the AI from changing user's bio content
-      return { 
-        sanitized: value, 
-        naturalSummary: "This will be your bio!" 
-      };
+      prompt = `Clean up the grammar, spelling, and formatting of this bio input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Remove any curse words or inappropriate language but keep the casual, personal tone. Do not change the meaning or make it overly "professional" - just make it grammatically correct and appropriate.
+
+Bio: "${value}"
+
+Also provide a natural, conversational summary like "Perfect! Your bio sounds great!" or similar friendly response.`;
+      
+      schema = Schema.object({
+        properties: {
+          sanitized: Schema.string(),
+          naturalSummary: Schema.string()
+        },
+        required: ["sanitized", "naturalSummary"]
+      });
     } else if (field === 'skills') {
       prompt = `Clean up the grammar and formatting of this skills input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
 
@@ -400,7 +511,7 @@ ACCEPT ANY reasonable input including:
 
 Return the number of years as a number (can be decimal). If content is inappropriate or no clear number is found, return 0.
 
-Also provide a natural, conversational summary that explains what you've extracted in a friendly way, like "Got it, you have [X] years of experience" or similar.
+Also provide a natural, conversational summary that acknowledges their experience level in a friendly way. For experience levels like "beginner", "intermediate", "senior", "expert", just say something like "Got it, you're at [level] level" or "Perfect, you're [level] level". Don't mention years if they didn't specify a number.
 
 Experience description: "${value}"`;
       
@@ -416,6 +527,8 @@ Experience description: "${value}"`;
       prompt = `Clean up the grammar and formatting of this qualifications input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
 
 Qualifications: "${value}"
+
+Return only the cleaned qualifications text without any prefixes like "Qualifications:" or labels. Just return the clean qualifications content.
 
 Also provide a natural, conversational summary that explains what you've cleaned up in a friendly way.`;
       
@@ -446,20 +559,6 @@ Also provide a natural, conversational summary like "So you are a [skill]?" or s
 Hourly Rate: "${value}"
 
 Also provide a natural, conversational summary like "So you charge [amount] per hour" or similar friendly response.`;
-      
-      schema = Schema.object({
-        properties: {
-          sanitized: Schema.string(),
-          naturalSummary: Schema.string()
-        },
-        required: ["sanitized", "naturalSummary"]
-      });
-    } else if (field === 'experience') {
-      prompt = `Clean up the grammar and formatting of this experience input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
-
-Experience: "${value}"
-
-Also provide a natural, conversational summary like "Got it, you have [X] years of experience" or "You're a [level], that's great!" or similar friendly response.`;
       
       schema = Schema.object({
         properties: {
@@ -551,8 +650,11 @@ Also provide a natural, conversational summary like "Great! Your address is [add
 
     if (result.ok) {
       const data = result.data as any;
+      console.log('🔍 AI sanitization raw response:', result.data);
+      console.log('🔍 AI sanitization parsed data:', data);
       return {
         sanitized: data.sanitized || value,
+        naturalSummary: data.naturalSummary,
         jobTitle: data.jobTitle,
         yearsOfExperience: data.yearsOfExperience
       };
@@ -640,7 +742,7 @@ export async function simpleAICheck(field: string, value: any, type: string): Pr
     }
     
     if (field === 'about') {
-      return "This will be your bio!";
+      return "Perfect! Your bio sounds great!";
     }
     
     if (field === 'qualifications') {
