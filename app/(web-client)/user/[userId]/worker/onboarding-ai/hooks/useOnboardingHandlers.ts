@@ -613,10 +613,9 @@ export function useOnboardingHandlers({
   }, [formData, setFormData, chatSteps, setChatSteps]);
 
   const handleSimilarSkillsGoHome = useCallback(() => {
-    // Navigate back to home or reset the flow
-    setChatSteps([]);
-    setFormData({});
-  }, [setChatSteps, setFormData]);
+    // Navigate back to previous page
+    router.back();
+  }, [router]);
 
   const handleExistingSkillTitleUseAnyway = useCallback(async (fieldName: string, originalValue: string) => {
     setChatSteps((prev: any[]) => prev.map((step: any) => 
@@ -876,27 +875,29 @@ export function useOnboardingHandlers({
       // 6. FIELD-SPECIFIC VALIDATION (if input passed enhanced validation)
       let validationResult: any = { ok: false };
       
-            console.log(`🔍 ${field} calling field setter with:`, trimmedValue);
-            
-            // Route to appropriate field setter based on field name
-            switch (field) {
+      // Use AI-sanitized value if available, otherwise use original trimmed value
+      const valueForFieldSetter = aiSanitizedResult?.sanitized || trimmedValue;
+      console.log(`🔍 ${field} calling field setter with:`, valueForFieldSetter);
+      
+      // Route to appropriate field setter based on field name
+      switch (field) {
               case 'about':
-                validationResult = setBio(trimmedValue, {
+                validationResult = setBio(valueForFieldSetter, {
                   retryCount: unrelatedResponseCount,
                   conversationLength: chatSteps.length,
                   userRole: 'worker'
                 });
                 break;
               case 'skills':
-                console.log(`🔍 Processing skills field with value:`, trimmedValue);
-                validationResult = await setSkillName(trimmedValue, ai);
+                console.log(`🔍 Processing skills field with value:`, valueForFieldSetter);
+                validationResult = await setSkillName(valueForFieldSetter, ai);
                 console.log(`🔍 ${field} field setter result:`, validationResult);
                 break;
         case 'experience':
-          validationResult = setExperience(trimmedValue);
+          validationResult = setExperience(valueForFieldSetter);
           break;
         case 'hourlyRate':
-          validationResult = setWage(trimmedValue);
+          validationResult = setWage(valueForFieldSetter);
           console.log(`🔍 ${field} field setter result:`, validationResult);
           // Store the wage amount as the field value
           if (validationResult.ok && validationResult.wage) {
@@ -910,10 +911,10 @@ export function useOnboardingHandlers({
           validationResult = setAvailability(value);
           break;
         case 'equipment':
-          validationResult = await setEquipment(trimmedValue, ai);
+          validationResult = await setEquipment(valueForFieldSetter, ai);
           break;
         case 'qualifications':
-          validationResult = setQualifications(trimmedValue);
+          validationResult = setQualifications(valueForFieldSetter);
           break;
         case 'videoIntro':
           validationResult = setVideoIntro(value);
@@ -966,11 +967,28 @@ export function useOnboardingHandlers({
       let sanitizedValue;
       let extractedData;
       
-      if (field === 'equipment' && (validationResult as any).equipment) {
+      if (field === 'equipment' && (validationResult as any).equipment && (validationResult as any).equipment.length > 0) {
         // Convert equipment array to string for display
         sanitizedValue = (validationResult as any).equipment.map((item: any) => item.name).join(', ');
         // Store the original array for database storage
         extractedData = (validationResult as any).equipment;
+      } else if (field === 'equipment' && (validationResult as any).equipment && (validationResult as any).equipment.length === 0) {
+        // Handle empty equipment array (none responses)
+        sanitizedValue = 'No equipment';
+        extractedData = (validationResult as any).equipment; // Empty array
+      } else if (field === 'location' && (validationResult as any).location) {
+        // Handle location field specially - use formatted_address if available
+        const location = (validationResult as any).location;
+        sanitizedValue = location.formatted_address || `${location.lat}, ${location.lng}`;
+        extractedData = location; // Store the full location object
+      } else if (field === 'experience' && (validationResult as any).experienceText) {
+        // Handle experience field specially - use parsed experience text
+        sanitizedValue = (validationResult as any).experienceText;
+        extractedData = {
+          experienceText: (validationResult as any).experienceText,
+          years: (validationResult as any).years || 0,
+          months: (validationResult as any).months || 0
+        };
       } else {
         // Use the appropriate field value - prioritize field setter results over AI sanitization
         sanitizedValue = validationResult[field] || 
@@ -1049,9 +1067,47 @@ export function useOnboardingHandlers({
   }, [ai, setError, unrelatedResponseCount, chatSteps.length]);
 
   const handleManualFormSubmit = useCallback(async (formData: any) => {
-    // Simplified version - can be expanded later
-    console.log('Manual form submit:', formData);
-  }, []);
+    console.log('🔧 handleManualFormSubmit called with data:', formData);
+    console.log('🔧 handleManualFormSubmit: Starting execution...');
+    console.log('🔧 handleManualFormSubmit: user:', user);
+    console.log('🔧 handleManualFormSubmit: user.token:', user?.token);
+    
+    // Simple test - return immediately to see if function executes
+    console.log('🔧 handleManualFormSubmit: TEST - This should appear in console');
+    return { success: true, message: 'Test execution' };
+    
+    try {
+      if (!user?.token) {
+        console.error('🔧 handleManualFormSubmit: User not authenticated!');
+        throw new Error('User not authenticated');
+      }
+
+      console.log('🔧 handleManualFormSubmit: User is authenticated, proceeding...');
+      
+      // Import the database action directly
+      console.log('🔧 handleManualFormSubmit: Importing saveWorkerProfileFromOnboardingAction...');
+      const { saveWorkerProfileFromOnboardingAction } = await import('@/actions/user/gig-worker-profile');
+      
+      console.log('💾 Calling saveWorkerProfileFromOnboardingAction directly...');
+      const result = await saveWorkerProfileFromOnboardingAction(formData, user.token);
+      
+      console.log('💾 Save result:', result);
+      
+      if (result.success) {
+        console.log('✅ Profile saved successfully!');
+        // Redirect to worker profile page
+        window.location.href = `/user/${user.uid}/worker/profile`;
+        return { success: true, message: 'Profile saved successfully!' };
+      } else {
+        console.error('❌ Failed to save profile:', result.error);
+        throw new Error(result.error || 'Failed to save profile');
+      }
+    } catch (error) {
+      console.error('❌ Error in handleManualFormSubmit:', error);
+      setError('Failed to save profile. Please try again.');
+      throw error;
+    }
+  }, [user, setError]);
 
   const hasActiveStepForField = useCallback((fieldName: string) => {
     return chatSteps.some((step: any) => 
