@@ -554,11 +554,18 @@ Also provide a natural, conversational summary like "So you are a [skill]?" or s
         required: ["sanitized", "naturalSummary"]
       });
     } else if (field === 'hourlyRate') {
-      prompt = `Clean up the grammar and formatting of this hourly rate input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
+      prompt = `Extract and normalize this hourly rate input. Return ONLY the numeric value with currency symbol if needed. Do NOT add prefixes, labels, or extra formatting.
 
-Hourly Rate: "${value}"
+Input: "${value}"
 
-Also provide a natural, conversational summary like "So you charge [amount] per hour" or similar friendly response.`;
+Examples:
+- "25 per hour" → "25"
+- "£15.50" → "£15.50" 
+- "20 pounds per hour" → "20"
+- "15/hour" → "15"
+- "£12.50 per hour" → "£12.50"
+
+Return just the clean numeric value. Also provide a natural summary like "So you charge [amount] per hour".`;
       
       schema = Schema.object({
         properties: {
@@ -629,6 +636,20 @@ Also provide a natural, conversational summary like "Perfect! Your video intro w
 Address: "${value}"
 
 Also provide a natural, conversational summary like "Great! Your address is [address]" or similar friendly response.`;
+      
+      schema = Schema.object({
+        properties: {
+          sanitized: Schema.string(),
+          naturalSummary: Schema.string()
+        },
+        required: ["sanitized", "naturalSummary"]
+      });
+    } else if (field === 'equipment') {
+      prompt = `Clean up the grammar and formatting of this equipment input while keeping the original content and tone. Only fix spelling, grammar, punctuation, and basic formatting. Do not change the meaning or make it more "professional" - just make it grammatically correct.
+
+Equipment: "${value}"
+
+Also provide a natural, conversational summary like "Got it! You have [equipment details]" or similar friendly response.`;
       
       schema = Schema.object({
         properties: {
