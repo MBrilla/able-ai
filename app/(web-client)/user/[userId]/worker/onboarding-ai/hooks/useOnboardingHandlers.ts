@@ -613,9 +613,23 @@ export function useOnboardingHandlers({
   }, [formData, setFormData, chatSteps, setChatSteps]);
 
   const handleSimilarSkillsGoHome = useCallback(() => {
-    // Navigate back to previous page
-    router.back();
-  }, [router]);
+    // Debug logging
+    console.log('🔍 handleSimilarSkillsGoHome called');
+    console.log('🔍 user:', user);
+    console.log('🔍 user?.uid:', user?.uid);
+    console.log('🔍 router:', router);
+    
+    // Navigate to worker profile page
+    if (user?.uid) {
+      const targetUrl = `/user/${user.uid}/worker`;
+      console.log('🔍 Navigating to:', targetUrl);
+      router.push(targetUrl);
+    } else {
+      console.error('🔍 No user UID available');
+      // Fallback: try to go back
+      router.back();
+    }
+  }, [router, user?.uid]);
 
   const handleExistingSkillTitleUseAnyway = useCallback(async (fieldName: string, originalValue: string) => {
     setChatSteps((prev: any[]) => prev.map((step: any) => 
