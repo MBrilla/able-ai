@@ -1081,47 +1081,49 @@ export function useOnboardingHandlers({
   }, [ai, setError, unrelatedResponseCount, chatSteps.length]);
 
   const handleManualFormSubmit = useCallback(async (formData: any) => {
-    console.log('🔧 handleManualFormSubmit called with data:', formData);
-    console.log('🔧 handleManualFormSubmit: Starting execution...');
-    console.log('🔧 handleManualFormSubmit: user:', user);
-    console.log('🔧 handleManualFormSubmit: user.token:', user?.token);
-    
-    // Simple test - return immediately to see if function executes
-    console.log('🔧 handleManualFormSubmit: TEST - This should appear in console');
-    return { success: true, message: 'Test execution' };
-    
     try {
       if (!user?.token) {
-        console.error('🔧 handleManualFormSubmit: User not authenticated!');
         throw new Error('User not authenticated');
       }
 
-      console.log('🔧 handleManualFormSubmit: User is authenticated, proceeding...');
-      
       // Import the database action directly
-      console.log('🔧 handleManualFormSubmit: Importing saveWorkerProfileFromOnboardingAction...');
       const { saveWorkerProfileFromOnboardingAction } = await import('@/actions/user/gig-worker-profile');
       
-      console.log('💾 Calling saveWorkerProfileFromOnboardingAction directly...');
-      const result = await saveWorkerProfileFromOnboardingAction(formData, user.token);
+      // Ensure all required fields are properly formatted
+      const submissionData = {
+        ...formData,
+        hourlyRate: String(formData.hourlyRate || ''),
+        about: formData.about || '',
+        experience: formData.experience || '',
+        skills: formData.skills || '',
+        qualifications: formData.qualifications || '',
+        equipment: typeof formData.equipment === 'string' 
+          ? formData.equipment.split(/[,\n;]/).map((item: string) => ({ name: item.trim(), description: undefined })).filter((item: { name: string; description: undefined }) => item.name.length > 0)
+          : formData.equipment || [],
+        location: typeof formData.location === 'string' ? formData.location : JSON.stringify(formData.location || {}),
+        availability: typeof formData.availability === 'string' ? formData.availability : JSON.stringify(formData.availability || []),
+        videoIntro: formData.videoIntro || '',
+        references: formData.references || '',
+        jobTitle: formData.jobTitle || formData.skills || '',
+        experienceYears: formData.experienceYears || 0,
+        experienceMonths: formData.experienceMonths || 0
+      };
       
-      console.log('💾 Save result:', result);
+      const result = await saveWorkerProfileFromOnboardingAction(submissionData, user.token);
       
       if (result.success) {
-        console.log('✅ Profile saved successfully!');
-        // Redirect to worker profile page
-        window.location.href = `/user/${user.uid}/worker/profile`;
+        // Use router for client-side navigation instead of window.location.href
+        router.push(`/user/${user.uid}/worker/profile`);
         return { success: true, message: 'Profile saved successfully!' };
       } else {
-        console.error('❌ Failed to save profile:', result.error);
         throw new Error(result.error || 'Failed to save profile');
       }
     } catch (error) {
-      console.error('❌ Error in handleManualFormSubmit:', error);
+      console.error('Error in handleManualFormSubmit:', error);
       setError('Failed to save profile. Please try again.');
       throw error;
     }
-  }, [user, setError]);
+  }, [user, setError, router]);
 
   const hasActiveStepForField = useCallback((fieldName: string) => {
     return chatSteps.some((step: any) => 
