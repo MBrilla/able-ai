@@ -226,72 +226,7 @@ export default function OnboardingRenderer({
             </button>
           </div>
           <ManualProfileForm
-            onSubmit={async (data) => {
-              console.log('🔧 OnboardingRenderer: ManualProfileForm onSubmit called with:', data);
-              
-              try {
-                if (!user?.token) {
-                  throw new Error('User not authenticated');
-                }
-
-                // Import the database action directly
-                const { saveWorkerProfileFromOnboardingAction } = await import('@/actions/user/gig-worker-profile');
-                
-                // Ensure all required fields are properly formatted
-                const submissionData = {
-                  ...data,
-                  hourlyRate: String(data.hourlyRate || ''),
-                  about: data.about || '',
-                  experience: data.experience || '',
-                  skills: data.skills || '',
-                  qualifications: data.qualifications || '',
-                  equipment: typeof data.equipment === 'string' 
-                    ? data.equipment.split(/[,\n;]/).map(item => ({ name: item.trim(), description: undefined })).filter(item => item.name.length > 0)
-                    : data.equipment || [],
-                  location: typeof data.location === 'string' ? data.location : JSON.stringify(data.location || {}),
-                  availability: typeof data.availability === 'string' ? data.availability : JSON.stringify(data.availability || []),
-                  videoIntro: data.videoIntro || '',
-                  references: data.references || '',
-                  jobTitle: data.jobTitle || data.skills || '',
-                  experienceYears: data.experienceYears || 0,
-                  experienceMonths: data.experienceMonths || 0
-                };
-                
-                console.log('💾 Submission data:', submissionData);
-                console.log('💾 Field-by-field check:');
-                console.log('  - about:', submissionData.about, typeof submissionData.about);
-                console.log('  - experience:', submissionData.experience, typeof submissionData.experience);
-                console.log('  - skills:', submissionData.skills, typeof submissionData.skills);
-                console.log('  - qualifications:', submissionData.qualifications, typeof submissionData.qualifications);
-                console.log('  - equipment:', submissionData.equipment, typeof submissionData.equipment);
-                console.log('  - hourlyRate:', submissionData.hourlyRate, typeof submissionData.hourlyRate);
-                console.log('  - location:', submissionData.location, typeof submissionData.location);
-                console.log('  - availability:', submissionData.availability, typeof submissionData.availability);
-                console.log('  - videoIntro:', submissionData.videoIntro, typeof submissionData.videoIntro);
-                console.log('  - references:', submissionData.references, typeof submissionData.references);
-                console.log('  - jobTitle:', submissionData.jobTitle, typeof submissionData.jobTitle);
-                console.log('💾 Calling saveWorkerProfileFromOnboardingAction directly...');
-                console.log('💾 User token:', user.token);
-                console.log('💾 All keys in submissionData:', Object.keys(submissionData));
-                console.log('💾 All values in submissionData:', Object.values(submissionData).map((v, i) => `${Object.keys(submissionData)[i]}: ${typeof v === 'object' ? JSON.stringify(v) : v} (${typeof v})`));
-                
-                const result = await saveWorkerProfileFromOnboardingAction(submissionData as any, user.token);
-                
-                console.log('💾 Save result:', result);
-                
-                if (result.success) {
-                  console.log('✅ Profile saved successfully!');
-                  // Redirect to worker profile page
-                  window.location.href = `/user/${user.uid}/worker/profile`;
-                } else {
-                  console.error('❌ Failed to save profile:', result.error);
-                  throw new Error(result.error || 'Failed to save profile');
-                }
-              } catch (error) {
-                console.error('🔧 OnboardingRenderer: Error:', error);
-                console.error('🔧 OnboardingRenderer: Error details:', error instanceof Error ? error.message : 'Unknown error');
-              }
-            }}
+            onSubmit={handleManualFormSubmit}
             onSwitchToAI={handleSwitchToAI}
             initialData={manualFormData}
             workerProfileId={workerProfileId}

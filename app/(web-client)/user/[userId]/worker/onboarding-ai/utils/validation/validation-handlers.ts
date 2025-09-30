@@ -237,22 +237,6 @@ Respond with JSON only:`;
         }
       }
 
-      // Fallback validation for hourly rates - if AI incorrectly rejects valid rate formats
-      if (field === 'hourlyRate' && !validation.isSufficient) {
-        // Extract number from various formats using regex
-        const numMatch = trimmedValue.match(/(\d+(?:\.\d+)?)/);
-        if (numMatch) {
-          const amount = parseFloat(numMatch[1]);
-          if (amount > 0 && amount >= 12.21) { // Minimum wage check
-            return {
-              sufficient: true,
-              sanitized: String(amount),
-              naturalSummary: `Great! £${amount} per hour is a good rate.`,
-              extractedData: JSON.stringify({ hourlyRate: String(amount) })
-            };
-          }
-        }
-      }
 
 
       // Fallback validation for equipment - if AI incorrectly rejects valid equipment responses
