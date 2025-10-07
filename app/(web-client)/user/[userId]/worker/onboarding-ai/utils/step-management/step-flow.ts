@@ -1,5 +1,6 @@
-import { generateContextAwarePrompt, generateConversationAwarePrompt, sanitizeWithAI, extractSkillName } from '../ai-systems/ai-utils';
-import { buildConversationContext, generateMemoryAwarePrompt, generateAlternativePhrasing } from '../ai-systems/conversation-memory';
+import { parseLocationData } from '../locationUtils';
+import { generateContextAwarePrompt, sanitizeWithAI, extractSkillName } from '../ai-systems/ai-utils';
+// import { buildConversationContext, generateMemoryAwarePrompt, generateAlternativePhrasing } from '../ai-systems/conversation-memory';
 import { buildRecommendationLink } from '../helpers/helpers';
 import { buildJobTitleConfirmationStep, buildSimilarSkillsConfirmationStep } from './step-builders';
 import { checkExistingSimilarSkill, interpretJobTitle } from '../ai-systems/ai-utils';
@@ -270,24 +271,25 @@ export async function addNextStepSafely(
           // Add timeout to prevent hanging
           const summaryPromise = (async () => {
             const { geminiAIAgent } = await import('@/lib/firebase/ai');
-            
+            const { humanReadableLocation: locationForPrompt } = parseLocationData(formData.location);
+
             const summaryPrompt = `Create a personalized summary of this worker's profile based on their onboarding information:
 
-Profile Information:
-- About: ${formData.about || 'Not provided'}
-- Skills/Profession: ${formData.skills || 'Not provided'}
-- Experience: ${formData.experience || 'Not provided'}
-- Qualifications: ${formData.qualifications || 'Not provided'}
-- Equipment: ${formData.equipment || 'Not provided'}
-- Hourly Rate: ${formData.hourlyRate || 'Not provided'}
-- Location: ${formData.location || 'Not provided'}
+      Profile Information:
+      - About: ${formData.about || 'Not provided'}
+      - Skills/Profession: ${formData.skills || 'Not provided'}
+      - Experience: ${formData.experience || 'Not provided'}
+      - Qualifications: ${formData.qualifications || 'Not provided'}
+      - Equipment: ${formData.equipment || 'Not provided'}
+      - Hourly Rate: ${formData.hourlyRate || 'Not provided'}
+      - Location: ${locationForPrompt}
 
-Create a warm, professional summary that highlights their key strengths and experience. Make it personal and engaging, like you're introducing them to potential clients. Keep it concise but comprehensive.
+      Create a warm, professional summary that highlights their key strengths and experience. Make it personal and engaging, like you're introducing them to potential clients. Keep it concise but comprehensive.
 
-Example format:
-"Meet [Name], a skilled [profession] with [experience] of experience. [He/She] specializes in [key skills] and brings [qualifications] to every project. Based in [location], [he/she] is available at [hourly rate] and is equipped with [equipment]. [Personal touch about their background]."
+      Example format:
+      "Meet [Name], a skilled [profession] with [experience] of experience. [He/She] specializes in [key skills] and brings [qualifications] to every project. Based in [location], [he/she] is available at [hourly rate] and is equipped with [equipment]. [Personal touch about their background]."
 
-Generate a summary:`;
+      Generate a summary:`;
 
             const { Schema } = await import('@firebase/ai');
             

@@ -1,21 +1,8 @@
+import { parseLocationData } from '../locationUtils';
 import { saveWorkerProfileFromOnboardingAction, createWorkerProfileAction } from "@/actions/user/gig-worker-profile";
 import { parseExperienceToNumeric } from "@/lib/utils/experienceParsing";
 import { validateWorkerProfileData } from "@/app/components/onboarding/ManualProfileForm";
 import { interpretJobTitle } from '../ai-systems/ai-utils';
-
-/**
- * Extract key terms from text for hashtag generation
- */
-function extractKeyTerms(text: string): string[] {
-  // Remove common words and extract meaningful terms
-  const commonWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'must', 'shall', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their'];
-  
-  return text
-    .split(/\s+/)
-    .map(word => word.replace(/[^\w]/g, '').toLowerCase())
-    .filter(word => word.length > 2 && !commonWords.includes(word))
-    .filter((word, index, arr) => arr.indexOf(word) === index); // Remove duplicates
-}
 
 export interface ProfileData {
   about?: string;
@@ -24,7 +11,7 @@ export interface ProfileData {
   qualifications?: string;
   equipment?: string | any[];
   hourlyRate?: number | string;
-  location?: { lat: number; lng: number } | string;
+  location?: { lat?: number; lng?: number, formatted_address?: string } | string;
   availability?: {
     days: string[];
     startTime: string;
@@ -105,7 +92,6 @@ export async function handleProfileSubmission(
       experience: requiredData.experience,
       skills: requiredData.skills,
       equipment: requiredData.equipment,
-      location: typeof requiredData.location === 'string' ? requiredData.location : JSON.stringify(requiredData.location || ''),
     };
     console.log('🔍 Hashtag generation data:', hashtagData);
     const hashtags = await generateHashtags(hashtagData, ai);
@@ -125,19 +111,32 @@ export async function handleProfileSubmission(
       isComplete: false
     };
     setChatSteps(prev => [...prev, savingStep]);
-    
-    // Save profile with generated hashtags
-    const profileDataWithHashtags = {
+
+    // Start with required data and hashtags; only add/override location/lat/lng if we have parsed location data
+    const profileDataWithHashtags: any = {
       ...requiredData,
       hashtags: hashtags
     };
+
+    const { databaseLocation } = parseLocationData(requiredData.location);
+
+    if (databaseLocation) {
+      if (databaseLocation.location) {
+        profileDataWithHashtags.location = databaseLocation.location;
+      }
+      if (databaseLocation.latitude) {
+        profileDataWithHashtags.latitude = databaseLocation.latitude;
+      }
+      if (databaseLocation.longitude) {
+        profileDataWithHashtags.longitude = databaseLocation.longitude;
+      }
+    }
     
     // Debug: Log the data being sent to the action
     console.log('🔍 Data being sent to action:', profileDataWithHashtags);
     console.log('🔍 requiredData:', requiredData);
     
     const result = await saveWorkerProfileFromOnboardingAction(profileDataWithHashtags as any, userToken);
-    
     
     // Mark saving step as complete
     setChatSteps(prev => prev.map(step => 
@@ -158,10 +157,7 @@ export async function handleProfileSubmission(
       };
       setChatSteps(prev => [...prev, successStep]);
       
-      // Navigate to worker dashboard after a short delay
-      setTimeout(() => {
-        router.push(`/user/${userId}/worker`);
-      }, 2000);
+      router.push(`/user/${userId}/worker`);
     } else {
       console.error('Profile submission failed:', result.error);
       const errorMessage = result.error || 'Failed to save profile. Please try again.';
