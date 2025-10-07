@@ -37,7 +37,6 @@ export const useStripeStatus = (userId: string): StripeStatus => {
           isLoading: false,
           error: null,
         });
-
       } catch (err) {
         console.error("Error checking Stripe status:", err);
         setStatus({
