@@ -61,9 +61,9 @@ export const updateUserProfileAction = async (
     });
 
     return { success: true, data: updatedUsers[0] || null };
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error updating user profile", error);
-    return { success: false, error };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update user profile." };
   }
 };
 
@@ -103,7 +103,7 @@ export const updateProfileVisibilityAction = async (
  * @returns { success: true, data: boolean } or { success: false, error }
  */
 export const updateNotificationEmailAction = async (
-  updateData: { emailProferences: boolean },
+  updateData: { emailPreferences: boolean },
   token?: string
 ) => {
   try {
@@ -121,12 +121,12 @@ export const updateNotificationEmailAction = async (
 
     const updatedUsers = await db
       .update(NotificationPreferencesTable)
-      .set({ emailGigUpdates: updateData.emailProferences })
+      .set({ emailGigUpdates: updateData.emailPreferences })
       .where(eq(NotificationPreferencesTable.userId, pgUser.id))
       .returning();
 
     const changed =
-      updatedUsers[0]?.emailGigUpdates === updateData.emailProferences;
+      updatedUsers[0]?.emailGigUpdates === updateData.emailPreferences;
 
     if (changed) {
       return { success: true, data: updatedUsers[0]?.emailGigUpdates };
@@ -135,7 +135,7 @@ export const updateNotificationEmailAction = async (
     }
   } catch (error) {
     console.error("Error updating email preferences", error);
-    return { success: false, error, data: !updateData.emailProferences };
+    return { success: false, error, data: !updateData.emailPreferences };
   }
 };
 

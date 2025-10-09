@@ -715,8 +715,7 @@ export const saveWorkerProfileFromOnboardingAction = async (
                 try {
                   availabilityData = JSON.parse(profileData.availability);
                 } catch (parseError) {
-                  console.error('Failed to parse availability JSON:', parseError);
-                  throw new Error('Invalid availability data format. Please try again.');
+                  availabilityData = null;
                 }
               } else if (typeof profileData.availability === "object") {
                 availabilityData = profileData.availability;
@@ -741,30 +740,15 @@ export const saveWorkerProfileFromOnboardingAction = async (
           return date;
         };
 
-        // Validation helper functions for enum values
-        const validateFrequency = (frequency: string): "never" | "weekly" | "biweekly" | "monthly" => {
-          const validFrequencies = ["never", "weekly", "biweekly", "monthly"];
-          if (validFrequencies.includes(frequency)) {
-            return frequency as "never" | "weekly" | "biweekly" | "monthly";
-          }
-          console.warn(`Invalid frequency value: ${frequency}. Defaulting to "weekly".`);
-          return "weekly";
-        };
-
-        const validateEnds = (ends: string): "never" | "on_date" | "after_occurrences" => {
-          const validEnds = ["never", "on_date", "after_occurrences"];
-          if (validEnds.includes(ends)) {
-            return ends as "never" | "on_date" | "after_occurrences";
-          }
-          console.warn(`Invalid ends value: ${ends}. Defaulting to "never".`);
-          return "never";
-        };
-
 
         await db.insert(WorkerAvailabilityTable).values({
           userId: user.id,
           days: availabilityObject.days || [],
-          frequency: validateFrequency(availabilityObject.frequency || "weekly"),
+          frequency: (availabilityObject.frequency || "weekly") as
+            | "never"
+            | "weekly"
+            | "biweekly"
+            | "monthly",
           startDate:
             availabilityObject.startDate ||
             new Date().toISOString().split("T")[0],
@@ -773,7 +757,10 @@ export const saveWorkerProfileFromOnboardingAction = async (
           // Convert time strings to timestamp for the required fields
           startTime: createTimestamp(availabilityObject.startTime),
           endTime: createTimestamp(availabilityObject.endTime),
-          ends: validateEnds(availabilityObject.ends || "never"),
+          ends: (availabilityObject.ends || "never") as
+            | "never"
+            | "on_date"
+            | "after_occurrences",
           occurrences: availabilityObject.occurrences,
           endDate: availabilityObject.endDate || null,
           notes: `Onboarding availability - Hourly Rate: ${profileData.hourlyRate}`,
