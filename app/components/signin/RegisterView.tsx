@@ -9,7 +9,6 @@ import InputField from "@/app/components/form/InputField";
 import SubmitButton from "@/app/components/form/SubmitButton";
 import PasswordInputField from "@/app/components/form/PasswodInputField";
 import styles from "@/app/SignInPage.module.css";
-import { useRouter } from "next/navigation";
 import { registerUserAction } from "@/actions/auth/signup";
 import { isPasswordCommon } from "@/app/actions/password-check";
 import { authClient } from "@/lib/firebase/clientApp";
@@ -22,21 +21,21 @@ interface RegisterViewProps {
   onError: (error: React.ReactNode | null) => void;
 }
 
+const defaultFormData = {
+  name: "",
+  phone: "",
+  email: "",
+  password: "",
+};
+
 const RegisterView: React.FC<RegisterViewProps> = ({
   onToggleRegister,
   onError,
 }) => {
-  const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState(defaultFormData);
   const [loading, setLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [unverifiedUserEmail, setUnverifiedUserEmail] = useState("");
-  const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -116,9 +115,9 @@ const RegisterView: React.FC<RegisterViewProps> = ({
 
       await sendEmailVerification(userCredential.user);
       toast.success("Verification email sent successfully!");
-      setEmailSent(true);
       setUnverifiedUserEmail(formData.email);
       setShowVerificationModal(true);
+      setFormData(defaultFormData);
     } catch (error: unknown) {
       console.error("Registration error:", error);
 
@@ -134,12 +133,7 @@ const RegisterView: React.FC<RegisterViewProps> = ({
   const handleCloseVerificationModal = () => {
     setShowVerificationModal(false);
     setUnverifiedUserEmail("");
-  };
-
-  const handleVerificationComplete = () => {
-    setShowVerificationModal(false);
-    toast.success("Email verified successfully! Redirecting...");
-    router.push("/select-role");
+    setFormData(defaultFormData);
   };
 
   return (
@@ -226,7 +220,6 @@ const RegisterView: React.FC<RegisterViewProps> = ({
         isOpen={showVerificationModal}
         onClose={handleCloseVerificationModal}
         userEmail={unverifiedUserEmail}
-        onVerificationComplete={handleVerificationComplete}
       />
     </>
   );
