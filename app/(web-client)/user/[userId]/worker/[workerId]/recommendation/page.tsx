@@ -3,15 +3,13 @@
 
 import React, { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 import InputField from "@/app/components/form/InputField"; // Reusing shared InputField
 import { Send, Loader2, Star } from "lucide-react"; // Lucide icons
 
 import styles from "./RecommendationPage.module.css";
-import {
-  getWorkerForRecommendationAction,
-  submitExternalRecommendationAction,
-} from "@/actions/user/recommendation";
+import { submitExternalRecommendationAction } from "@/actions/user/recommendation";
 import Loader from "@/app/components/shared/Loader";
 
 interface RecommendationFormData {
@@ -27,25 +25,36 @@ interface SkillsProps {
 }
 
 async function getWorkerDetails(
-  workerId: string
+  workerId: string,
 ): Promise<{ name: string; skills: SkillsProps[] } | null> {
-  const { data } = await getWorkerForRecommendationAction(workerId);
+  const response = await fetch(`/api/workers/${workerId}`);
 
-  if (!data) throw new Error("worker not found");
+  if (!response.ok) {
+    throw new Error("Failed to fetch worker details");
+  }
 
-  return { name: data.userName, skills: data.skills };
+  const result = await response.json();
+
+  if (!result.success || !result.data) {
+    throw new Error(result.error || "Failed to fetch worker details");
+  }
+
+  return result.data;
 }
 
 export default function PublicRecommendationPage() {
   const params = useParams();
   const workerToRecommendId = params.workerId as string;
+  const { user } = useAuth();
 
   const [workerDetails, setWorkerDetails] = useState<{
     name: string;
     skills: SkillsProps[];
   } | null>(null);
   const [isLoadingWorker, setIsLoadingWorker] = useState(true);
-  const [selectedSkill, setSelectedSkill] = useState<{id: string, name: string} | undefined>();
+  const [selectedSkill, setSelectedSkill] = useState<
+    { id: string; name: string } | undefined
+  >();
 
   const [formData, setFormData] = useState<RecommendationFormData>({
     recommendationText: "",
@@ -56,25 +65,36 @@ export default function PublicRecommendationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
-   const firstName = React.useMemo(() => workerDetails?.name.split(" ")[0], [workerDetails]);
-  
+
+  const firstName = React.useMemo(
+    () => workerDetails?.name.split(" ")[0],
+    [workerDetails]
+  );
+
   // Fetch worker details
   useEffect(() => {
-    if (workerToRecommendId) {
-      setIsLoadingWorker(true);
-      getWorkerDetails(workerToRecommendId)
-        .then((details) => {
-          if (details) {
-            setWorkerDetails(details);
-          } else {
-            setError("Could not load worker details to recommend.");
-          }
-        })
-        .catch((err: Error) => setError(err.message || "Error fetching worker details."))
-        .finally(() => setIsLoadingWorker(false));
-    }
-  }, [workerToRecommendId]);
+    const fetchWorker = async () => {
+      if (!user?.token) {
+        setError("You must be logged in to view worker recommendations.");
+        setIsLoadingWorker(false);
+        return;
+      }
+      if (!workerToRecommendId) return;
+
+      try {
+        setIsLoadingWorker(true);
+        const details = await getWorkerDetails(workerToRecommendId);
+        setWorkerDetails(details ?? null);
+        if (!details) setError("Could not load worker details to recommend.");
+      } catch (err) {
+        setError((err as Error).message || "Error fetching worker details.");
+      } finally {
+        setIsLoadingWorker(false);
+      }
+    };
+
+    fetchWorker();
+  }, [workerToRecommendId, user?.token]);
 
   const handleChange = (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -164,8 +184,10 @@ export default function PublicRecommendationPage() {
 
         <div className={styles.recommendationCard}>
           <div className={styles.prompt}>
-            <p>{firstName} is available for hire on Able! <br />
-            Please provide a reference for {firstName}&apos;s skills as a{" "}</p>
+            <p>
+              {firstName} is available for hire on Able! <br />
+              Please provide a reference for {firstName}&apos;s skills as a{" "}
+            </p>
             <select
               className={styles.select}
               value={selectedSkill?.id || ""}
@@ -208,16 +230,20 @@ export default function PublicRecommendationPage() {
                 value={formData.recommendationText}
                 onChange={handleChange}
                 className={styles.textarea}
-                placeholder={selectedSkill?.name ? 
-                  `Enter your recommendation here... eg: What makes ${workerDetails.name} great at ${selectedSkill?.name}` : 
-                  "Enter your recommendation here..."
+                placeholder={
+                  selectedSkill?.name
+                    ? `Enter your recommendation here... eg: What makes ${workerDetails.name} great at ${selectedSkill?.name}`
+                    : "Enter your recommendation here..."
                 }
                 required
               />
             </div>
 
             <div className={styles.inputGroup}>
-              <label htmlFor="relationship" className={styles.label}>How do you know {workerDetails.name}? <span style={{color: 'var(--error-color)'}}>*</span></label>
+              <label htmlFor="relationship" className={styles.label}>
+                How do you know {workerDetails.name}?{" "}
+                <span style={{ color: "var(--error-color)" }}>*</span>
+              </label>
               <textarea
                 id="relationship"
                 name="relationship"

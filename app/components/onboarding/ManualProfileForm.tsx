@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getPrivateWorkerProfileAction } from '@/actions/user/gig-worker-profile';
 import { checkExistingProfileDataAction } from '@/actions/user/check-existing-profile-data-action';
 import { useAuth } from '@/context/AuthContext';
 import { VALIDATION_CONSTANTS } from '@/app/constants/validation';
@@ -7,7 +6,7 @@ import styles from './ManualProfileForm.module.css';
 import LocationPickerBubble from './LocationPickerBubble';
 import VideoRecorderOnboarding from './VideoRecorderOnboarding';
 import DataReviewModal from './DataReviewModal';
-import DataToggleOptions, { ExistingData } from './DataToggleOptions';
+import { ExistingData } from './DataToggleOptions';
 import InlineDataToggle from './InlineDataToggle';
 import OnboardingAvailabilityStep from '@/app/(web-client)/user/[userId]/worker/onboarding-ai/components/OnboardingAvailabilityStep';
 import { AvailabilityFormData } from '@/app/types/AvailabilityTypes';
@@ -19,7 +18,7 @@ import { Schema } from '@firebase/ai';
 import { parseExperienceToNumeric } from '@/lib/utils/experienceParsing';
 
 function buildRecommendationLink(workerProfileId: string | null): string {
-  const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:3000';
+  const origin = window.location.origin ?? 'http://localhost:3000';
   
   if (!workerProfileId) {
     throw new Error('Worker profile ID is required to build recommendation link');
@@ -785,8 +784,13 @@ const ManualProfileForm: React.FC<ManualProfileFormProps> = ({
     const fetchExistingProfile = async () => {
       if (user?.claims?.role === "GIG_WORKER" && user?.token && !formData.references) {
         try {
-          const result = await getPrivateWorkerProfileAction(user.token);
-          if (result.success && result.data?.id) {
+          const response = await fetch('/api/worker/profile', {
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+            },
+          });
+          const result = await response.json();
+          if (response.ok && result.success && result.data?.id) {
             // User already has a worker profile, build the recommendation link
             try {
               const recommendationLink = buildRecommendationLink(result.data.id as string);

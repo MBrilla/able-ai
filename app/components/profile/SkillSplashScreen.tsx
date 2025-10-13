@@ -20,7 +20,6 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import {
-  getPrivateWorkerProfileAction,
   updateProfileImageAction,
   updateVideoUrlProfileAction,
 } from "@/actions/user/gig-worker-profile";
@@ -141,7 +140,6 @@ const SkillSplashScreen = ({
                 }
                 await updateVideoUrlProfileAction(downloadURL, user.token);
                 toast.success("Video upload successfully");
-                getPrivateWorkerProfileAction(user.token);
               })
               .catch((error) => {
                 console.error("Failed to get download URL:", error);
@@ -254,17 +252,6 @@ const SkillSplashScreen = ({
             </button>
           </div>
         )}
-
-        {/* 
-        {
-          <p>
-            <span>Customer reviews:</span>
-            profile.customerReviewsText && (
-            <span className={styles.review}>{profile.customerReviewsText}</span>
-            )
-          </p>
-        }
-            */}
 
         <table className={styles.skillDisplayTable}>
           <thead>
