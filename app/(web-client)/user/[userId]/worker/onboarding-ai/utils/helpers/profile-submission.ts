@@ -278,8 +278,7 @@ export function processFormDataForSubmission(
           endDate: undefined,
           occurrences: undefined,
         },
-        videoIntro:
-          typeof formData.videoIntro === "string" ? formData.videoIntro : "",
+        videoIntro: formData.videoIntro,
         time: formData.time || "",
         jobTitle: formData.jobTitle || extractedJobTitle,
         experienceYears: experienceYears,
@@ -335,7 +334,6 @@ export async function handleManualFormSubmission(
     setError(null);
 
     const requiredData = await processFormDataForSubmission(formData, ai);
-    console.log("requiredData", requiredData);
 
     // Save the profile data to database
     const result = await handleProfileSubmission(
