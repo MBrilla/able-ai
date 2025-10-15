@@ -1,7 +1,11 @@
-import { stripeApi } from '@/lib/stripe-server';
+import { stripeApi as stripeServer } from '@/lib/stripe-server';
 import type Stripe from 'stripe';
 import { db } from "@/lib/drizzle/db";
 import { PaymentsTable } from "@/lib/drizzle/schema";
+
+const stripeApi:Stripe = stripeServer;
+
+const defaultFeePercent = 0.065;
 
 interface HoldGigAmountParams {
   buyerStripeCustomerId: string;
@@ -42,8 +46,6 @@ export async function holdGigAmount(params: HoldGigAmountParams) {
     currency: currency || 'gbp',
     customer: buyerStripeCustomerId,
     payment_method: customerPaymentMethodId,
-    on_behalf_of: destinationAccountId,
-    application_fee_amount: Math.round(serviceAmountInCents * 0.065),
     payment_method_options: {
       card: {
         capture_method: 'manual',
@@ -57,17 +59,13 @@ export async function holdGigAmount(params: HoldGigAmountParams) {
       type: 'initial_gig_hold',
       ...metadata,
     },
-    description: description || `Initial hold for Gig: ${gigId}`,
-    transfer_data: {
-      destination: destinationAccountId,
-    },
+    description: description || `Initial hold for Gig: ${gigId} to account: ${destinationAccountId}`,
   });
 
   console.log(`Payment Intent created (HOLD) for Gig ${gigId}: ${paymentIntent.id}, status: ${paymentIntent.status}`);
 
-  const appFeeAmount = paymentIntent.application_fee_amount?.toString(10) || '';
-  const amountToWorker = paymentIntent.transfer_data?.amount ? paymentIntent.transfer_data?.amount :
-    paymentIntent.amount - (paymentIntent?.application_fee_amount || 0);
+  const appFeeAmount = Math.round(serviceAmountInCents * defaultFeePercent);
+  const amountToWorker = paymentIntent.amount - appFeeAmount;
 
   await db
     .insert(PaymentsTable)
