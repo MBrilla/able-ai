@@ -115,6 +115,13 @@ export function renderLocationStep(
   onChange: (v: any) => void,
   onConfirm?: () => void
 ) {
+  // Wrapper to match LocationPickerBubble's onConfirm signature
+  const handleLocationConfirm = (address: string, coord: { lat: number; lng: number }) => {
+    if (onConfirm) {
+      onConfirm();
+    }
+  };
+  
   return (
     <div key={key} className={styles.locationComponent} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
@@ -123,7 +130,7 @@ export function renderLocationStep(
           Please share your location.
         </div>
       </div>
-      <LocationPickerBubble value={value} onChange={onChange} showConfirm={true} onConfirm={onConfirm} role="GIG_WORKER" />
+      <LocationPickerBubble value={value} onChange={onChange} showConfirm={true} onConfirm={handleLocationConfirm} role="GIG_WORKER" />
     </div>
   );
 }
