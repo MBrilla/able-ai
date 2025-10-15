@@ -156,7 +156,6 @@ export function useOnboardingHandlers({
   const handleInputSubmit = useCallback(async (stepId: number, inputName: string, inputValue?: string): Promise<boolean> => {
     const valueToUse = inputValue ?? formData[inputName];
     if (!valueToUse) {
-      console.error('No value provided for input submission');
       return false;
     }
 
@@ -345,7 +344,23 @@ export function useOnboardingHandlers({
 
     // Handle different field types
     if (inputName === 'skills' && !formData.jobTitle) {
-      // First check user's own similar skills
+      // FIRST: Check for inappropriate content BEFORE any processing
+      const inappropriateCheck = await enhancedValidation(inputName, valueToUse, 'text');
+      if (!inappropriateCheck.sufficient) {
+        // Inappropriate content detected - show warning and STOP
+        setChatSteps((prev: any[]) => [
+          ...prev,
+          {
+            id: Date.now(),
+            type: "bot",
+            content: inappropriateCheck.clarificationPrompt || 'Please provide appropriate professional information.',
+            isNew: true,
+          }
+        ]);
+        return false; // Stop processing
+      }
+      
+      // Then check user's own similar skills
       const similarSkillsResult = await checkExistingSimilarSkill(valueToUse, workerProfileId || '');
       
       if (similarSkillsResult.exists && similarSkillsResult.similarSkills.length > 0) {
@@ -402,9 +417,7 @@ export function useOnboardingHandlers({
             return false; // Validation failed
           }
         } catch (error) {
-          console.error('Enhanced validation failed for skills:', error);
           // Fallback to basic flow
-          console.log('Continue with basic flow for skills');
           return false; // Validation failed
         }
       }
@@ -447,9 +460,7 @@ export function useOnboardingHandlers({
           return false; // STOP HERE - don't proceed to next field
         }
       } catch (error) {
-        console.error('Enhanced validation failed:', error);
         // Continue with normal flow as fallback
-        console.log('Continue with normal flow for other fields');
         return false; // Validation failed
       }
     }
@@ -473,7 +484,26 @@ export function useOnboardingHandlers({
         valueToStore = equipmentItems;
       }
       
-      const updatedFormData = { ...formData, [fieldName]: valueToStore };
+      // Build updated form data with the primary field
+      let updatedFormData = { ...formData, [fieldName]: valueToStore };
+      
+      // If extractedData contains additional fields, merge them in
+      if (extractedData && typeof extractedData === 'object' && !Array.isArray(extractedData)) {
+        // For skills field, extractedData might contain { skills: ..., experience: ... }
+        if (fieldName === 'skills' && extractedData.experience) {
+          updatedFormData = { ...updatedFormData, experience: extractedData.experience };
+        }
+        // For workTraits field (hospitality Phase 5), extractedData contains { workTraits: ..., about: ... }
+        // The 'about' is the AI-composed bio from all phases
+        if (fieldName === 'workTraits' && extractedData.about) {
+          updatedFormData = { ...updatedFormData, about: extractedData.about };
+        }
+        // For specificSkills field (hospitality Phase 4), just pass through
+        if (fieldName === 'specificSkills' && extractedData.about) {
+          updatedFormData = { ...updatedFormData, about: extractedData.about };
+        }
+      }
+      
       setFormData(updatedFormData);
 
       // Mark sanitized step as complete
@@ -481,11 +511,12 @@ export function useOnboardingHandlers({
         step.type === "sanitized" && step.fieldName === fieldName ? { ...step, isComplete: true } : step
       ));
 
-      // Continue to next step - this would be handled by the step-flow utility
+      // Continue to next step
+      await addNextStepSafely(updatedFormData, ai, chatSteps, setChatSteps, workerProfileId, existingProfileData, requiredFields, specialFields);
     } catch (error) {
       setError('Failed to confirm. Please try again.');
     }
-  }, [formData, setFormData, chatSteps, setChatSteps, setError, setClickedSanitizedButtons]);
+  }, [formData, setFormData, chatSteps, setChatSteps, setError, setClickedSanitizedButtons, ai, workerProfileId, existingProfileData, requiredFields, specialFields]);
 
   /**
    * Handle video upload to Firebase Storage
@@ -522,7 +553,7 @@ export function useOnboardingHandlers({
             try {
               aiScript = await generateAIVideoScript(updatedFormData, ai);
             } catch (scriptError) {
-              console.error('AI script generation failed:', scriptError);
+              // AI script generation failed - use default
             }
 
             // Mark video step as complete and add sanitized confirmation step
@@ -566,7 +597,6 @@ export function useOnboardingHandlers({
       // Use the suggested job title and continue
       const updatedFormData = { ...formData, [fieldName]: suggestedJobTitle };
       setFormData(updatedFormData);
-      console.log('Continue with job title confirmation');
     }
   }, [formData, setFormData, chatSteps, setChatSteps, user]);
 
@@ -578,7 +608,6 @@ export function useOnboardingHandlers({
     // Use the original value and continue
     const updatedFormData = { ...formData, [fieldName]: originalValue };
     setFormData(updatedFormData);
-    console.log('Continue with job title rejection');
   }, [formData, setFormData, chatSteps, setChatSteps]);
 
   const handleSimilarSkillsUseExisting = useCallback(async (fieldName: string, selectedSkill: any) => {
@@ -589,7 +618,6 @@ export function useOnboardingHandlers({
     // Use the selected existing skill
     const updatedFormData = { ...formData, [fieldName]: selectedSkill.name };
     setFormData(updatedFormData);
-    console.log('Continue with similar skills use existing');
   }, [formData, setFormData, chatSteps, setChatSteps]);
 
   const handleSimilarSkillsAddNew = useCallback(async (fieldName: string, originalValue: string) => {
@@ -600,7 +628,6 @@ export function useOnboardingHandlers({
     // Use the original value as a new skill
     const updatedFormData = { ...formData, [fieldName]: originalValue };
     setFormData(updatedFormData);
-    console.log('Continue with similar skills add new');
   }, [formData, setFormData, chatSteps, setChatSteps]);
 
   const handleSimilarSkillsGoHome = useCallback(() => {
@@ -624,7 +651,6 @@ export function useOnboardingHandlers({
     // Use the original value and continue
     const updatedFormData = { ...formData, [fieldName]: originalValue };
     setFormData(updatedFormData);
-    console.log('Continue with existing skill title anyway');
   }, [formData, setFormData, chatSteps, setChatSteps]);
 
   const handleExistingSkillTitleChange = useCallback((fieldName: string) => {
@@ -651,20 +677,24 @@ export function useOnboardingHandlers({
       return;
     }
 
+    // Update formData state
+    const updatedFormData = { ...formData, [inputName]: value };
+    setFormData(updatedFormData);
+
     // Mark picker step as complete
     setChatSteps((prev: any[]) => prev.map((step: any) => 
       step.id === stepId ? { ...step, isComplete: true } : step
     ));
 
     // Continue to next step using the proper flow
-    const updatedFormData = { ...formData, [inputName]: value };
-    await addNextStepSafely(updatedFormData, ai, chatSteps, setChatSteps, workerProfileId, existingProfileData);
-  }, [formData, setFormData, setChatSteps, setError, ai, chatSteps, workerProfileId, existingProfileData]);
+    await addNextStepSafely(updatedFormData, ai, chatSteps, setChatSteps, workerProfileId, existingProfileData, requiredFields, specialFields);
+  }, [formData, setFormData, setChatSteps, setError, ai, chatSteps, workerProfileId, existingProfileData, requiredFields, specialFields]);
 
   const handleInputChange = useCallback((name: string, value: unknown) => {
     setFormData((prev: any) => ({ ...prev, [name]: value }));
   }, [setFormData]);
 
+  // ... rest of the code remains the same ...
   const handleSanitizedReformulate = useCallback((fieldName: string) => {
     setReformulateField(fieldName);
     setClickedSanitizedButtons((prev: Set<string>) => new Set([...prev, `${fieldName}-reformulate`]));
@@ -695,22 +725,19 @@ export function useOnboardingHandlers({
     
     // Continue to next step
     const updatedFormData = { ...formData, [fieldName]: valueToStore };
-    await addNextStepSafely(updatedFormData, ai, chatSteps, setChatSteps, workerProfileId, existingProfileData);
-  }, [formData, setFormData, setChatSteps, ai, chatSteps, workerProfileId, existingProfileData]);
+    await addNextStepSafely(updatedFormData, ai, chatSteps, setChatSteps, workerProfileId, existingProfileData, requiredFields, specialFields);
+  }, [formData, setFormData, setChatSteps, ai, chatSteps, workerProfileId, existingProfileData, requiredFields, specialFields]);
 
   const handleIncidentReporting = useCallback(async (message: string) => {
     try {
       // Implementation for incident reporting
-      console.log('Incident reported:', message);
     } catch (error) {
-      console.error('Failed to report incident:', error);
       setError('Failed to report incident. Please try again.');
     }
   }, [setError]);
 
   const onSendMessage = useCallback((message: string) => {
     // Handle user message sending
-    console.log('User message:', message);
   }, []);
 
   const enhancedValidation = useCallback(async (field: string, value: unknown, type: string): Promise<{ sufficient: boolean, clarificationPrompt?: string, sanitized?: string | unknown, naturalSummary?: string, extractedData?: string }> => {
@@ -767,11 +794,6 @@ export function useOnboardingHandlers({
       
       // 3. CHECK FOR INAPPROPRIATE CONTENT
       if (validation.isInappropriate) {
-        console.log(`🔍 ${field} inappropriate content detected:`, {
-          isInappropriate: validation.isInappropriate,
-          reason: validation.reason
-        });
-        
         // Increment inappropriate content counter for escalation
         const newInappropriateCount = inappropriateContentCount + 1;
         setInappropriateContentCount(newInappropriateCount);
@@ -818,21 +840,18 @@ export function useOnboardingHandlers({
       
             // Debug: Check if validation failed for other reasons
             if (!validation.isValid) {
-              console.log(`🔍 ${field} validation failed:`, {
-                isValid: validation.isValid,
-                reason: validation.reason,
-                suggestedAction: validation.suggestedAction,
-                confidence: validation.confidence,
-                isInappropriate: validation.isInappropriate,
-                needsSupport: validation.needsSupport,
-                isHelpRequest: validation.isHelpRequest
-              });
+              // STOP HERE - Don't proceed with sanitization if validation failed
+              const response = generateValidationResponse(validation, analysisContext);
+              return {
+                sufficient: false,
+                clarificationPrompt: response,
+                sanitized: trimmedValue
+              };
             }
       
       // 4. CHECK FOR ESCALATION NEEDS (skip for equipment and hourlyRate fields)
       if (!['equipment', 'hourlyRate', 'wage'].includes(field) && requiresEscalation(validation)) {
         const escalationDetails = getEscalationDetails(validation, analysisContext, trimmedValue);
-        console.log('🚨 Escalation required:', escalationDetails);
         
         // TODO: Implement escalation handling (save to database, notify support team)
         return {
@@ -846,9 +865,8 @@ export function useOnboardingHandlers({
       let aiSanitizedResult: any = null;
       try {
         aiSanitizedResult = await sanitizeWithAI(field, trimmedValue);
-        console.log('🔍 AI sanitization result:', aiSanitizedResult);
       } catch (aiError) {
-        console.error('AI sanitization failed:', aiError);
+        // AI sanitization failed - use original value
       }
 
       // 6. FIELD-SPECIFIC VALIDATION (if input passed enhanced validation)
@@ -856,7 +874,6 @@ export function useOnboardingHandlers({
       
       // Use AI-sanitized value if available, otherwise use original trimmed value
       const valueForFieldSetter = aiSanitizedResult?.sanitized || trimmedValue;
-      console.log(`🔍 ${field} calling field setter with:`, valueForFieldSetter);
       
       // Route to appropriate field setter based on field name
       switch (field) {
@@ -868,16 +885,13 @@ export function useOnboardingHandlers({
                 });
                 break;
               case 'skills':
-                console.log(`🔍 Processing skills field with value:`, valueForFieldSetter);
                 validationResult = await setSkillName(valueForFieldSetter, ai);
-                console.log(`🔍 ${field} field setter result:`, validationResult);
                 break;
         case 'experience':
           validationResult = setExperience(valueForFieldSetter);
           break;
         case 'hourlyRate':
           validationResult = setWage(valueForFieldSetter);
-          console.log(`🔍 ${field} field setter result:`, validationResult);
           // Store the wage amount as the field value
           if (validationResult.ok && validationResult.wage) {
             validationResult[field] = String(validationResult.wage.amount);
@@ -1145,9 +1159,7 @@ export function useOnboardingHandlers({
       
       // Parse experience to get numeric values
       const experienceText = summaryData?.experience || formData.experience || '';
-      console.log('🔍 Experience text for parsing:', experienceText);
       const { years: experienceYears, months: experienceMonths } = parseExperienceToNumeric(experienceText);
-      console.log('🔍 Parsed experience:', { years: experienceYears, months: experienceMonths });
       
       // Generate AI profile summary
       let aiProfileSummary = '';
@@ -1163,20 +1175,56 @@ export function useOnboardingHandlers({
         skills: summaryData?.skills || formData.skills || '',
         qualifications: (() => {
           const quals = summaryData?.qualifications || formData.qualifications || '';
-          if (typeof quals === 'string' && (quals.toLowerCase().includes('no formal') || quals.toLowerCase().includes('none'))) {
-            return null;
+          if (typeof quals === 'string') {
+            const qualsLower = quals.toLowerCase().trim();
+            // Check for "none" patterns - return null to not submit anything
+            if (qualsLower === 'none' ||
+                qualsLower.includes('no qualifications') ||
+                qualsLower.includes('no formal') ||
+                qualsLower.includes("don't have") ||
+                qualsLower.includes("i don't") ||
+                qualsLower === 'n/a') {
+              return undefined;
+            }
+            // Remove any prefixes like "Qualifications:" that might have been added by AI
+            return quals.replace(/^Qualifications\s*:\s*/i, '').trim();
           }
-          // Remove any prefixes like "Qualifications:" that might have been added by AI
-          const cleanedQuals = typeof quals === 'string' ? quals.replace(/^Qualifications\s*:\s*/i, '').trim() : quals;
-          return cleanedQuals;
+          return quals;
         })(),
-        equipment: Array.isArray(summaryData?.equipment) 
-          ? summaryData.equipment 
-          : (Array.isArray(formData.equipment) 
-            ? formData.equipment
-            : (typeof summaryData?.equipment === 'string' && summaryData.equipment.trim().length > 0
-              ? summaryData.equipment.split(/[,\n;]/).map((item: string) => ({ name: item.trim(), description: undefined })).filter((item: { name: string; description: undefined }) => item.name.length > 0)
-              : [])),
+        equipment: (() => {
+          const equip = summaryData?.equipment || formData.equipment;
+          
+          // If already an array, return as-is
+          if (Array.isArray(equip)) {
+            return equip;
+          }
+          
+          // If string, check for "none" patterns
+          if (typeof equip === 'string') {
+            const equipLower = equip.toLowerCase().trim();
+            // Check for "none" patterns - return null to not submit anything
+            if (equipLower === 'none' || 
+                equipLower.includes('no equipment') ||
+                equipLower.includes("don't have") ||
+                equipLower.includes("i don't") ||
+                equipLower === 'n/a') {
+              return undefined;
+            }
+            
+            // Convert comma-separated string to array
+            if (equip.trim().length > 0) {
+              return equip.split(/[,\n;]/)
+                .map((item: string) => item.trim())
+                .filter((item: string) => item.length > 0)
+                .map((item: string) => ({ 
+                  name: item.charAt(0).toUpperCase() + item.slice(1), 
+                  description: undefined 
+                }));
+            }
+          }
+          
+          return [];
+        })(),
         hourlyRate: (() => {
           const rateValue = summaryData?.hourlyRate || formData.hourlyRate || '';
           if (typeof rateValue === 'string') {
@@ -1203,14 +1251,6 @@ export function useOnboardingHandlers({
         experienceYears: experienceYears,
         experienceMonths: experienceMonths
       };
-      
-      // Debug: Log the data being sent
-      console.log('🔍 Profile submission data:', requiredData);
-      console.log('🔍 Profile submission hourlyRate:', requiredData.hourlyRate);
-      console.log('🔍 Summary data received:', summaryData);
-      console.log('🔍 hourlyRate in summaryData:', summaryData?.hourlyRate);
-      console.log('🔍 formData keys:', Object.keys(formData));
-      console.log('🔍 formData hourlyRate:', formData.hourlyRate);
       
       // Use the profile submission utility
       await submitProfileToDatabase(requiredData, user.token, user.uid, setChatSteps, setWorkerProfileId, setError, router, ai);

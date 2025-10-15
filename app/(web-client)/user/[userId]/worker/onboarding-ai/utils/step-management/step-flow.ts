@@ -77,22 +77,30 @@ const specialFields: RequiredField[] = SPECIAL_FIELDS_CONFIG;
 /**
  * Get the next required field that hasn't been filled
  */
-export function getNextRequiredField(formData: FormData, existingProfileData?: any): RequiredField | undefined {
-  // First, find the first required field that hasn't been filled in formData
+export function getNextRequiredField(
+  formData: FormData, 
+  existingProfileData?: any,
+  customRequiredFields?: RequiredField[],
+  customSpecialFields?: RequiredField[]
+): RequiredField | undefined {
+  // Use custom fields if provided, otherwise fall back to default
+  const fieldsToUse = customRequiredFields || requiredFields;
+  const specialFieldsToUse = customSpecialFields || specialFields;
   
-  let nextField = requiredFields.find((f: RequiredField) => !formData[f.name]);
+  // First, find the first required field that hasn't been filled in formData
+  let nextField = fieldsToUse.find((f: RequiredField) => !formData[f.name]);
   
   // Special handling: if qualifications is the next field but user has provided bio with qualifications info,
   // skip to video step to avoid asking for redundant information
   if (nextField?.name === 'qualifications' && formData.about && formData.about.length > 50) {
     // Find the next field after qualifications
-    const qualificationsIndex = requiredFields.findIndex(f => f.name === 'qualifications');
-    nextField = requiredFields[qualificationsIndex + 1];
+    const qualificationsIndex = fieldsToUse.findIndex(f => f.name === 'qualifications');
+    nextField = fieldsToUse[qualificationsIndex + 1];
   }
   
   // If no required field is missing, check special fields
   if (!nextField) {
-    nextField = specialFields.find((f: RequiredField) => !formData[f.name]);
+    nextField = specialFieldsToUse.find((f: RequiredField) => !formData[f.name]);
   }
   
   return nextField;
@@ -101,8 +109,9 @@ export function getNextRequiredField(formData: FormData, existingProfileData?: a
 /**
  * Check if all required fields are completed
  */
-export function areAllRequiredFieldsCompleted(formData: FormData): boolean {
-  const allFieldsCompleted = requiredFields.every(field => {
+export function areAllRequiredFieldsCompleted(formData: FormData, customRequiredFields?: RequiredField[]): boolean {
+  const fieldsToCheck = customRequiredFields || requiredFields;
+  const allFieldsCompleted = fieldsToCheck.every(field => {
     const hasValue = !!formData[field.name];
     return hasValue;
   });
@@ -189,13 +198,15 @@ export async function addNextStepSafely(
   chatSteps: ChatStep[],
   setChatSteps: (steps: ChatStep[] | ((prev: ChatStep[]) => ChatStep[])) => void,
   workerProfileId: string | null,
-  existingProfileData?: any
+  existingProfileData?: any,
+  customRequiredFields?: RequiredField[],
+  customSpecialFields?: RequiredField[]
 ): Promise<void> {
-  const nextField = getNextRequiredField(formData, existingProfileData);
+  const nextField = getNextRequiredField(formData, existingProfileData, customRequiredFields, customSpecialFields);
   
   if (!nextField) {
     // Check if all required fields are completed - if so, show references step
-    if (areAllRequiredFieldsCompleted(formData)) {
+    if (areAllRequiredFieldsCompleted(formData, customRequiredFields)) {
       
       // Use existing worker profile ID
       if (!workerProfileId) {
@@ -549,6 +560,21 @@ Generate a summary:`;
 
     setChatSteps((prev) => {
       const filtered = prev.filter(s => s.type !== 'typing');
+      
+      // For 'about' field (venue experience), only add bot message - use chat input at bottom
+      if (nextField.name === 'about') {
+        return [
+          ...filtered,
+          {
+            id: Date.now() + 2,
+            type: "bot",
+            content: intelligentPrompt,
+            isNew: true,
+          },
+        ];
+      }
+      
+      // For all other fields, add both bot message and input field
       return [
         ...filtered,
         {
