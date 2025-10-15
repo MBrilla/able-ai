@@ -334,6 +334,20 @@
           "handleUserResponseWithIntent"
         ]
       }
+    },
+    "settings-page": {
+      "name": "Settings Page",
+      "description": "Edit settings and details.",
+      "functions": {
+        "fieldsetters": [
+          "setName",
+          "setEmail",
+          "setPhone",
+          "setAddress"
+          
+        ]
+      
+      }
     }
   },
 

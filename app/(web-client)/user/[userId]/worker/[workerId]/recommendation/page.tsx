@@ -9,7 +9,6 @@ import InputField from "@/app/components/form/InputField"; // Reusing shared Inp
 import { Send, Loader2, Star } from "lucide-react"; // Lucide icons
 
 import styles from './RecommendationPage.module.css';
-import { useAuth } from '@/context/AuthContext';
 import ScreenHeaderWithBack from '@/app/components/layout/ScreenHeaderWithBack';
 import { submitRecommendationAction } from '@/actions/user/recommendations';
 
@@ -168,7 +167,7 @@ export default function PublicRecommendationPage() {
   if (isLoadingWorker) {
     return (
       <div className={styles.loadingContainer}>
-        <Loader />
+        <Loader2 />
       </div>
     );
   }

@@ -107,7 +107,8 @@ import { addNextStepSafely } from '../utils/step-management/step-flow';
 import { setBio, setSkillName, setExperience, setWage, setAddress, setAvailability, setEquipment, setQualifications, setVideoIntro } from '../utils/fieldsetters';
 
 // Import database actions
-import { createWorkerProfileAction, saveWorkerProfileFromOnboardingAction, updateVideoUrlProfileAction } from '@/actions/user/gig-worker-profile';
+import { createWorkerProfileAction, saveWorkerProfileFromOnboardingAction } from '@/actions/user/gig-worker-profile';
+import { updateVideoUrlWorkerProfileAction } from '@/actions/user/worker-profile-updates';
 
 // Import profile submission utilities
 import { handleProfileSubmission as submitProfileToDatabase } from '../utils/helpers/profile-submission';
@@ -542,7 +543,7 @@ export function useOnboardingHandlers({
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
             
             // Update video URL in profile
-            await updateVideoUrlProfileAction(downloadURL, user?.token);
+            await updateVideoUrlWorkerProfileAction(downloadURL, user?.token);
             
             // Update form data
             const updatedFormData = { ...formData, videoIntro: downloadURL };

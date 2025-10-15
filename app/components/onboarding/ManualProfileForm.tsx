@@ -19,15 +19,6 @@ import { Schema } from '@firebase/ai';
 import { parseExperienceToNumeric } from '@/lib/utils/experienceParsing';
 
 function buildRecommendationLink(workerProfileId: string | null): string {
-  const origin = window.location.origin ?? 'http://localhost:3000';
-  
-  if (!workerProfileId) {
-    throw new Error('Worker profile ID is required to build recommendation link');
-  }
-  return result;
-}
-
-function buildRecommendationLink(workerProfileId: string | null): string {
   const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:3000';
   
   if (!workerProfileId) {
