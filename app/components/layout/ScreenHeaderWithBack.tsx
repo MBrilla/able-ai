@@ -8,6 +8,8 @@ import { usePathname } from 'next/navigation';
 import Notification from '../shared/Notification';
 import Image from 'next/image';
 import { detectPageContext, getContextForURL } from '@/lib/context-detection';
+import { useRouter } from 'next/navigation';
+import { getLastRoleUsed } from '@/lib/last-role-used';
 
 
 
@@ -75,37 +77,6 @@ const ScreenHeaderWithBack: React.FC<ScreenHeaderWithBackProps> = (props) => {
     return baseUrl;
   };
 
-  // Generate context-aware chat URL
-  const getChatUrl = () => {
-    if (!user?.uid) return '#';
-    
-    const baseUrl = `/user/${user.uid}/able-ai`;
-    
-    // Don't add context if already on chat page
-    if (isChatPage) return baseUrl;
-    
-    // Detect current page context
-    const context = detectPageContext(route);
-    
-    // Use simplified context parameter
-    if (context.contextId) {
-      const contextParams = getContextForURL(context);
-      const queryParams = new URLSearchParams();
-      
-      // Add context ID
-      queryParams.set('context', context.contextId);
-      
-      // Add gigId if present
-      if (contextParams.gigId) {
-        queryParams.set('gigId', contextParams.gigId);
-      }
-      
-      return `${baseUrl}?${queryParams.toString()}`;
-    }
-    
-    return baseUrl;
-  };
-
   const handleBackClick = () => {
     if (onBackClick) {
       onBackClick();
@@ -141,7 +112,7 @@ const ScreenHeaderWithBack: React.FC<ScreenHeaderWithBackProps> = (props) => {
   };
 
   // Detect current page context and create chat URL with context
-  const pageContext = detectPageContext(route);
+  const pageContext = detectPageContext(pathname);
   const contextParams = getContextForURL(pageContext);
   const chatUrl = `/user/${user?.uid}/able-ai?${new URLSearchParams(contextParams).toString()}`;
 

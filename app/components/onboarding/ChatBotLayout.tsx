@@ -19,14 +19,22 @@ interface ChatBotLayoutProps {
 }
 
 const ChatBotLayout = React.forwardRef<HTMLDivElement, ChatBotLayoutProps>(
-  ({ children, onScroll, className, onHomeClick, onSendMessage, role = 'GIG_WORKER', showChatInput = false, disableChatInput = false, showOnboardingOptions = false, onSwitchToManual, onChangeSetupMethod }, ref) => {
-
-    const router = useRouter();
-    const { user } = useAuth();
-    const onHomeClickInternal = () => {
-      router.push(`/user/${user?.uid}/worker`);
-    }
-
+  (
+    {
+      children,
+      onScroll,
+      className,
+      // onHomeClick,
+      onSendMessage,
+      role = "GIG_WORKER",
+      showChatInput = false,
+      disableChatInput = false,
+      showOnboardingOptions = false,
+      onSwitchToManual,
+      onChangeSetupMethod,
+    },
+    ref
+  ) => {
     const handleSendMessage = (message: string) => {
       if (onSendMessage) {
         onSendMessage(message);

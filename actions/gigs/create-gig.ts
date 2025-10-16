@@ -12,7 +12,7 @@ type CreateGigInput = {
   gigLocation?: string | { lat?: number; lng?: number; formatted_address?: string; address?: string; [key: string]: any };
   gigDate: string; // YYYY-MM-DD
   gigTime?: string; // HH:mm (24h) or time range like "12:00-14:30"
-  promoCode?: string; // Promo/discount code
+  discountCode?: string;
 };
 
 type CreateGigResult = {
@@ -195,29 +195,14 @@ export async function createGig(input: CreateGigInput): Promise<CreateGigResult>
         .values(insertData)
         .returning({ id: GigsTable.id });
 
-    try {
-      const [inserted] = await db
-        .insert(GigsTable)
-        .values(insertData)
-        .returning({ id: GigsTable.id });
-
-      console.log('CreateGig debug - inserted result:', inserted);
-
       if (!inserted?.id) return { status: 500, error: "Failed to create gig" };
 
       return { status: 200, gigId: inserted.id };
     } catch (dbError: any) {
       console.error('CreateGig database error:', dbError);
-      console.error('CreateGig database error details:', {
-        message: dbError.message,
-        code: dbError.code,
-        detail: dbError.detail,
-        hint: dbError.hint,
-        constraint: dbError.constraint
-      });
       return { status: 500, error: `Database error: ${dbError.message}` };
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating gig:", error);
     return {
       status: 500,

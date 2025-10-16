@@ -74,8 +74,8 @@ export async function validateUserInput(
     };
   }
   
-  // 2. INAPPROPRIATE CONTENT CHECK (AI-powered)
-  const inappropriateCheck = await checkInappropriateContent(input, aiService);
+  // 2. INAPPROPRIATE CONTENT CHECK
+  const inappropriateCheck = checkInappropriateContent(input);
   if (!inappropriateCheck.isAppropriate) {
     return {
       isValid: false,
@@ -190,99 +190,89 @@ export async function validateUserInput(
 }
 
 /**
- * Check for inappropriate content using AI
+ * Check for inappropriate content
  */
-async function checkInappropriateContent(content: string, aiService?: any): Promise<{
+function checkInappropriateContent(content: string): {
   isAppropriate: boolean;
   severity: 'low' | 'medium' | 'high' | 'critical';
   message?: string;
   categories: string[];
-}> {
-  // Use AI to detect inappropriate content with context awareness
-  const prompt = `Analyze this user input for inappropriate content in a professional worker profile context:
-
-"${content}"
-
-Check for:
-1. Profanity or vulgar language (including creative misspellings like "assburgers", "fck", etc.)
-2. Racial slurs or discriminatory language
-3. Sexual or explicit content
-4. Violence or threats
-5. Self-harm references
-6. Substance abuse glorification
-7. Hate speech or harassment
-
-IMPORTANT: Be context-aware. Some words may be acceptable in certain contexts:
-- "Mixers" (baking equipment) is fine
-- "Ass" in "Asperger's" is fine (legitimate medical term)
-- "Donkey" or "jackass" (animal) is fine
-- Industry jargon is fine
-
-Respond with JSON:
-{
-  "isAppropriate": boolean,
-  "severity": "low" | "medium" | "high" | "critical",
-  "categories": ["profanity", "racialSlurs", etc.],
-  "reason": "Brief explanation"
-}`;
-
-  try {
-    const response = await geminiAIAgent(
-      "gemini-2.0-flash",
-      {
-        prompt: prompt,
-        responseSchema: TypedSchema.object({
-          properties: {
-            isAppropriate: TypedSchema.boolean(),
-            severity: TypedSchema.string(),
-            categories: TypedSchema.array({
-              items: TypedSchema.string()
-            }),
-            reason: TypedSchema.string()
-          }
-        }),
-        isStream: false,
-      },
-      aiService
-    );
-
-    if (response.ok && response.data) {
-      const result = response.data as any;
-      
-      let message = '';
-      if (!result.isAppropriate) {
-        switch (result.severity) {
-          case 'critical':
-            message = 'This content contains inappropriate material that violates our community guidelines. Please provide professional information instead.';
-            break;
-          case 'high':
-            message = 'Please keep your response professional and appropriate for a work environment.';
-            break;
-          case 'medium':
-            message = 'Let\'s keep this professional. Please rephrase your response without inappropriate language.';
-            break;
-          default:
-            message = result.reason;
-        }
-      }
-      
-      return {
-        isAppropriate: result.isAppropriate,
-        severity: result.severity || 'low',
-        message,
-        categories: result.categories || []
-      };
+} {
+  const lowerContent = content.toLowerCase();
+  
+  // Define inappropriate content categories with severity levels
+  const inappropriatePatterns = {
+    profanity: {
+      severity: 'medium' as const,
+      patterns: ['fuck', 'shit', 'damn', 'bitch', 'asshole', 'crap', 'piss', 'hell', 'bloody', 'bugger', 'sod', 'twat', 'wanker']
+    },
+    violence: {
+      severity: 'high' as const,
+      patterns: ['kill', 'murder', 'violence', 'attack', 'hurt', 'harm', 'fight', 'beat', 'stab', 'shoot', 'bomb', 'threat', 'danger']
+    },
+    sexual: {
+      severity: 'high' as const,
+      patterns: ['sex', 'porn', 'nude', 'naked', 'sexual', 'intimate', 'adult', 'fetish', 'kink', 'orgasm', 'masturbat']
+    },
+    selfHarm: {
+      severity: 'critical' as const,
+      patterns: ['suicide', 'kill myself', 'end my life', 'self harm', 'cut myself', 'hurt myself', 'depression', 'anxiety', 'mental health']
+    },
+    substances: {
+      severity: 'medium' as const,
+      patterns: ['drug', 'alcohol', 'drunk', 'high', 'cocaine', 'heroin', 'marijuana', 'weed', 'cannabis', 'alcohol', 'beer', 'wine', 'drinking']
+    },
+    discrimination: {
+      severity: 'critical' as const,
+      patterns: ['hate', 'racist', 'sexist', 'homophobic', 'transphobic', 'discriminat', 'prejudice', 'bias', 'stereotype', 'offensive']
     }
-  } catch (error) {
-    // AI failed silently
+  };
+  
+  const detectedCategories: string[] = [];
+  let maxSeverity: 'low' | 'medium' | 'high' | 'critical' = 'low';
+  
+  // Check each category
+  for (const [category, config] of Object.entries(inappropriatePatterns)) {
+    const hasMatch = config.patterns.some(pattern => lowerContent.includes(pattern));
+    if (hasMatch) {
+      detectedCategories.push(category);
+      if (config.severity === 'critical' || 
+          (config.severity === 'high' && maxSeverity !== 'critical') ||
+          (config.severity === 'medium' && maxSeverity === 'low')) {
+        maxSeverity = config.severity;
+      }
+    }
   }
   
-  // AI failed - assume appropriate (fully AI-powered, no fallback)
+  if (detectedCategories.length === 0) {
+    return {
+      isAppropriate: true,
+      severity: 'low',
+      categories: []
+    };
+  }
+  
+  // Generate appropriate error message based on severity
+  let message = '';
+  switch (maxSeverity) {
+    case 'critical':
+      message = 'This content contains inappropriate material that violates our community guidelines. Please provide professional information instead.';
+      break;
+    case 'high':
+      message = 'Please keep your response professional and appropriate for a work environment.';
+      break;
+    case 'medium':
+      message = 'Please use professional language when describing your skills and experience.';
+      break;
+    default:
+      message = 'Please provide a more professional response.';
+  }
+  
   return {
-    isAppropriate: true,
-    severity: 'low',
-    message: '',
-    categories: []
+    isAppropriate: false,
+    severity: maxSeverity,
+    message,
+    categories: detectedCategories
   };
 }
 
@@ -457,6 +447,7 @@ Respond with JSON:
       reason: data.reason || 'AI analysis completed'
     };
   } catch (error) {
+    console.error('AI relevance check failed:', error);
     // Fallback to accepting the input
     return {
       isRelevant: true,
@@ -541,6 +532,7 @@ Respond with JSON:
       suggestedAction: validActions.includes(result.suggestedAction) ? result.suggestedAction : 'retry'
     };
   } catch (error) {
+    console.error('AI validation error:', error);
     return {
       isValid: true,
       isHelpRequest: false,

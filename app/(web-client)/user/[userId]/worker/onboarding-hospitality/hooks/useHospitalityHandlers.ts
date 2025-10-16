@@ -37,7 +37,7 @@ import { saveWorkerProfileFromOnboardingAction } from '@/actions/user/gig-worker
 // Import Firebase storage for video uploads
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { firebaseApp } from "@/lib/firebase/clientApp";
-import { updateVideoUrlProfileAction } from '@/actions/user/gig-worker-profile';
+import { updateVideoUrlWorkerProfileAction } from '@/actions/user/gig-worker-profile';
 
 export interface HospitalityFormData {
   mainSkill?: string;
@@ -236,7 +236,7 @@ export function useHospitalityHandlers({
             if (!user?.token) {
               throw new Error("Authentication token is required");
             }
-            await updateVideoUrlProfileAction(downloadURL, user.token);
+            await updateVideoUrlWorkerProfileAction(downloadURL, user.token);
             
             // Update form data
             const updatedFormData = { ...formData, videoIntro: downloadURL };

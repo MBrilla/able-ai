@@ -107,8 +107,7 @@ import { addNextStepSafely } from '../utils/step-management/step-flow';
 import { setBio, setSkillName, setExperience, setWage, setAddress, setAvailability, setEquipment, setQualifications, setVideoIntro } from '../utils/fieldsetters';
 
 // Import database actions
-import { createWorkerProfileAction, saveWorkerProfileFromOnboardingAction } from '@/actions/user/gig-worker-profile';
-import { updateVideoUrlWorkerProfileAction } from '@/actions/user/worker-profile-updates';
+import { createWorkerProfileAction, saveWorkerProfileFromOnboardingAction, updateVideoUrlWorkerProfileAction } from '@/actions/user/gig-worker-profile';
 
 // Import profile submission utilities
 import { handleProfileSubmission as submitProfileToDatabase } from '../utils/helpers/profile-submission';

@@ -249,19 +249,20 @@ const SkillSplashScreen = ({
         </div>
 
         {/* Hashtags */}
-        {profile.hashtags && profile.hashtags.length > 0 && (
+        {skill.hashtags && skill.hashtags.length > 0 && (
           <div className={styles.hashtags}>
-            {profile.hashtags.map((tag, index) => (
-              <span key={index} className={styles.hashtag}>{tag}</span>
+            {skill.hashtags.map((tag, index) => (
+              <span key={index} className={styles.hashtag}>
+                {tag}
+              </span>
             ))}
+            <button
+              className={styles.editHashtagsBtn}
+              onClick={() => setShowHashtagsModal(true)}
+            >
+              <Pencil size={18} />
+            </button>
           </div>
-        )}
-
-        {/* Customer reviews */}
-        {profile.customerReviewsText && (
-          <p className={styles.review}>
-            Customer reviews: {profile.customerReviewsText}
-          </p>
         )}
 
         <table className={styles.skillDisplayTable}>

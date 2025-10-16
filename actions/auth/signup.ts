@@ -8,7 +8,7 @@ type RegisterUserData = {
   email: string;
   password: string;
   name: string;
-  phone: string;
+  phone: string | null;
 };
 
 export async function registerUserAction(data: RegisterUserData) {

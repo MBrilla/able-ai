@@ -36,51 +36,118 @@ export async function updateGigOfferStatus({
   isViewQA?: boolean;
 }) {
   try {
-    console.log('🔍 DEBUG: updateGigOfferStatus called with:', { gigId, userId, role, action });
-    
     const user = await db.query.UsersTable.findFirst({
       where: eq(UsersTable.firebaseUid, userUid),
       columns: {
         id: true,
         firebaseUid: true,
         fullName: true,
-      }
+      },
     });
-
-    console.log('🔍 DEBUG: User lookup result:', { found: !!user, userId: user?.id, firebaseUid: user?.firebaseUid, fullName: user?.fullName });
 
     if (!user) {
       return { success: false, error: "User is not found", status: 404 };
     }
 
     const newStatus = getNewStatus(action, role);
-    
-    if (action === 'accept' && role === 'worker') {
-      // For accepting offers, assign the worker to the gig and update status
-      console.log('🔍 DEBUG: Accepting gig offer - assigning worker to gig');
-      await db.update(GigsTable)
-        .set({ 
+
+    const validateGigNotExpired = async () => {
+      const gig = await db.query.GigsTable.findFirst({
+        where: eq(GigsTable.id, gigId),
+        columns: {
+          id: true,
+          expiresAt: true,
+          statusInternal: true,
+        },
+        with: {
+          buyer: {
+            columns: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          worker: {
+            columns: {
+              id: true,
+              fullName: true,
+            },
+          },
+        },
+      });
+
+      if (!gig) {
+        throw new Error("Gig not found");
+      }
+
+      if (gig.expiresAt && new Date(gig.expiresAt) <= new Date()) {
+        throw new Error("Gig has expired");
+      }
+
+      return gig;
+    };
+
+    if (action === "accept" && role === "worker") {
+      await validateGigNotExpired();
+
+      await db
+        .update(GigsTable)
+        .set({
           statusInternal: newStatus,
           workerUserId: user.id,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .where(eq(GigsTable.id, gigId));
-      console.log('🔍 DEBUG: Gig offer accepted successfully');
-    } else if (action === 'cancel' && role === 'worker') {
-      // For declining, we just update the status without requiring worker assignment
-      console.log('🔍 DEBUG: Cancelling gig offer');
-      await db.update(GigsTable)
+    } else if (action === "cancel" && role === "worker") {
+      const result = await validateGigNotExpired();
+
+      await db
+        .update(GigsTable)
         .set({ statusInternal: newStatus })
         .where(eq(GigsTable.id, gigId));
-      console.log('🔍 DEBUG: Gig offer cancelled successfully');
-    } else {
-      // For other actions, use the original logic
-      console.log('🔍 DEBUG: Updating gig status for other action');
-      const gigUserIdCondition = role === 'buyer' ? GigsTable.buyerUserId : GigsTable.workerUserId;
-      await db.update(GigsTable)
+
+      const message: admin.messaging.Message = {
+        notification: {
+          title: `Gig Cancelled by Worker: ${result.worker?.fullName}`,
+          body: `The worker has cancelled the gig.`,
+        },
+        android: {
+          priority: "high",
+        },
+        webpush: {
+          headers: {
+            Urgency: "high",
+          },
+          notification: {
+            click_action: `/buyer/gigs/${gigId}`,
+          },
+        },
+        data: {
+          gigId,
+          type: "GIG_CANCELLED_BY_WORKER",
+        },
+        topic: result.buyer.id,
+      };
+
+      await admin.messaging().send(message);
+    } else if (action === "complete") {
+      await validateGigNotExpired();
+
+      const gigUserIdCondition =
+        role === "buyer" ? GigsTable.buyerUserId : GigsTable.workerUserId;
+
+      await db
+        .update(GigsTable)
         .set({ statusInternal: newStatus })
         .where(and(eq(GigsTable.id, gigId), eq(gigUserIdCondition, user.id)));
-      console.log('🔍 DEBUG: Gig status updated successfully');
+    } else {
+      const gigUserIdCondition =
+        role === "buyer" ? GigsTable.buyerUserId : GigsTable.workerUserId;
+
+      await db
+        .update(GigsTable)
+        .set({ statusInternal: newStatus })
+        .where(and(eq(GigsTable.id, gigId), eq(gigUserIdCondition, user.id)));
     }
 
     return { success: true, status: 200 };

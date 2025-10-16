@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/drizzle/db";
 import { UsersTable, GigsTable } from "@/lib/drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { isUserAuthenticated } from "@/lib/user.server";
 import { ERROR_CODES } from "@/lib/responses/errors";
 import { createNotificationAction } from "@/actions/notifications/notifications";
@@ -58,7 +58,7 @@ export async function delegateGigToWorker(
     }
 
     // Check if gig is in a state that allows delegation
-    const allowedStatuses = ['PENDING_WORKER_ACCEPTANCE', 'ACCEPTED', 'IN_PROGRESS'];
+    const allowedStatuses = ['PENDING_WORKER_ACCEPTANCE', 'ACCEPTED', 'IN_PROGRESS', "DECLINED_BY_WORKER"];
     if (!allowedStatuses.includes(gig.statusInternal)) {
       return { 
         error: `Cannot delegate gig with status: ${gig.statusInternal}`, 
@@ -175,11 +175,13 @@ export async function delegateGigToWorker(
       }
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error delegating gig:', error);
-    return { 
-      error: error.message || 'Failed to delegate gig', 
-      status: 500 
+    return {
+      error: (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string')
+        ? error.message
+        : 'Failed to delegate gig',
+      status: 500
     };
   }
 }

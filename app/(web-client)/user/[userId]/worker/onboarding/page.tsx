@@ -93,6 +93,7 @@ import {
 import { firebaseApp } from "@/lib/firebase/clientApp";
 import { saveWorkerProfileFromOnboardingAction } from "@/actions/user/gig-worker-profile";
 import { parseExperienceToNumeric } from "@/lib/utils/experienceParsing";
+import { toast } from "sonner";
 
 // AI Video Script Generation Function (from onboarding-ai)
 async function generateAIVideoScript(formData: FormData, ai: any): Promise<string> {
@@ -1048,11 +1049,6 @@ Tell me about your primary role!`;
     // Extract job title and experience
     const [standardizedTitle, needsConfirmation] = jobTitleMapper.standardizeTitle(input);
     
-    // Debug logging
-    console.log('Input:', input);
-    console.log('Standardized title:', standardizedTitle);
-    console.log('Needs confirmation:', needsConfirmation);
-    
     // Extract years of experience
     const experienceMatch = input.match(/(\d+)\s*(?:years?|yrs?)/i);
     const yearsExperience = experienceMatch ? parseInt(experienceMatch[1]) : 0;
@@ -1522,70 +1518,77 @@ It's completely fine if you don't - most venues provide what's needed!`;
   };
 
   // Handle video upload
-  const handleVideoUpload = async (file: File, fieldName?: string, stepId?: number) => {
-    try {
-      setIsProcessing(true);
-      setError(null);
+const handleVideoUpload = async (file: File, fieldName?: string, stepId?: number) => {
+  const toastId = toast.loading("Uploading video...");
 
-      const storage = getStorage(firebaseApp);
-      const videoRef = storageRef(storage, `workers/${user?.uid}/introVideo/${Date.now()}-${file.name}`);
-      
-      const uploadTask = uploadBytesResumable(videoRef, file);
-      
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          // Progress tracking
-        },
-        (error) => {
-          console.error('Upload error:', error);
-          setError('Failed to upload video. Please try again.');
-        },
-        async () => {
-          try {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            
-            // Update form data with video URL
-            setFormData(prev => ({
-              ...prev,
-              videoIntro: downloadURL
-            }));
+  try {
+    setIsProcessing(true);
+    setError(null);
 
-            // Update the video step
-            setChatSteps(prev => prev.map(step => 
-              step.id === stepId 
+    const storage = getStorage(firebaseApp);
+    const videoRef = storageRef(storage, `workers/${user?.uid}/introVideo/${Date.now()}-${file.name}`);
+    const uploadTask = uploadBytesResumable(videoRef, file);
+
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        toast.loading(`Uploading: ${Math.round(progress)}%`, {
+          id: toastId,
+        });
+      },
+      (error) => {
+        console.error("Upload error:", error);
+        setError("Failed to upload video. Please try again.");
+        toast.error("Video upload failed. Please try again.", { id: toastId });
+      },
+      async () => {
+        try {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+
+          // Actualizar form data
+          setFormData((prev) => ({
+            ...prev,
+            videoIntro: downloadURL,
+          }));
+
+          setChatSteps((prev) =>
+            prev.map((step) =>
+              step.id === stepId
                 ? { ...step, isComplete: true, sanitizedValue: downloadURL }
                 : step
-            ));
+            )
+          );
 
-            // Show completion message and finalize profile
-            const completionStep: ChatStep = {
-              id: currentStepId,
-              type: "bot",
-              content: "Perfect! Your video has been uploaded successfully. Now let's complete your profile!",
-              isNew: true
-            };
+          const completionStep: ChatStep = {
+            id: currentStepId,
+            type: "bot",
+            content:
+              "Perfect! Your video has been uploaded successfully. Now let's complete your profile!",
+            isNew: true,
+          };
 
-            setChatSteps(prev => [...prev, completionStep]);
-            setCurrentStepId(prev => prev + 1);
+          setChatSteps((prev) => [...prev, completionStep]);
+          setCurrentStepId((prev) => prev + 1);
 
-            // Finalize profile after video upload
-            await finalizeProfile();
+          await finalizeProfile();
 
-          } catch (error) {
-            console.error('Error getting download URL:', error);
-            setError('Failed to process video. Please try again.');
-          }
+          toast.success("Video uploaded successfully!", { id: toastId });
+        } catch (error) {
+          console.error("Error getting download URL:", error);
+          setError("Failed to process video. Please try again.");
+          toast.error("Failed to process video. Please try again.", { id: toastId });
+        } finally {
+          setIsProcessing(false);
         }
-      );
-
-    } catch (error) {
-      console.error('Error uploading video:', error);
-      setError('Failed to upload video. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
+      }
+    );
+  } catch (error) {
+    console.error("Error uploading video:", error);
+    setError("Failed to upload video. Please try again.");
+    toast.error("Unexpected error during upload.", { id: toastId });
+  }
+};
   // Finalize profile creation
   const finalizeProfile = async () => {
     try {
@@ -1593,9 +1596,7 @@ It's completely fine if you don't - most venues provide what's needed!`;
       setError(null);
 
       // Parse experience to get numeric values
-      console.log('📊 Parsing experience:', formData.experience);
       const { years: experienceYears, months: experienceMonths } = parseExperienceToNumeric(formData.experience || '');
-      console.log('📊 Parsed experience:', { years: experienceYears, months: experienceMonths });
 
       const requiredData = {
         about: formData.about || formData.experienceDetails || '',
@@ -1622,31 +1623,21 @@ It's completely fine if you don't - most venues provide what's needed!`;
         experienceMonths: experienceMonths
         // hashtags are auto-generated on the server side
       };
-
-      // Save the profile data to database
-      console.log('💾 Attempting to save profile with data:', requiredData);
-      console.log('💾 User UID:', user?.uid);
       
       if (!user?.uid) {
         throw new Error('User not authenticated');
       }
       
-      // Generate hashtags before saving
-      console.log('🏷️ Generating hashtags...');
+
       const hashtags = await generateHashtags(requiredData, ai);
-      console.log('🏷️ Generated hashtags:', hashtags);
-      
+
       // Add hashtags to the data
       const dataWithHashtags = {
         ...requiredData,
         hashtags: hashtags
       };
 
-      console.log('🚀 Calling saveWorkerProfileFromOnboardingAction...');
       const result = await saveWorkerProfileFromOnboardingAction(dataWithHashtags, user.uid);
-      console.log('💾 Profile save result:', result);
-      console.log('💾 Result type:', typeof result);
-      console.log('💾 Result keys:', Object.keys(result));
       
       if (result.success && result.data) {
         console.log('✅ Profile saved successfully, workerProfileId:', result.data);

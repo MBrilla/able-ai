@@ -22,7 +22,6 @@ import {
 } from "@/actions/gigs/get-worker-offers";
 import { acceptGigOffer } from "@/actions/gigs/accept-gig-offer";
 import { declineGigOffer } from "@/actions/gigs/decline-gig-offer";
-import { getWorkerProfileIdFromFirebaseUid } from "@/actions/user/get-worker-user";
 
 type GigOffer = WorkerGigOffer;
 
@@ -68,28 +67,6 @@ export default function WorkerOffersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [workerProfileId, setWorkerProfileId] = useState<string | null>(null);
   const uid = authUserId;
-
-  // Fetch worker profile ID when component mounts
-  useEffect(() => {
-    const fetchWorkerProfileId = async () => {
-      if (!uid) return;
-      
-      try {
-        const result = await getWorkerProfileIdFromFirebaseUid(uid);
-        if (result.success && result.data) {
-          setWorkerProfileId(result.data);
-        } else {
-          console.error("Failed to get worker profile ID:", result.error);
-        }
-      } catch (error) {
-        console.error("Error fetching worker profile ID:", error);
-      }
-    };
-
-    fetchWorkerProfileId();
-  }, [uid]);
-
-  
 
   // Fetch worker data (offers and accepted gigs)
   useEffect(() => {
@@ -196,12 +173,13 @@ export default function WorkerOffersPage() {
     }
   };
 
-  const handleViewDetails = (offerId: string) => {
-    const offer = offers.find(o => o.id === offerId);
-    if (offer && workerProfileId) {
-      setSelectedGig(offer);
-      router.push(`/user/${workerProfileId}/worker/gigs/${offerId}`);
-      // setIsModalOpen(true);
+  const handleViewDetails = (gigId: string) => {
+    const gig =
+      offers.find((o) => o.id === gigId) ||
+      acceptedGigs.find((g) => g.id === gigId);
+    if (gig && workerProfileId) {
+      setSelectedGig(gig);
+      router.push(`/user/${workerProfileId}/worker/gigs/${gigId}`);
     } else if (!workerProfileId) {
       console.error("Worker profile ID not available yet");
     }
@@ -232,8 +210,8 @@ export default function WorkerOffersPage() {
 
   return (
     <div className={styles.container}>
-      <ScreenHeaderWithBack title="Gig Offers" onBackClick={() => router.back()} />
-    
+      <ScreenHeaderWithBack title="Gig Offers" />
+
       <div className={styles.pageWrapper}>
         {isLoadingData ? (
           <div className={styles.loadingContainer}>

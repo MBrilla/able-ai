@@ -148,7 +148,7 @@ Respond with JSON only:`;
         isStream: false,
       },
       ai,
-      "gemini-2.5-flash"
+      "gemini-2.5-flash-preview-05-20"
     );
 
     if (result.ok) {

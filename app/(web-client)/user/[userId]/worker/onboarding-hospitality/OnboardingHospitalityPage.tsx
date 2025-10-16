@@ -365,6 +365,8 @@ export default function OnboardingHospitalityPage() {
 
   // Use the standard handlers for video and profile submission
   const handleVideoUpload = handlers.handleVideoUpload;
+  
+  // ... rest of the code remains the same ...
   // Wrap handleInputSubmit to show thinking message during validation
   const handleInputSubmit = useCallback(async (stepId: number, inputName: string, inputValue?: string): Promise<boolean> => {
     // Show thinking message while AI validates/checks existing skills
